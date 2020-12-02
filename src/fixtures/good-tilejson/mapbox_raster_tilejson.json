@@ -1,0 +1,30 @@
+{
+  "attribution": "",
+  "bounds": [-180, -85.05112877980659, 180, 85.05112877980659],
+  "center": [0, 0, 4],
+  "created": 1345755770000,
+  "description": "One of the example maps that comes with TileMill - a bright & colorful world map that blends retro and high-tech with its folded paper texture and interactive flag tooltips. ",
+  "download": "http://a.tiles.mapbox.com/v3/aj.1x1-degrees.mbtiles",
+  "embed": "http://a.tiles.mapbox.com/v3/aj.1x1-degrees.html",
+  "filesize": 134727680,
+  "grids": [
+    "http://a.tiles.mapbox.com/v3/aj.1x1-degrees/{z}/{x}/{y}.grid.json",
+    "http://b.tiles.mapbox.com/v3/aj.1x1-degrees/{z}/{x}/{y}.grid.json"
+  ],
+  "id": "aj.1x1-degrees",
+  "mapbox_logo": true,
+  "maxzoom": 8,
+  "minzoom": 0,
+  "name": "Geography Class",
+  "private": false,
+  "scheme": "xyz",
+  "template": "{{#__location__}}{{/__location__}}{{#__teaser__}}<div style=\"text-align:center;\">\n\n<img src=\"data:image/png;base64,{{flag_png}}\" style=\"-moz-box-shadow:0px 1px 3px #222;-webkit-box-shadow:0px 1px 5px #222;box-shadow:0px 1px 3px #222;\"><br>\n<strong>{{admin}}</strong>\n\n</div>{{/__teaser__}}{{#__full__}}{{/__full__}}",
+  "tilejson": "2.2.0",
+  "format": "png",
+  "tiles": [
+    "http://a.tiles.mapbox.com/v3/aj.1x1-degrees/{z}/{x}/{y}.png",
+    "http://b.tiles.mapbox.com/v3/aj.1x1-degrees/{z}/{x}/{y}.png"
+  ],
+  "version": "1.0.0",
+  "webpage": "http://a.tiles.mapbox.com/v3/aj.1x1-degrees/page.html"
+}

@@ -1,0 +1,5 @@
+{
+  "tilejson": "2.2.0",
+  "format": "png",
+  "tiles": ["http://mapbox."]
+}

@@ -1,0 +1,5 @@
+{
+  "tilejson": "2.2.0",
+  "format": "png",
+  "tiles": ["http:/a.tiles.mapbox.com/v3/aj.1x1-degrees/{z}/{x}/{y}.png"]
+}

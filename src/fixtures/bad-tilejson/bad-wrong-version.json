@@ -1,0 +1,6 @@
+{
+  "tilejson": "1",
+  "tiles": [
+    "http://localhost:8888/admin/1.0.0/world-light,broadband/{z}/{x}/{y}.png"
+  ]
+}

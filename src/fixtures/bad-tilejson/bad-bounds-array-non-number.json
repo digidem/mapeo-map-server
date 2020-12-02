@@ -1,0 +1,7 @@
+{
+  "tilejson": "2.2.0",
+  "tiles": [
+    "http://localhost:8888/admin/1.0.0/world-light,broadband/{z}/{x}/{y}.png"
+  ],
+  "bounds": [ -76.275329586789, 39.153492567373, 8, "wrong" ]
+}

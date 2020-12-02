@@ -1,0 +1,22 @@
+{
+  "tilejson": "2.2.0",
+  "name": "compositing",
+  "description": "A simple, light grey world.",
+  "version": "1.0.0",
+  "attribution": "<a href='http://openstreetmap.org'>OSM contributors</a>",
+  "template": "{{#__teaser__}}{{NAME}}{{/__teaser__}}",
+  "legend": "Dangerous zones are red, safe zones are green",
+  "scheme": "xyz",
+  "format": "png",
+  "tiles": [
+    "http://localhost:8888/admin/1.0.0/world-light,broadband/{z}/{x}/{y}.png"
+  ],
+  "grids": [
+    "http://localhost:8888/admin/1.0.0/broadband/{z}/{x}/{y}.grid.json"
+  ],
+  "data": ["http://localhost:8888/admin/data.geojson"],
+  "minzoom": 0,
+  "maxzoom": 11,
+  "bounds": [-180, -85.05112877980659, 180, 85.0511287798066],
+  "center": [-76.275329586789, 39.153492567373, 8]
+}

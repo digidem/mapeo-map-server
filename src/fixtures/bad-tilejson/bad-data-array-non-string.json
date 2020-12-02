@@ -1,0 +1,7 @@
+{
+  "tilejson": "2.2.0",
+  "tiles": [
+    "http://localhost:8888/admin/1.0.0/world-light,broadband/{z}/{x}/{y}.png"
+  ],
+  "data": [1]
+}
