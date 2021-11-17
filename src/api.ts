@@ -30,7 +30,7 @@ const NotFoundError = createError(
 )
 
 const AlreadyExistsError = createError(
-  'FST_RESOUCE_EXISTS',
+  'FST_RESOURCE_EXISTS',
   'Resource with id `%s` already exists',
   409
 )
