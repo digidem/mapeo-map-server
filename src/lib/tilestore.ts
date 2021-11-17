@@ -10,6 +10,7 @@ import omit from 'lodash/omit'
 
 import SWRCache from './swr_cache'
 import { TileJSON } from './tilejson'
+import { hash, generateId, encodeBase32 } from './utils'
 
 type Mode = 'ro' | 'rw' | 'rwc'
 
@@ -194,4 +195,15 @@ function isStringArray(value: unknown): value is string[] {
     value.length > 0 &&
     value.every((d) => typeof d === 'string')
   )
+}
+
+/**
+ * Generate an idempotent unique id for a given tilejson. Not all tilejson has
+ * an id field, so we use the tile URL as an identifier (assumes two tilejsons
+ * refering to the same tile URL are the same)
+ */
+export function getTilesetId(tilejson: TileJSON): string {
+  // If the tilejson has no id, use the tile URL as the id
+  const id = tilejson.id || tilejson.tiles.sort()[0]
+  return encodeBase32(hash(id))
 }
