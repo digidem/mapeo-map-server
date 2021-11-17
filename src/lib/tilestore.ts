@@ -97,7 +97,6 @@ class Tilestore {
    * Get the upstream tile URL for a particular tile
    */
   async getTileUrl(z: number, x: number, y: number): Promise<string | void> {
-    console.log(await this.#metadata)
     // TODO: Support {ratio} in template URLs, not used in mapbox-gl-js, only in
     // the mobile SDKs
     const ratio = ''

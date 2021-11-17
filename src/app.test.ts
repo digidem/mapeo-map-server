@@ -3,6 +3,7 @@ import tmp from 'tmp'
 
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
+import { getTilesetId } from './lib/tilestore'
 
 tmp.setGracefulCleanup()
 
@@ -32,10 +33,19 @@ test('GET /tilesets (empty)', async (t) => {
 test('POST /tilesets', async (t) => {
   const { app } = t.context
 
+  // @ts-ignore
+  const expectedId = getTilesetId(mapboxRasterTilejson)
+  const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
+  const expectedResponse = {
+    ...mapboxRasterTilejson,
+    id: expectedId,
+    tiles: [expectedTileUrl],
+  }
+
   const response = await app.inject({
     method: 'POST',
     url: '/tilesets',
     payload: mapboxRasterTilejson,
   })
-  t.deepEqual(response.json(), mapboxRasterTilejson)
+  t.deepEqual(response.json(), expectedResponse)
 })
