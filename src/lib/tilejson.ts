@@ -14,13 +14,13 @@ const ajv = new Ajv({
   removeAdditional: false,
   useDefaults: true,
   coerceTypes: true,
-  nullable: true,
-  format: 'full',
   formats: {
     // Less strict uri validator, since strictly uris cannot have {z},{x},{y}
     uri: isUrl,
   },
 })
+
+ajv.addKeyword('kind').addKeyword('modifier')
 
 const VectorLayerSchema = T.Object({
   id: T.String(),
@@ -94,6 +94,7 @@ export const TileJSONSchema: JSONSchema7 = {
   // Could not find a way to do this with Typebox
   additionalProperties: true,
 }
+
 interface ValidateTileJSON {
   (data: unknown): data is TileJSON
   schema?: TileJSON | boolean
