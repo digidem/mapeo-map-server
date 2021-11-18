@@ -224,9 +224,8 @@ function createApi({
     },
 
     async listTilesets() {
-      return Promise.all(
-        Array.from(context.tilestores.keys()).map((id) => api.getTileset(id))
-      )
+      const tilesetIds = Array.from(context.tilestores.keys())
+      return Promise.all(tilesetIds.map((id) => api.getTileset(id)))
     },
 
     async getTileset(id) {
