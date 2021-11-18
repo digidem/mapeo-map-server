@@ -255,7 +255,9 @@ function createApi({
       let existingStyle: OfflineStyle | void
       try {
         existingStyle = await context.stylesDb.get(styleId)
-      } catch (e) {}
+      } catch (e) {
+        // Treat error as "not found"
+      }
       if (existingStyle) {
         throw new AlreadyExistsError(
           `Style already exists. PUT changes to ${fastify.prefix}/${styleId} to modify this style`
