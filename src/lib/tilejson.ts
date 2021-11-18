@@ -20,36 +20,31 @@ const ajv = new Ajv({
   },
 })
 
-const Shared = T.Box(
-  {
-    VectorLayer: T.Object({
-      id: T.String(),
-      fields: T.Record(
-        T.String(),
-        T.String()
-        // The schema that this should be 'Number', 'Boolean', 'String' does not
-        // seem to always be followed T.Union([T.Literal('Number'),
-        // T.Literal('Boolean'), T.Literal('String')])
-      ),
-      description: T.Optional(T.String()),
-      minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-      maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
-      // These fields appear for Mapbox composite sources
-      source: T.Optional(T.String()),
-      source_name: T.Optional(T.String()),
-    }),
-  },
-  { $id: 'Shared' }
-)
+const VectorLayerSchema = T.Object({
+  id: T.String(),
+  fields: T.Record(
+    T.String(),
+    T.String()
+    // The schema that this should be 'Number', 'Boolean', 'String' does not
+    // seem to always be followed T.Union([T.Literal('Number'),
+    // T.Literal('Boolean'), T.Literal('String')])
+  ),
+  description: T.Optional(T.String()),
+  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
+  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  // These fields appear for Mapbox composite sources
+  source: T.Optional(T.String()),
+  source_name: T.Optional(T.String()),
+})
 
-ajv.addKeyword('kind').addKeyword('modifier').addSchema(Shared)
+ajv.addKeyword('kind').addKeyword('modifier')
 
 /**
  * This is TileJSON Schema v2.2.0
  * https://github.com/mapbox/tilejson-spec/tree/master/2.2.0
  */
-export const TileJSONSchema = T.Intersect([
-  T.Object({
+export const TileJSONSchema = T.Object(
+  {
     tilejson: T.Union([
       T.Literal('2.2.0'),
       T.Literal('2.1.0'),
@@ -82,7 +77,7 @@ export const TileJSONSchema = T.Intersect([
     // https://github.com/mapbox/tilejson-spec/pull/36
     id: T.Optional(T.String()),
     fillzoom: T.Optional(T.Number()),
-    vector_layers: T.Optional(T.Array(T.Ref(Shared, 'VectorLayer'))),
+    vector_layers: T.Optional(T.Array(VectorLayerSchema)),
     // NB: This is not a required prop in tilejson v2.2.0, but most tilejson in
     // the wild includes it, and it is necessary for storing vector tiles.
     format: T.Union([
@@ -91,11 +86,12 @@ export const TileJSONSchema = T.Intersect([
       T.Literal('webp'),
       T.Literal('pbf'),
     ]),
-  }),
-  T.Record(T.String(), T.Any()),
-])
+    center: T.Optional(T.Tuple([T.Number(), T.Number(), T.Number()])),
+  },
+  { additionalProperties: true }
+)
 
-export type TileJSON = Static<typeof TileJSONSchema>
+export type TileJSON = Static<typeof TileJSONSchema> & { [key: string]: any }
 
 interface ValidateTileJSON {
   (data: unknown): data is TileJSON
