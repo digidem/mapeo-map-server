@@ -22,6 +22,8 @@ import {
   StyleSpecification,
   VectorSourceSpecification,
 } from './types/mapbox_style'
+import { Static } from '@sinclair/typebox'
+import { SpriteJSONSchema } from './lib/spritejson'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -55,6 +57,7 @@ type OfflineStyle = StyleSpecification & {
     }
   }
 }
+
 
 export interface PluginOptions {
   dataDir?: string
@@ -94,6 +97,7 @@ export interface Api {
   getStyle(id: string): Promise<OfflineStyle>
   // deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<OfflineStyle>>
+  getSprite(id:string): Promise<Static<typeof SpriteJSONSchema>>
 }
 
 function createApi({
@@ -288,6 +292,10 @@ function createApi({
     async getStyle(id) {
       return await context.stylesDb.get(id)
     },
+
+    // async getSprite(id){
+
+    // }
   }
   return api
 }

@@ -81,9 +81,14 @@
       "pre-commit": "lint-staged"
     }
   },
+  "eslintConfig":{
+    "env":{
+      "node": true
+  }
+  },
   "lint-staged": {
     "*.{js,ts,tsx}": [
-      "eslint --fix"
+      
     ]
   },
   "repository": {
