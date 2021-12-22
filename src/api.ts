@@ -23,7 +23,7 @@ import {
   VectorSourceSpecification,
 } from './types/mapbox_style'
 import { Static } from '@sinclair/typebox'
-import { SpriteJSONSchema } from './lib/spritejson'
+import { SpriteJSON, SpriteJSONSchema } from './lib/spritejson'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -58,14 +58,26 @@ type OfflineStyle = StyleSpecification & {
   }
 }
 
-
 export interface PluginOptions {
   dataDir?: string
+}
+
+type SpriteJSONPD=
+{
+  PD1:SpriteJSON,
+  PD2?:SpriteJSON
+}
+
+type SpriteImgPD={
+  PD1:Buffer,
+  PD2?:Buffer
 }
 
 interface Context {
   tilestores: Map<string, Tilestore>
   stylesDb: LevelUp<AbstractLevelDOWN<string, OfflineStyle>>
+  spritesJSONDb: LevelUp<AbstractLevelDOWN<string, SpriteJSONPD>>
+  spritesImg: LevelUp<AbstractLevelDOWN<string, SpriteImgPD>>
   swrCache: SWRCache
   paths: {
     tilesets: string
@@ -97,7 +109,8 @@ export interface Api {
   getStyle(id: string): Promise<OfflineStyle>
   // deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<OfflineStyle>>
-  getSprite(id:string): Promise<Static<typeof SpriteJSONSchema>>
+  getSpriteJSON(id:string, pixelDensity?:number): Promise<SpriteJSON>
+  getSpriteImg(id:string, pixelDensity?:number): Promise<Buffer>
 }
 
 function createApi({
@@ -293,9 +306,24 @@ function createApi({
       return await context.stylesDb.get(id)
     },
 
-    // async getSprite(id){
+    async getSpriteJSON(id, pixelDensity)
+    {
+      let spriteJSON : SpriteJSON | undefined;
+      if(pixelDensity === 2) spriteJSON = (await context.spritesJSONDb.get(id)).PD2
+      if(!spriteJSON) spriteJSON = (await context.spritesJSONDb.get(id)).PD1
+      if(!spriteJSON) throw new NotFoundError(id)
+      return spriteJSON
+    },
 
-    // }
+    async getSpriteImg(id, pixelDensity)
+    {
+      let image:Buffer|undefined
+      if(pixelDensity===2) image=(await context.spritesImg.get(id)).PD2
+      if(!image) image=(await context.spritesImg.get(id)).PD1
+      if(!image) throw new NotFoundError(id)
+      return image
+    }
+
   }
   return api
 }
@@ -369,6 +397,8 @@ async function init(dataDir: string): Promise<Context> {
 
   const db = Level(paths.db)
   const stylesDb = SubLevel<string, OfflineStyle>(db, 'styles')
+  const spritesJSONDb = SubLevel<string, SpriteJSONPD>(db, 'spritesJSON')
+  const spritesImg = SubLevel<string, SpriteImgPD>(db, 'spritesImg', {valueEncoding:'binary'})
   const etagDb = SubLevel<string, string>(db, 'etag', {
     valueEncoding: 'string',
   })
@@ -388,5 +418,5 @@ async function init(dataDir: string): Promise<Context> {
     ])
   )
 
-  return { tilestores, paths, stylesDb, swrCache }
+  return { tilestores, paths, stylesDb, swrCache, spritesJSONDb, spritesImg }
 }
