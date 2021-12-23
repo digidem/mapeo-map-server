@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-types */
 import {
   ArrayOptions,
+  ObjectOptions,
   Static,
   StringOptions,
   TSchema,
@@ -10,13 +11,24 @@ import Ajv from 'ajv/dist/2019'
 
 const ColorSpecificationSchema = (options?: StringOptions<string>) =>
   T.String(options)
+
 const ExpressionSpecificationSchema = (options?: ArrayOptions) =>
   T.Array(T.Unknown(), options)
 
 const ResolvedImageSpecificationSchema = (options?: StringOptions<string>) =>
   T.String(options)
+
 const FormattedSpecificationSchema = (options?: StringOptions<string>) =>
   T.String(options)
+
+const TransitionSpecificationSchema = (options?: ObjectOptions) =>
+  T.Object(
+    {
+      duration: T.Optional(T.Number({ minimum: 0, default: 300 })),
+      delay: T.Optional(T.Number({ minimum: 0, default: 0 })),
+    },
+    options
+  )
 
 const CameraFunctionSpecificationSchema = <T extends TSchema>(type: T) =>
   T.Union([
@@ -144,10 +156,6 @@ const LightSpecificationSchema = T.Object({
       T.Number({ minimum: 0, maximum: 1, default: 0.5 })
     )
   ),
-})
-const TransitionSpecificationSchema = T.Object({
-  duration: T.Optional(T.Number({ minimum: 0, default: 300 })),
-  delay: T.Optional(T.Number({ minimum: 0, default: 0 })),
 })
 
 const FilterSpecificationSchema = T.Rec((Self) =>
@@ -1197,7 +1205,7 @@ export const StyleJSONSchema = T.Object({
   sources: T.Record(T.String(), SourceSpecificationSchema),
   sprite: T.Optional(T.String()),
   glyphs: T.Optional(T.String()),
-  transition: T.Optional(TransitionSpecificationSchema),
+  transition: T.Optional(TransitionSpecificationSchema()),
   layers: T.Array(LayerSpecificationSchema),
 })
 
