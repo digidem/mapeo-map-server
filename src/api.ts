@@ -62,22 +62,19 @@ export interface PluginOptions {
   dataDir?: string
 }
 
-type SpriteJSONPD=
+type Sprites=
 {
-  PD1:SpriteJSON,
-  PD2?:SpriteJSON
+  layout1x:SpriteJSON,
+  layout2x:SpriteJSON,
+  img1x:Buffer,
+  img2x:Buffer
 }
 
-type SpriteImgPD={
-  PD1:Buffer,
-  PD2?:Buffer
-}
 
 interface Context {
   tilestores: Map<string, Tilestore>
   stylesDb: LevelUp<AbstractLevelDOWN<string, OfflineStyle>>
-  spritesJSONDb: LevelUp<AbstractLevelDOWN<string, SpriteJSONPD>>
-  spritesImg: LevelUp<AbstractLevelDOWN<string, SpriteImgPD>>
+  spritesDb: LevelUp<AbstractLevelDOWN<string, Sprites>>
   swrCache: SWRCache
   paths: {
     tilesets: string
@@ -309,8 +306,8 @@ function createApi({
     async getSpriteJSON(id, pixelDensity)
     {
       let spriteJSON : SpriteJSON | undefined;
-      if(pixelDensity === 2) spriteJSON = (await context.spritesJSONDb.get(id)).PD2
-      if(!spriteJSON) spriteJSON = (await context.spritesJSONDb.get(id)).PD1
+      if(pixelDensity === 2) spriteJSON = (await context.spritesDb.get(id)).layout2x
+      if(!spriteJSON) spriteJSON = (await context.spritesDb.get(id)).layout1x
       if(!spriteJSON) throw new NotFoundError(id)
       return spriteJSON
     },
@@ -318,8 +315,8 @@ function createApi({
     async getSpriteImg(id, pixelDensity)
     {
       let image:Buffer|undefined
-      if(pixelDensity===2) image=(await context.spritesImg.get(id)).PD2
-      if(!image) image=(await context.spritesImg.get(id)).PD1
+      if(pixelDensity===2) image=(await context.spritesDb.get(id)).img2x
+      if(!image) image=(await context.spritesDb.get(id)).img1x
       if(!image) throw new NotFoundError(id)
       return image
     }
@@ -397,8 +394,7 @@ async function init(dataDir: string): Promise<Context> {
 
   const db = Level(paths.db)
   const stylesDb = SubLevel<string, OfflineStyle>(db, 'styles')
-  const spritesJSONDb = SubLevel<string, SpriteJSONPD>(db, 'spritesJSON')
-  const spritesImg = SubLevel<string, SpriteImgPD>(db, 'spritesImg', {valueEncoding:'binary'})
+  const spritesDb = SubLevel<string, Sprites>(db, 'sprites', {valueEncoding:'binary'})
   const etagDb = SubLevel<string, string>(db, 'etag', {
     valueEncoding: 'string',
   })
@@ -418,5 +414,5 @@ async function init(dataDir: string): Promise<Context> {
     ])
   )
 
-  return { tilestores, paths, stylesDb, swrCache, spritesJSONDb, spritesImg }
+  return { tilestores, paths, stylesDb, swrCache, spritesDb }
 }
