@@ -864,14 +864,14 @@ const GeoJSONSourceSpecificationSchema = T.Object({
   attribution: T.Optional(T.String()),
   buffer: T.Optional(T.Number()),
   filter: T.Optional(T.Unknown()),
-  tolerance: T.Optional(T.Unknown()),
+  tolerance: T.Optional(T.Number()),
   cluster: T.Optional(T.Boolean()),
   clusterRadius: T.Optional(T.Number()),
   clusterMaxZoom: T.Optional(T.Number()),
   clusterMinPoints: T.Optional(T.Number()),
   clusterProperties: T.Optional(T.Unknown()),
   lineMetrics: T.Optional(T.Boolean()),
-  generateId: T.Optional(T.Number()),
+  generateId: T.Optional(T.Boolean()),
   promoteId: T.Optional(PromoteIdSpecificationSchema),
 })
 
