@@ -253,6 +253,45 @@ const LineLayerSpecificationSchema = T.Object({
       ),
     })
   ),
+  paint: T.Optional(
+    T.Object({
+      'line-opacity': T.Optional(
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
+      ),
+      'line-color': T.Optional(
+        DataDrivenPropertyValueSpecificationSchema(ColorSpecificationSchema)
+      ),
+      'line-translate': T.Optional(
+        DataDrivenPropertyValueSpecificationSchema(
+          T.Tuple([T.Number(), T.Number()])
+        )
+      ),
+      'line-translate-anchor': T.Optional(
+        PropertyValueSpecificationSchema(
+          T.Union([T.Literal('map'), T.Literal('viewport')])
+        )
+      ),
+      'line-width': T.Optional(PropertyValueSpecificationSchema(T.Number())),
+      'line-gap-width': T.Optional(
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
+      ),
+      'line-offset': T.Optional(
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
+      ),
+      'line-blur': T.Optional(
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
+      ),
+      'line-dasharray': T.Optional(
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
+      ),
+      'line-pattern': T.Optional(
+        DataDrivenPropertyValueSpecificationSchema(
+          ResolvedImageSpecificationSchema
+        )
+      ),
+      'line-gradient': T.Optional(ExpressionSpecificationSchema),
+    })
+  ),
 })
 
 const SymbolLayerSpecificationSchema = T.Object({
