@@ -197,8 +197,8 @@ const FillLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -255,8 +255,8 @@ const LineLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -349,8 +349,8 @@ const SymbolLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -692,8 +692,8 @@ const CircleLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -774,8 +774,8 @@ const HeatmapLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -837,8 +837,8 @@ const FillExtrusionLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -899,8 +899,8 @@ const RasterLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -961,8 +961,8 @@ const HillshadeLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -1021,8 +1021,8 @@ const BackgroundLayerSpecificationSchema = T.Object({
   metadata: T.Optional(T.Unknown()),
   source: T.String(),
   'source-layer': T.Optional(T.String()),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   filter: T.Optional(FilterSpecificationSchema),
   layout: T.Optional(
     T.Object({
@@ -1088,8 +1088,8 @@ const VectorSourceSpecificationSchema = T.Object({
   scheme: T.Optional(
     T.Union([T.Literal('xyz'), T.Literal('tms')], { default: 'xyz' })
   ),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 0 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 22 })),
   attribution: T.Optional(T.String()),
   promoteId: T.Optional(PromoteIdSpecificationSchema),
   volatile: T.Optional(T.Boolean({ default: false })),
@@ -1104,8 +1104,8 @@ const RasterSourceSpecificationSchema = T.Object({
       default: [-180, -85.051129, 180, 85.051129],
     })
   ),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 0 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 22 })),
   tileSize: T.Optional(T.Number({ default: 512 })),
   scheme: T.Optional(
     T.Union([T.Literal('xyz'), T.Literal('tms')], { default: 'xyz' })
@@ -1123,8 +1123,8 @@ const RasterDEMSourceSpecificationSchema = T.Object({
       default: [-180, -85.051129, 180, 85.051129],
     })
   ),
-  minzoom: T.Optional(T.Number({ default: 0, minimum: 0, maximum: 30 })),
-  maxzoom: T.Optional(T.Number({ default: 22, minimum: 0, maximum: 30 })),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 0 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 22 })),
   tileSize: T.Optional(T.Number({ default: 512 })),
   attribution: T.Optional(T.String()),
   encoding: T.Optional(
