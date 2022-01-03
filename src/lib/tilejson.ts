@@ -20,6 +20,7 @@ const ajv = new Ajv({
   },
 })
 
+
 const VectorLayerSchema = T.Object({
   id: T.String(),
   fields: T.Record(

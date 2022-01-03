@@ -8,7 +8,7 @@ const ajv = new Ajv(
     coerceTypes: true,
 })
 
-export const SpriteJSONSchema = T.Object(
+const SingleSpriteJSONSchema = T.Object(
 {
     width:T.Number(),
     height:T.Number(),
@@ -19,6 +19,8 @@ export const SpriteJSONSchema = T.Object(
     stretchX:T.Optional(T.Tuple([T.Tuple([T.Number(), T.Number()]), T.Tuple([T.Number(), T.Number()])])),
     stretchY:T.Optional(T.Tuple([T.Tuple([T.Number(), T.Number()]), T.Tuple([T.Number(), T.Number()])]))
 })
+
+export const SpriteJSONSchema = T.Record(T.String(), SingleSpriteJSONSchema)
 
 export type SpriteJSON = Static<typeof SpriteJSONSchema>;
 

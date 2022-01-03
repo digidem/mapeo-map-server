@@ -6,17 +6,20 @@ import { SpriteJSONSchema } from '../lib/spritejson'
 const GetStyleIdParamsSchema = T.Object(
 {
     styleId:T.String(),
-    pixelDensity: T.Optional(T.Number())
+    pd:T.Optional(T.Number()),
 })
+
+
 
 export const styles: FastifyPluginAsync = async function (fastify)
 {
-    //How do i get the "@2x" here?
-    fastify.get<{ Params: Static<typeof GetStyleIdParamsSchema> }>(
-        '/:styleId/sprite{@2x}',
+    // /:styleId/sprite/2
+    fastify.get<{ Params: Static<typeof GetStyleIdParamsSchema>}>(
+        '/:styleId/sprite/:pd',
         {
             schema:
             {
+                description:"Returns JSON schema for sprites associated with a style",
                 params:GetStyleIdParamsSchema,
                 response:
                 {
@@ -24,18 +27,18 @@ export const styles: FastifyPluginAsync = async function (fastify)
                 }
             }
         },
-        async function (request) 
+        async (request) =>
         {
-            return request.api.getSpriteJSON(request.params.styleId, )
+            return request.api.getSpriteJSON(request.params.styleId, request.params.pd)
         }
     ),
     
-    //How do i get the "@2x" here?
     fastify.get<{ Params: Static<typeof GetStyleIdParamsSchema> }>(
-        '/:styleId/sprite{@2x}.png',
+        '/:styleId/sprite.png/:pd',
         {
             schema:
             {
+                description:"Returns png of sprites associated with a style",
                 params:GetStyleIdParamsSchema,
                 response:
                 {
@@ -45,7 +48,7 @@ export const styles: FastifyPluginAsync = async function (fastify)
         },
         async function (request) 
         {
-            return request.api.getSpriteImg(request.params.styleId,)
+            return request.api.getSpriteImg(request.params.styleId, request.params.pd)
         }
     )
 }

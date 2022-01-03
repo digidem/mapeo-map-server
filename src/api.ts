@@ -22,10 +22,9 @@ import {
   StyleSpecification,
   VectorSourceSpecification,
 } from './types/mapbox_style'
-import { Static } from '@sinclair/typebox'
-import { SpriteJSON, SpriteJSONSchema } from './lib/spritejson'
+import { SpriteJSON} from './lib/spritejson'
 
-const NotFoundError = createError(
+export const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
   'Resource `%s` not found',
   404

@@ -1,5 +1,6 @@
 import { test, beforeEach, afterEach } from 'tap'
 import tmp from 'tmp'
+import { NotFoundError } from './api'
 
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
@@ -31,7 +32,7 @@ test('GET /tilesets (empty)', async (t) => {
 })
 
 test('POST /tilesets', async (t) => {
-  const { app } = t.context
+  const { app }= t.context
 
   // @ts-ignore
   const expectedId = getTilesetId(mapboxRasterTilejson)
@@ -48,4 +49,16 @@ test('POST /tilesets', async (t) => {
     payload: mapboxRasterTilejson,
   })
   t.deepEqual(response.json(), expectedResponse)
+})
+
+test('GET /styles/', async (t)=>
+{
+  const {app} = t.context
+
+  const response = await app.inject({
+    method:"GET",
+    url:'/styles/0/sprite'
+  })
+  console.log(response)
+  t.equal(response, NotFoundError)
 })

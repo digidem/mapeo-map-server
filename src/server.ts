@@ -14,4 +14,5 @@ fastify.listen(3000, function (err, address) {
     process.exit(1)
   }
   fastify.log.info(`server listening on ${address}`)
+  console.log("running")
 })
