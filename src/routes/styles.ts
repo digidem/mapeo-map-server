@@ -84,12 +84,12 @@ const styles: FastifyPluginAsync = async function (fastify) {
     {
       schema: {
         response: {
+          // TODO: what should the response be here?
           200: T.Boolean(),
         },
       },
     },
     async function (request) {
-      // TODO: Add deleteStyle method to API
       return request.api.deleteStyle(request.params.styleId)
     }
   )

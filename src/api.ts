@@ -17,11 +17,7 @@ import SWRCache from './lib/swr_cache'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import Tilestore, { getTilesetId } from './lib/tilestore'
 import { encodeBase32, generateId, hash } from './lib/utils'
-import {
-  RasterSourceSpecification,
-  StyleSpecification,
-  VectorSourceSpecification,
-} from './types/mapbox_style'
+import { StyleJSON, OfflineStyle } from './lib/stylejson'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -46,15 +42,6 @@ const MismatchedIdError = createError(
   '`id` ("%s") in request URL does not match the `id` ("%s") in your tilejson',
   400
 )
-
-type OfflineStyle = StyleSpecification & {
-  id: string
-  sources?: {
-    [_: string]: (VectorSourceSpecification | RasterSourceSpecification) & {
-      tilesetId: string
-    }
-  }
-}
 
 export interface PluginOptions {
   dataDir?: string
@@ -89,10 +76,10 @@ export interface Api {
     x: number
     y: number
   }): Promise<{ data: Buffer; headers: Headers }>
-  createStyle(style: StyleSpecification): Promise<OfflineStyle>
+  createStyle(style: StyleJSON): Promise<OfflineStyle>
   putStyle(id: string, style: OfflineStyle): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
-  // deleteStyle(id: string): Promise<void>
+  deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<OfflineStyle>>
 }
 
@@ -146,7 +133,7 @@ function createApi({
    * each source, and update the source to reference the offline tileset
    */
   async function createOfflineSources(
-    sources: StyleSpecification['sources']
+    sources: StyleJSON['sources']
   ): Promise<OfflineStyle['sources']> {
     const offlineSources: OfflineStyle['sources'] = {}
 
@@ -273,11 +260,6 @@ function createApi({
       return addOfflineUrls(offlineStyle)
     },
 
-    async putStyle(id, style) {
-      await context.stylesDb.put(id, style)
-      return { ...style, id }
-    },
-
     async listStyles() {
       // TODO: Limit number of returned entries with getStream options.maxBuffer
       return await getStream.array<OfflineStyle>(
@@ -287,6 +269,17 @@ function createApi({
 
     async getStyle(id) {
       return await context.stylesDb.get(id)
+    },
+
+    // TODO: validate style
+    async putStyle(id, style) {
+      await context.stylesDb.put(id, style)
+      return { ...style, id }
+    },
+
+    // TODO: delete associated sprite
+    async deleteStyle(id) {
+      await context.stylesDb.del(id)
     },
   }
   return api
@@ -313,7 +306,7 @@ export default fp(ApiPlugin, {
 /**
  * Try to get an idempotent ID for a given style.json, fallback to random ID
  */
-function getStyleId(style: StyleSpecification): string {
+function getStyleId(style: StyleJSON): string {
   // If the style has an `upstreamUrl` property, indicating where it was
   // downloaded from, then use that as the id (this way two clients that
   // download the same style do not result in duplicates)
@@ -332,9 +325,7 @@ function getStyleId(style: StyleSpecification): string {
  * the original source, not the composite. This will save downloading Mapbox
  * sources multiple times for each style they appear in.
  */
-async function uncompositeStyle(
-  style: StyleSpecification
-): Promise<StyleSpecification> {
+async function uncompositeStyle(style: StyleJSON): Promise<StyleJSON> {
   // TODO:
   // 1. Check if style.sources includes source named "composite"
   // 2. Check in "composite" includes a source id that starts with 'mapbox.'

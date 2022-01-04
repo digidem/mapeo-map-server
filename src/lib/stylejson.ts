@@ -157,6 +157,7 @@ const LightSpecificationSchema = T.Object({
     )
   ),
 })
+type LightSpecification = Static<typeof LightSpecificationSchema>
 
 const FilterSpecificationSchema = T.Rec((Self) =>
   T.Union([
@@ -195,6 +196,7 @@ const FilterSpecificationSchema = T.Rec((Self) =>
     T.Array(T.Union([T.String(), Self])),
   ])
 )
+type FilterSpecification = Static<typeof FilterSpecificationSchema>
 
 /**
  * Layers
@@ -256,6 +258,7 @@ const FillLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type FillLayerSpecification = Static<typeof FillLayerSpecificationSchema>
 
 const LineLayerSpecificationSchema = T.Object({
   id: T.String(),
@@ -350,6 +353,7 @@ const LineLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type LineLayerSpecification = Static<typeof LineLayerSpecificationSchema>
 
 const SymbolLayerSpecificationSchema = T.Object({
   id: T.String(),
@@ -693,6 +697,7 @@ const SymbolLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type SymbolLayerSpecification = Static<typeof SymbolLayerSpecificationSchema>
 
 const CircleLayerSpecificationSchema = T.Object({
   id: T.String(),
@@ -775,6 +780,7 @@ const CircleLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type CircleLayerSpecification = Static<typeof CircleLayerSpecificationSchema>
 
 const HeatmapLayerSpecificationSchema = T.Object({
   id: T.String(),
@@ -838,6 +844,7 @@ const HeatmapLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type HeatmapLayerSpecification = Static<typeof HeatmapLayerSpecificationSchema>
 
 const FillExtrusionLayerSpecificationSchema = T.Object({
   id: T.String(),
@@ -900,6 +907,9 @@ const FillExtrusionLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type FillExtrusionLayerSpecification = Static<
+  typeof FillExtrusionLayerSpecificationSchema
+>
 
 const RasterLayerSpecificationSchema = T.Object({
   id: T.String(),
@@ -962,6 +972,7 @@ const RasterLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type RasterLayerSpecification = Static<typeof RasterLayerSpecificationSchema>
 
 const HillshadeLayerSpecificationSchema = T.Object({
   id: T.String(),
@@ -1022,6 +1033,9 @@ const HillshadeLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type HillshadeLayerSpecification = Static<
+  typeof HillshadeLayerSpecificationSchema
+>
 
 const BackgroundLayerSpecificationSchema = T.Object({
   id: T.String(),
@@ -1063,6 +1077,9 @@ const BackgroundLayerSpecificationSchema = T.Object({
     })
   ),
 })
+type BackgroundLayerSpecification = Static<
+  typeof BackgroundLayerSpecificationSchema
+>
 
 const LayerSpecificationSchema = T.Union([
   FillLayerSpecificationSchema,
@@ -1075,6 +1092,7 @@ const LayerSpecificationSchema = T.Union([
   HillshadeLayerSpecificationSchema,
   BackgroundLayerSpecificationSchema,
 ])
+type LayerSpecification = Static<typeof LayerSpecificationSchema>
 
 /**
  * Sources
@@ -1083,6 +1101,7 @@ const PromoteIdSpecificationSchema = T.Union([
   T.Record(T.String(), T.String()),
   T.String(),
 ])
+type PromoteIdSpecification = Static<typeof PromoteIdSpecificationSchema>
 
 const VectorSourceSpecificationSchema = T.Object({
   type: T.Literal('vector'),
@@ -1102,6 +1121,7 @@ const VectorSourceSpecificationSchema = T.Object({
   promoteId: T.Optional(PromoteIdSpecificationSchema),
   volatile: T.Optional(T.Boolean({ default: false })),
 })
+type VectorSourceSpecification = Static<typeof VectorSourceSpecificationSchema>
 
 const RasterSourceSpecificationSchema = T.Object({
   type: T.Literal('raster'),
@@ -1121,6 +1141,7 @@ const RasterSourceSpecificationSchema = T.Object({
   attribution: T.Optional(T.String()),
   volatile: T.Optional(T.Boolean({ default: false })),
 })
+type RasterSourceSpecification = Static<typeof RasterSourceSpecificationSchema>
 
 const RasterDEMSourceSpecificationSchema = T.Object({
   type: T.Literal('raster-dem'),
@@ -1142,6 +1163,9 @@ const RasterDEMSourceSpecificationSchema = T.Object({
   ),
   volatile: T.Optional(T.Boolean({ default: false })),
 })
+type RasterDEMSourceSpecification = Static<
+  typeof RasterDEMSourceSpecificationSchema
+>
 
 const GeoJSONSourceSpecificationSchema = T.Object({
   type: T.Literal('geojson'),
@@ -1160,6 +1184,9 @@ const GeoJSONSourceSpecificationSchema = T.Object({
   generateId: T.Optional(T.Boolean({ default: false })),
   promoteId: T.Optional(PromoteIdSpecificationSchema),
 })
+type GeoJSONSourceSpecification = Static<
+  typeof GeoJSONSourceSpecificationSchema
+>
 
 const VideoSourceSpecificationSchema = T.Object({
   type: T.Literal('video'),
@@ -1171,6 +1198,7 @@ const VideoSourceSpecificationSchema = T.Object({
     T.Tuple([T.Number(), T.Number()]),
   ]),
 })
+type VideoSourceSpecification = Static<typeof VideoSourceSpecificationSchema>
 
 const ImageSourceSpecificationSchema = T.Object({
   type: T.Literal('image'),
@@ -1182,6 +1210,7 @@ const ImageSourceSpecificationSchema = T.Object({
     T.Tuple([T.Number(), T.Number()]),
   ]),
 })
+type ImageSourceSpecification = Static<typeof ImageSourceSpecificationSchema>
 
 const SourceSpecificationSchema = T.Union([
   VectorSourceSpecificationSchema,
@@ -1191,8 +1220,9 @@ const SourceSpecificationSchema = T.Union([
   VideoSourceSpecificationSchema,
   ImageSourceSpecificationSchema,
 ])
+type SourceSpecification = Static<typeof SourceSpecificationSchema>
 
-export const StyleJSONSchema = T.Object({
+const StyleJSONSchema = T.Object({
   upstreamUrl: T.Optional(T.String()),
   version: T.Literal(8),
   name: T.Optional(T.String()),
@@ -1208,8 +1238,16 @@ export const StyleJSONSchema = T.Object({
   transition: T.Optional(TransitionSpecificationSchema()),
   layers: T.Array(LayerSpecificationSchema),
 })
+type StyleJSON = Static<typeof StyleJSONSchema>
 
-export type StyleJSON = Static<typeof StyleJSONSchema>
+type OfflineStyle = StyleJSON & {
+  id: string
+  sources?: {
+    [_: string]: (VectorSourceSpecification | RasterSourceSpecification) & {
+      tilesetId: string
+    }
+  }
+}
 
 const ajv = new Ajv({
   removeAdditional: false,
@@ -1217,7 +1255,58 @@ const ajv = new Ajv({
   coerceTypes: true,
 })
 
-export const validateStyleJSONSchema = ajv.compile<StyleJSON>(StyleJSONSchema)
+const validateStyleJSONSchema = ajv.compile<StyleJSON>(StyleJSONSchema)
 
 // TODO: Validation using mapbox-gl-style-spec validator
-export const validateStyleJSON = (data: unknown) => {}
+const validateStyleJSON = (data: unknown) => {}
+
+export {
+  // TypeBox Schema Objects
+  BackgroundLayerSpecificationSchema,
+  CircleLayerSpecificationSchema,
+  FillExtrusionLayerSpecificationSchema,
+  FillLayerSpecificationSchema,
+  FilterSpecificationSchema,
+  GeoJSONSourceSpecificationSchema,
+  HeatmapLayerSpecificationSchema,
+  HillshadeLayerSpecificationSchema,
+  ImageSourceSpecificationSchema,
+  LayerSpecificationSchema,
+  LightSpecificationSchema,
+  LineLayerSpecificationSchema,
+  PromoteIdSpecificationSchema,
+  RasterDEMSourceSpecificationSchema,
+  RasterLayerSpecificationSchema,
+  RasterSourceSpecificationSchema,
+  SourceSpecificationSchema,
+  StyleJSONSchema,
+  SymbolLayerSpecificationSchema,
+  VectorSourceSpecificationSchema,
+  VideoSourceSpecificationSchema,
+  // Static TS types
+  BackgroundLayerSpecification,
+  CircleLayerSpecification,
+  FillExtrusionLayerSpecification,
+  FillLayerSpecification,
+  FilterSpecification,
+  GeoJSONSourceSpecification,
+  HeatmapLayerSpecification,
+  HillshadeLayerSpecification,
+  ImageSourceSpecification,
+  LayerSpecification,
+  LightSpecification,
+  LineLayerSpecification,
+  OfflineStyle,
+  PromoteIdSpecification,
+  RasterDEMSourceSpecification,
+  RasterLayerSpecification,
+  RasterSourceSpecification,
+  SourceSpecification,
+  StyleJSON,
+  SymbolLayerSpecification,
+  VectorSourceSpecification,
+  VideoSourceSpecification,
+  // Validator functions
+  validateStyleJSON,
+  validateStyleJSONSchema,
+}
