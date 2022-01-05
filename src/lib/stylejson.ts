@@ -1240,14 +1240,19 @@ const StyleJSONSchema = T.Object({
 })
 type StyleJSON = Static<typeof StyleJSONSchema>
 
-type OfflineStyle = StyleJSON & {
-  id: string
-  sources?: {
-    [_: string]: (VectorSourceSpecification | RasterSourceSpecification) & {
-      tilesetId: string
-    }
-  }
-}
+const OfflineStyleSchema = T.Intersect([
+  StyleJSONSchema,
+  T.Object({
+    id: T.String(),
+    sources: T.Record(
+      T.String(),
+      T.Object({
+        tilesetId: T.String(),
+      })
+    ),
+  }),
+])
+type OfflineStyle = Static<typeof OfflineStyleSchema>
 
 const ajv = new Ajv({
   removeAdditional: false,
@@ -1275,6 +1280,7 @@ export {
   LightSpecificationSchema,
   LineLayerSpecificationSchema,
   PromoteIdSpecificationSchema,
+  OfflineStyleSchema,
   RasterDEMSourceSpecificationSchema,
   RasterLayerSpecificationSchema,
   RasterSourceSpecificationSchema,

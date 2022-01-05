@@ -1,7 +1,11 @@
 import { FastifyPluginAsync } from 'fastify'
 import { Static, Type as T } from '@sinclair/typebox'
 
-import { StyleJSON, StyleJSONSchema } from '../lib/stylejson'
+import {
+  OfflineStyleSchema,
+  StyleJSON,
+  StyleJSONSchema,
+} from '../lib/stylejson'
 
 const GetStyleParamsSchema = T.Object({
   styleId: T.String(),
@@ -9,7 +13,7 @@ const GetStyleParamsSchema = T.Object({
 
 const PutStyleParamsSchema = T.Object({
   styleId: T.String(),
-  style: StyleJSONSchema,
+  style: OfflineStyleSchema,
 })
 
 const DeleteStyleParamsSchema = T.Object({
@@ -42,7 +46,6 @@ const styles: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      // TODO: Update argument type for createStyle
       const stylejson = await request.api.createStyle(request.body)
       reply.header('Location', `${fastify.prefix}/${stylejson.id}`)
       return stylejson
@@ -74,7 +77,6 @@ const styles: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request) {
-      // TODO: Update argument type for putStyle
       return request.api.putStyle(request.params.styleId, request.params.style)
     }
   )
