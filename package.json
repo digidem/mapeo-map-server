@@ -12,7 +12,9 @@
     "build": "npm run clean && tsc -b",
     "clean": "tsc -b --clean",
     "test": "TS_NODE_FILES=true tap --test-ignore='^dist'",
-    "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit"
+    "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate-dev": "prisma migrate dev"
   },
   "author": "Digital Democracy",
   "license": "MIT",
@@ -71,6 +73,10 @@
     "lint-staged": "^10.5.0",
     "pino-pretty": "^4.3.0",
     "prettier": "^2.4.1",
+    "prisma": "^3.8.0",
+    "prisma-dbml-generator": "^0.8.3",
+    "prisma-erd-generator": "^0.8.1",
+    "prisma-typebox-generator": "^3.0.0",
     "tmp": "^0.2.1",
     "ts-node": "^9.0.0",
     "ts-node-dev": "^1.1.8",
