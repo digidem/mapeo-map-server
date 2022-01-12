@@ -36,6 +36,7 @@
     "@types/tilebelt": "^1.0.3",
     "ajv": "^8.8.1",
     "base32.js": "^0.1.0",
+    "better-sqlite3": "^7.4.6",
     "fastify": "^3.24.0",
     "fastify-error": "^0.2.0",
     "fastify-leveldb": "^3.1.1",
@@ -60,6 +61,7 @@
   },
   "devDependencies": {
     "@tsconfig/node12": "^1.0.9",
+    "@types/better-sqlite3": "^7.4.2",
     "@types/levelup": "^4.3.3",
     "@types/node": "^14.14.5",
     "@types/tap": "^14.10.1",
