@@ -2,4 +2,4 @@ dist
 data
 .nyc_output
 .env
-*.db
+*.db*

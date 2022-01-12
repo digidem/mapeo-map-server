@@ -5,11 +5,6 @@ generator erd {
   provider = "prisma-erd-generator"
 }
 
-// TODO: Runtime errors occur when this runs
-// generator typebox {
-//   provider = "prisma-typebox-generator"
-// }
-
 generator dbml {
   provider = "prisma-dbml-generator"
 }
@@ -19,32 +14,32 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-model Tile {
-  tileHash      String         @id
-  data          Bytes
-  tileMetadatas TileMetadata[]
+model TileData {
+  tileHash String @id
+  data     Bytes
+  tile     Tile[]
 }
 
-model TileMetadata {
+model Tile {
   quadKey   String
-  tileset   Tileset @relation(fields: [tilesetId], references: [id])
-  tilesetId String
-  tile      Tile    @relation(fields: [tileHash], references: [tileHash])
+  tileData  TileData @relation(fields: [tileHash], references: [tileHash])
   tileHash  String
+  tileset   Tileset  @relation(fields: [tilesetId], references: [id])
+  tilesetId String
 
   @@id([quadKey, tilesetId])
 }
 
 model Tileset {
-  id            String             @id
+  id          String             @id
   // Description of tileset based on TileJSON spec
-  tilejson      String
+  tilejson    String
   // Array of urls pulled from tilejson
-  tileUrls      String
-  etag          String?
-  upstreamUrl   String?
-  styles        TilesetsOnStyles[]
-  tileMetadatas TileMetadata[]
+  tileUrls    String
+  etag        String?
+  upstreamUrl String?
+  styles      TilesetsOnStyles[]
+  tiles       Tile[]
 }
 
 model TilesetsOnStyles {
@@ -61,13 +56,13 @@ model Style {
   // JSON string that adheres to style specification v8
   stylejson    String
   etag         String?
+  spriteId     String?
   offlineAreas OfflineArea[]
-  sprite       Sprite?
   tilesets     TilesetsOnStyles[]
 }
 
 model Sprite {
-  id           String  @id
+  id           String
   // PNG with all images used in a style
   data         Bytes
   // JSON string describing positions of sprite in data
@@ -75,8 +70,8 @@ model Sprite {
   pixelDensity Int
   etag         String?
   upstreamUrl  String?
-  style        Style   @relation(fields: [styleId], references: [id])
-  styleId      String  @unique
+
+  @@id([id, pixelDensity])
 }
 
 model Glyph {
@@ -92,13 +87,12 @@ model Glyph {
 
 model OfflineArea {
   id          String    @id
-  timestamp   DateTime  @default(now())
   zoomLevel   Int
   // Comma-separated string of 4 floats
   boundingBox String
   style       Style     @relation(fields: [styleId], references: [id])
   styleId     String
-  Download    Download?
+  download    Download?
 }
 
 // TODO: should we add styles_downloaded and tiles_downloaded fields?
@@ -109,7 +103,9 @@ model Download {
   // TODO: should this only refer to tiles+glyphs?
   totalResources      Int
   // When downloaded = total
-  completed           Boolean
+  isComplete          Boolean
+  started             DateTime    @default(now())
+  finished            DateTime?
   offlineArea         OfflineArea @relation(fields: [areaId], references: [id])
   areaId              String      @unique
 }
