@@ -39,6 +39,7 @@ model Tileset {
   etag        String?
   upstreamUrl String?
   styles      TilesetsOnStyles[]
+  format      String
   tiles       Tile[]
 }
 
