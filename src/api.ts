@@ -95,7 +95,7 @@ export interface Api {
   getStyle(id: string): Promise<OfflineStyle>
   // deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<OfflineStyle>>
-  deleteTileset(id:string):RunResult
+  deleteTileset(id:string):void
 }
 
 function createApi({
@@ -293,9 +293,13 @@ function createApi({
     },
 
     deleteTileset(id){
-      const deleteStmnt = context.db.prepare(`DELETE FROM Tileset WHERE id=?`)
-      return deleteStmnt.run(id)
-      
+      const deleteSingleRecord = context.db.transaction((id:string)=>
+      {
+        context.db.prepare('DELETE FROM Tile WHERE tilesetId = ? ').run(id) 
+        context.db.prepare('DELETE FROM TileData WHERE tilesetId = ? ').run(id) 
+        context.db.prepare('DELETE FROM Tileset WHERE id = ? ').run(id)  
+      })
+      return deleteSingleRecord(id)
     }
   }
   return api
