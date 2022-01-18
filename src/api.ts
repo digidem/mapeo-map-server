@@ -1,6 +1,6 @@
 import { promises as fsPromises } from 'fs'
 import path from 'path'
-
+import Db, {Database, RunResult} from 'better-sqlite3'
 import { Headers } from '@mapbox/mbtiles'
 import { AbstractLevelDOWN } from 'abstract-leveldown'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
@@ -61,6 +61,7 @@ export interface PluginOptions {
 }
 
 interface Context {
+  db: Database,
   tilestores: Map<string, Tilestore>
   stylesDb: LevelUp<AbstractLevelDOWN<string, OfflineStyle>>
   swrCache: SWRCache
@@ -94,6 +95,7 @@ export interface Api {
   getStyle(id: string): Promise<OfflineStyle>
   // deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<OfflineStyle>>
+  deleteTileset(id:string):RunResult
 }
 
 function createApi({
@@ -225,6 +227,7 @@ function createApi({
 
     async listTilesets() {
       const tilesetIds = Array.from(context.tilestores.keys())
+      //@ts-ignore this will be deleted anyway, just driving me crazy
       return Promise.all(tilesetIds.map((id) => api.getTileset(id)))
     },
 
@@ -288,6 +291,12 @@ function createApi({
     async getStyle(id) {
       return await context.stylesDb.get(id)
     },
+
+    deleteTileset(id){
+      const deleteStmnt = context.db.prepare(`DELETE FROM Tileset WHERE id=?`)
+      return deleteStmnt.run(id)
+      
+    }
   }
   return api
 }
@@ -358,6 +367,7 @@ async function init(dataDir: string): Promise<Context> {
     paths[pathName] = path.join(process.cwd(), dataDir, pathName)
     await mkdirp(paths[pathName])
   }
+  const sqlDatabase=new Db('./data/dev.db', { verbose: console.log })
 
   const db = Level(paths.db)
   const stylesDb = SubLevel<string, OfflineStyle>(db, 'styles')
@@ -380,5 +390,5 @@ async function init(dataDir: string): Promise<Context> {
     ])
   )
 
-  return { tilestores, paths, stylesDb, swrCache }
+  return { db:sqlDatabase, tilestores, paths, stylesDb, swrCache }
 }

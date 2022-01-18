@@ -80,6 +80,13 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       reply.send(data)
     }
   )
+
+  fastify.delete<{ Params: Static<typeof GetTilesetParamsSchema> }>
+  ('/:tilesetId', {schema:{params:GetTilesetParamsSchema}}, 
+    async function (request, reply){
+      return request.api.deleteTileset(request.params.tilesetId)
+    }
+  )
 }
 
 export default tilesets
