@@ -22,6 +22,7 @@ import {
   StyleSpecification,
   VectorSourceSpecification,
 } from './types/mapbox_style'
+import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -61,8 +62,8 @@ export interface PluginOptions {
 }
 
 interface Context {
+  db: DatabaseInstance
   tilestores: Map<string, Tilestore>
-  stylesDb: LevelUp<AbstractLevelDOWN<string, OfflineStyle>>
   swrCache: SWRCache
   paths: {
     tilesets: string
@@ -250,14 +251,12 @@ function createApi({
     async createStyle(style) {
       const styleId = getStyleId(style)
 
-      // Round-about, because level does not have a has() function
-      let existingStyle: OfflineStyle | void
-      try {
-        existingStyle = await context.stylesDb.get(styleId)
-      } catch (e) {
-        // Treat error as "not found"
-      }
-      if (existingStyle) {
+      const styleExists =
+        context.db
+          .prepare('SELECT COUNT(*) as count FROM Style WHERE id = ?')
+          .get(styleId).count > 0
+
+      if (styleExists) {
         throw new AlreadyExistsError(
           `Style already exists. PUT changes to ${fastify.prefix}/${styleId} to modify this style`
         )
@@ -269,24 +268,38 @@ function createApi({
         sources: await createOfflineSources(style.sources),
       }
 
-      await context.stylesDb.put(styleId, offlineStyle)
+      context.db
+        .prepare('INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)')
+        .run({ id: styleId, stylejson: JSON.stringify(offlineStyle) })
+
       return addOfflineUrls(offlineStyle)
     },
 
     async putStyle(id, style) {
-      await context.stylesDb.put(id, style)
+      context.db
+        .prepare('INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)')
+        .run({ id, stylejson: style })
       return { ...style, id }
     },
 
-    async listStyles() {
-      // TODO: Limit number of returned entries with getStream options.maxBuffer
-      return await getStream.array<OfflineStyle>(
-        context.stylesDb.createValueStream()
-      )
+    async listStyles(limit?: number) {
+      const baseQuery = 'SELECT stylejson FROM Style'
+      const stmt =
+        limit !== undefined
+          ? context.db.prepare(`${baseQuery} LIMIT ?`).bind(limit)
+          : context.db.prepare(baseQuery)
+
+      return stmt
+        .all()
+        .map((row: { stylejson: string }) => JSON.parse(row.stylejson))
     },
 
     async getStyle(id) {
-      return await context.stylesDb.get(id)
+      const row = context.db
+        .prepare('SELECT stylejson FROM Style WHERE id = ?')
+        .get(id)
+
+      return JSON.parse(row.stylejson)
     },
   }
   return api
@@ -359,8 +372,8 @@ async function init(dataDir: string): Promise<Context> {
     await mkdirp(paths[pathName])
   }
 
-  const db = Level(paths.db)
-  const stylesDb = SubLevel<string, OfflineStyle>(db, 'styles')
+  const db = Database(dataDir)
+
   const etagDb = SubLevel<string, string>(db, 'etag', {
     valueEncoding: 'string',
   })
@@ -380,5 +393,5 @@ async function init(dataDir: string): Promise<Context> {
     ])
   )
 
-  return { tilestores, paths, stylesDb, swrCache }
+  return { db, tilestores, paths, swrCache }
 }
