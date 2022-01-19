@@ -1,6 +1,6 @@
 import { promises as fsPromises } from 'fs'
 import path from 'path'
-
+import Db, {Database, RunResult} from 'better-sqlite3'
 import { Headers } from '@mapbox/mbtiles'
 import { AbstractLevelDOWN } from 'abstract-leveldown'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
@@ -22,6 +22,7 @@ import {
   StyleSpecification,
   VectorSourceSpecification,
 } from './types/mapbox_style'
+import { createRasterStyleJSON } from './generate-style'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -61,6 +62,7 @@ export interface PluginOptions {
 }
 
 interface Context {
+  db: Database,
   tilestores: Map<string, Tilestore>
   stylesDb: LevelUp<AbstractLevelDOWN<string, OfflineStyle>>
   swrCache: SWRCache
@@ -79,7 +81,7 @@ interface IdResource {
 }
 
 export interface Api {
-  createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
+  createTileset(tileset: TileJSON, name:string): Promise<void>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
   getTileset(id: string): Promise<TileJSON & IdResource>
@@ -93,7 +95,7 @@ export interface Api {
   putStyle(id: string, style: OfflineStyle): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
   // deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<OfflineStyle>>
+  listStyles(): Promise<void>
 }
 
 function createApi({
@@ -183,7 +185,8 @@ function createApi({
       const tilesetId = getTilesetId(tilejson)
       const tilestore = context.tilestores.get(tilesetId)
       if (!tilestore) {
-        await api.createTileset(tilejson)
+        //To Do figure out name
+        await api.createTileset(tilejson, "")
       } else {
         // TODO: Should we update an existing tileset here?
       }
@@ -193,22 +196,19 @@ function createApi({
   }
 
   const api: Api = {
-    async createTileset(tilejson) {
+    async createTileset(tilejson, name) {
       const id = getTilesetId(tilejson)
-      if (context.tilestores.has(id)) {
-        throw new AlreadyExistsError(
-          `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${id} to modify this tileset`
-        )
+      if(checkIfTilesetExists(id, context.db))
+      {
+        throw new AlreadyExistsError(id)
       }
-      const tilestore = new Tilestore({
-        id,
-        mode: 'rwc',
-        dir: context.paths.tilesets,
-        swrCache,
-      })
-      context.tilestores.set(id, tilestore)
-      await tilestore.putTileJSON(tilejson)
-      return { ...tilejson, id, tiles: [getTileUrl(id)] }
+      if(isRaster(tilejson))
+      {
+        const styleJSON = createRasterStyleJSON(name, id, tilejson.tiles)
+        context.db.prepare("INSERT into Style (id, stylejson) VALUES (?,?)").run(hash(id).toString(), styleJSON)
+      }
+      
+  
     },
 
     async putTileset(id, tilejson) {
@@ -225,6 +225,7 @@ function createApi({
 
     async listTilesets() {
       const tilesetIds = Array.from(context.tilestores.keys())
+      //@ts-ignore this will be deleted anyway, just driving me crazy
       return Promise.all(tilesetIds.map((id) => api.getTileset(id)))
     },
 
@@ -279,10 +280,9 @@ function createApi({
     },
 
     async listStyles() {
-      // TODO: Limit number of returned entries with getStream options.maxBuffer
-      return await getStream.array<OfflineStyle>(
-        context.stylesDb.createValueStream()
-      )
+      const vectorStyles = context.db.prepare('SELECT * from Styles').columns()
+      const rasterStles = context.db.prepare('SELECT Co')
+      
     },
 
     async getStyle(id) {
@@ -309,6 +309,16 @@ export default fp(ApiPlugin, {
   fastify: '3.x',
   name: 'api',
 })
+
+function checkIfTilesetExists(id:string, db:Database)
+{
+  return db.prepare('SELECT COUNT(*) as count from Tileset WHERE id=?').get(id).count >= 1
+}
+
+function isRaster(tilejson:TileJSON)
+{
+  return tilejson.format === 'png' || tilejson.format === 'jpg'
+}
 
 /**
  * Try to get an idempotent ID for a given style.json, fallback to random ID
@@ -358,6 +368,7 @@ async function init(dataDir: string): Promise<Context> {
     paths[pathName] = path.join(process.cwd(), dataDir, pathName)
     await mkdirp(paths[pathName])
   }
+  const sqlDatabase=new Db('./data/dev.db', { verbose: console.log })
 
   const db = Level(paths.db)
   const stylesDb = SubLevel<string, OfflineStyle>(db, 'styles')
@@ -380,5 +391,5 @@ async function init(dataDir: string): Promise<Context> {
     ])
   )
 
-  return { tilestores, paths, stylesDb, swrCache }
+  return { db:sqlDatabase, tilestores, paths, stylesDb, swrCache }
 }
