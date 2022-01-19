@@ -17,6 +17,7 @@ datasource db {
 model TileData {
   tileHash String @id
   data     Bytes
+  size     Float
   tile     Tile[]
 }
 
