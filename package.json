@@ -12,7 +12,9 @@
     "build": "npm run clean && tsc -b",
     "clean": "tsc -b --clean",
     "test": "TS_NODE_FILES=true tap --test-ignore='^dist'",
-    "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit"
+    "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate-dev": "prisma migrate dev"
   },
   "author": "Digital Democracy",
   "license": "MIT",
@@ -34,6 +36,7 @@
     "@types/tilebelt": "^1.0.3",
     "ajv": "^8.8.1",
     "base32.js": "^0.1.0",
+    "better-sqlite3": "^7.5.0",
     "fastify": "^3.24.0",
     "fastify-error": "^0.2.0",
     "fastify-leveldb": "^3.1.1",
@@ -58,6 +61,7 @@
   },
   "devDependencies": {
     "@tsconfig/node12": "^1.0.9",
+    "@types/better-sqlite3": "^7.4.2",
     "@types/levelup": "^4.3.3",
     "@types/node": "^14.14.5",
     "@types/tap": "^14.10.1",
@@ -71,6 +75,9 @@
     "lint-staged": "^10.5.0",
     "pino-pretty": "^4.3.0",
     "prettier": "^2.4.1",
+    "prisma": "^3.8.1",
+    "prisma-dbml-generator": "^0.8.3",
+    "prisma-erd-generator": "^0.8.1",
     "tmp": "^0.2.1",
     "ts-node": "^9.0.0",
     "ts-node-dev": "^1.1.8",

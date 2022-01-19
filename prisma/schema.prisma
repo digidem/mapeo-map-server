@@ -1,0 +1,115 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator erd {
+  provider = "prisma-erd-generator"
+}
+
+generator dbml {
+  provider = "prisma-dbml-generator"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model TileData {
+  tileHash  String
+  tilesetId String
+  data      Bytes
+  tile      Tile[]
+
+  @@id([tileHash, tilesetId])
+}
+
+model Tile {
+  quadKey   String
+  tileData  TileData @relation(fields: [tileHash, tilesetId], references: [tileHash, tilesetId], onUpdate: Cascade)
+  tileHash  String
+  tileset   Tileset  @relation(fields: [tilesetId], references: [id], onUpdate: Cascade)
+  tilesetId String
+
+  @@id([quadKey, tilesetId])
+}
+
+model Tileset {
+  id               String             @id
+  // Description of tileset based on TileJSON spec
+  tilejson         String
+  format           String
+  // Array of urls pulled from tilejson
+  upstreamTileUrls String?
+  etag             String?
+  upstreamUrl      String?
+  styles           TilesetsOnStyles[]
+  tiles            Tile[]
+}
+
+model TilesetsOnStyles {
+  tileset   Tileset @relation(fields: [tilesetId], references: [id])
+  tilesetId String
+  style     Style   @relation(fields: [styleId], references: [id])
+  styleId   String
+
+  @@id([tilesetId, styleId])
+}
+
+model Style {
+  id           String             @id
+  // JSON string that adheres to style specification v8
+  stylejson    String
+  etag         String?
+  spriteId     String?
+  offlineAreas OfflineArea[]
+  tilesets     TilesetsOnStyles[]
+}
+
+model Sprite {
+  id           String
+  // PNG with all images used in a style
+  data         Bytes
+  // JSON string describing positions of sprite in data
+  layout       String
+  pixelDensity Int
+  etag         String?
+  upstreamUrl  String?
+
+  @@id([id, pixelDensity])
+}
+
+model Glyph {
+  fontName    String
+  // e.g.: 0, 1, 2, ...  (Multiply by 256 for lower bound, add 256 for upper)
+  rangeId     Int
+  data        Bytes
+  etag        String?
+  upstreamUrl String?
+
+  @@id([fontName, rangeId])
+}
+
+model OfflineArea {
+  id          String    @id
+  zoomLevel   Int
+  // Comma-separated string of 4 floats
+  boundingBox String
+  style       Style     @relation(fields: [styleId], references: [id])
+  styleId     String
+  download    Download?
+}
+
+// TODO: should we add styles_downloaded and tiles_downloaded fields?
+model Download {
+  id                  String      @id
+  // TODO: should this only refer to tiles+glyphs?
+  downloadedResources Int
+  // TODO: should this only refer to tiles+glyphs?
+  totalResources      Int
+  // When downloaded = total
+  isComplete          Boolean
+  started             DateTime    @default(now())
+  finished            DateTime?
+  offlineArea         OfflineArea @relation(fields: [areaId], references: [id], onUpdate: Cascade)
+  areaId              String      @unique
+}
