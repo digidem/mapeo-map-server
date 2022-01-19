@@ -15,32 +15,35 @@ datasource db {
 }
 
 model TileData {
-  tileHash String @id
-  data     Bytes
-  size     Float
-  tile     Tile[]
+  tileHash  String
+  tilesetId String
+  data      Bytes
+  tile      Tile[]
+
+  @@id([tileHash, tilesetId])
 }
 
 model Tile {
   quadKey   String
-  tileData  TileData @relation(fields: [tileHash], references: [tileHash])
+  tileData  TileData @relation(fields: [tileHash, tilesetId], references: [tileHash, tilesetId], onUpdate: Cascade)
   tileHash  String
-  tileset   Tileset  @relation(fields: [tilesetId], references: [id])
+  tileset   Tileset  @relation(fields: [tilesetId], references: [id], onUpdate: Cascade)
   tilesetId String
 
   @@id([quadKey, tilesetId])
 }
 
 model Tileset {
-  id          String             @id
+  id               String             @id
   // Description of tileset based on TileJSON spec
-  tilejson    String
+  tilejson         String
+  format           String
   // Array of urls pulled from tilejson
-  tileUrls    String
-  etag        String?
-  upstreamUrl String?
-  styles      TilesetsOnStyles[]
-  tiles       Tile[]
+  upstreamTileUrls String?
+  etag             String?
+  upstreamUrl      String?
+  styles           TilesetsOnStyles[]
+  tiles            Tile[]
 }
 
 model TilesetsOnStyles {
@@ -107,6 +110,6 @@ model Download {
   isComplete          Boolean
   started             DateTime    @default(now())
   finished            DateTime?
-  offlineArea         OfflineArea @relation(fields: [areaId], references: [id])
+  offlineArea         OfflineArea @relation(fields: [areaId], references: [id], onUpdate: Cascade)
   areaId              String      @unique
 }
