@@ -36,7 +36,7 @@
     "@types/tilebelt": "^1.0.3",
     "ajv": "^8.8.1",
     "base32.js": "^0.1.0",
-    "better-sqlite3": "^7.4.6",
+    "better-sqlite3": "^7.5.0",
     "fastify": "^3.24.0",
     "fastify-error": "^0.2.0",
     "fastify-leveldb": "^3.1.1",
