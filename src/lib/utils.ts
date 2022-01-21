@@ -26,8 +26,8 @@ export function getTilesetFormat(tileset: TileJSON): TileJSON['format'] {
 
 // Not cryptographically secure, but sha1 results in shorter / more manageable
 // ids for filenames and in the URL, should be fine for our use-case
-export function hash(string: string): Buffer {
-  return createHash('sha1').update(string).digest()
+export function hash(data: string | Buffer): Buffer {
+  return createHash('sha1').update(data).digest()
 }
 
 /**

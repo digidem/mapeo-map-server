@@ -8,9 +8,10 @@ import { getTileBBox } from '@mapbox/whoots-js'
 import pick from 'lodash/pick'
 import omit from 'lodash/omit'
 
-import SWRCache from './swr_cache'
+import SWRCache, { SWRCacheV2 } from './swr_cache'
 import { TileJSON } from './tilejson'
 import { hash, generateId, encodeBase32 } from './utils'
+import { Database } from 'better-sqlite3'
 
 type Mode = 'ro' | 'rw' | 'rwc'
 
@@ -205,4 +206,151 @@ export function getTilesetId(tilejson: TileJSON): string {
   // If the tilejson has no id, use the tile URL as the id
   const id = tilejson.id || tilejson.tiles.sort()[0]
   return encodeBase32(hash(id))
+}
+
+// TODO: my attempt to encapsulate tile-related db interactions for a given tileset id
+// Potentially convuluted and unnecessary
+export class TilesetManager {
+  #tilesetId: string
+  #db: Database
+  #swrCache: SWRCacheV2
+
+  constructor({
+    id,
+    db,
+    swrCache,
+  }: {
+    /** Tileset ID */
+    id: string
+    db: Database
+    /** Stale-While-Revalidate cache instance */
+    swrCache: SWRCacheV2
+  }) {
+    this.#tilesetId = id
+    this.#swrCache = swrCache
+    this.#db = db
+  }
+
+  get hasExistingTileset() {
+    return (
+      this.#db
+        .prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?')
+        .get(this.#tilesetId).count > 0
+    )
+  }
+
+  async getTile(
+    z: number,
+    x: number,
+    y: number,
+    {
+      forceOffline,
+    }: {
+      forceOffline?: boolean
+    } = {}
+  ): Promise<{ data: Buffer; headers: Headers }> {
+    const tileUrl = await this.getTileUrl(z, x, y)
+    if (tileUrl && !forceOffline) {
+      // TODO: does the etag come into play here?
+      const { data } = await this.#swrCache.get(tileUrl)
+      const headers = tiletype.headers(data)
+      return { data, headers }
+    } else {
+      const quadKey = tileToQuadkey([x, y, z])
+
+      const tile: { data: Buffer } | undefined = this.#db
+        .prepare<{
+          tilesetId: string
+          quadKey: string
+        }>(
+          'SELECT data FROM TileData ' +
+            'JOIN Tile ON TileData.tileHash = Tile.tileHash ' +
+            'JOIN Tileset ON Tile.tilesetId = Tileset.id ' +
+            'WHERE Tileset.id = :tilesetId AND Tile.quadKey = :quadKey'
+        )
+        .get({ tilesetId: this.#tilesetId, quadKey })
+
+      // TODO: what to do here?
+      if (!tile) throw new Error()
+
+      return { data: tile.data, headers: tiletype.headers(tile.data) }
+    }
+  }
+
+  /**
+   * Get the upstream tile URL for a particular tile
+   */
+  async getTileUrl(z: number, x: number, y: number): Promise<string | void> {
+    // TODO: Support {ratio} in template URLs, not used in mapbox-gl-js, only in
+    // the mobile SDKs
+    const ratio = ''
+
+    const tileset: { tilejson: string } | undefined = this.#db
+      .prepare('SELECT tilejson FROM Tileset WHERE id = ?')
+      .get(this.#tilesetId)
+
+    // TODO: throw error about resource missing?
+    if (!tileset) return
+
+    const tilejson: TileJSON = JSON.parse(tileset.tilejson)
+
+    const { scheme: upstreamScheme = 'xyz', tiles: templateUrls } = tilejson
+
+    if (!isStringArray(templateUrls))
+      return console.log('templateUrls', templateUrls)
+
+    const bbox = getTileBBox(x, y, z)
+    const quadkey = tileToQuadkey([x, y, z])
+
+    return templateUrls[(x + y) % templateUrls.length]
+      .replace('{prefix}', (x % 16).toString(16) + (y % 16).toString(16))
+      .replace('{z}', String(z))
+      .replace('{x}', String(x))
+      .replace(
+        '{y}',
+        String(upstreamScheme === 'tms' ? Math.pow(2, z) - y - 1 : y)
+      )
+      .replace('{quadkey}', quadkey)
+      .replace('{bbox-epsg-3857}', bbox)
+      .replace('{ratio}', ratio ? `@${ratio}x` : '')
+  }
+
+  async getTileJSON(): Promise<TileJSON> {
+    const row: { tilejson: string } | undefined = this.#db
+      .prepare('SELECT tilejson FROM Tileset WHERE id = ?')
+      .get(this.#tilesetId)
+
+    if (!row) {
+      throw new Error()
+    }
+
+    return {
+      // tiles will be overwritten if it exists in the metadata, this is just a
+      // fallback, since this is a required prop on TileJSON
+      tiles: [],
+      ...JSON.parse(row.tilejson),
+      tilejson: '2.2.0',
+    }
+  }
+
+  // TODO: is it okay for this to be an upsert?
+  async putTileJSON(tilejson: TileJSON): Promise<void> {
+    this.#db
+      .prepare<{
+        id: string
+        format: TileJSON['format']
+        tilejson: string
+        upstreamTileUrls: string
+      }>(
+        'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls) ' +
+          'VALUES (:id, :tilejson, :format, :upstreamTileUrls) ' +
+          'ON CONFLICT DO UPDATE SET (tilejson, format, upstreamTileUrls) = (excluded.tilejson, excluded.format, excluded.upstreamTileUrls)'
+      )
+      .run({
+        id: this.#tilesetId,
+        format: tilejson.format,
+        tilejson: JSON.stringify(tilejson),
+        upstreamTileUrls: JSON.stringify(tilejson.tiles),
+      })
+  }
 }

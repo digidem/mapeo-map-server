@@ -107,4 +107,108 @@ class SWRCache {
   }
 }
 
+type SWRCacheResponse = {
+  data: Buffer
+  // TODO: is this necessary?
+  etag?: string
+}
+
+export class SWRCacheV2 {
+  private inflight = new Map<string, Promise<SWRCacheResponse>>()
+  private pending = new Set<Promise<any>>()
+  private cacheGet: (url: string) => Promise<SWRCacheResponse>
+  private cachePut: (params: {
+    data: Buffer
+    etag?: string
+    url: string
+  }) => Promise<void>
+
+  constructor(cache: {
+    get: SWRCacheV2['cacheGet']
+    put: SWRCacheV2['cachePut']
+  }) {
+    this.cacheGet = cache.get
+    this.cachePut = cache.put
+  }
+
+  /**
+   * Wait until all pending requests have completed (this is necessary because
+   * swrCache.get() will return a value from the cache while a request will be
+   * sent upstream to revalidate the cache. This method allows you to wait for
+   * pending revalidation requests to complete)
+   */
+  async allSettled(): Promise<void> {
+    return Promise.allSettled(this.pending).then(() => {})
+  }
+
+  get(
+    url: string,
+    {
+      cacheGet = this.cacheGet,
+      etag,
+      forceOffline,
+    }: {
+      cacheGet?: SWRCacheV2['cacheGet']
+      etag?: string
+      forceOffline?: boolean
+    } = {}
+  ): Promise<SWRCacheResponse> {
+    // If there is already an inflight request for this url, use that
+    const inflightRequest = this.inflight.get(url)
+    if (inflightRequest) return inflightRequest
+
+    // Get the resource either from the cache or from upstream, but unless
+    // forceOffline is true, always try to revalidate the cache
+    const request = forceOffline
+      ? Promise.any([cacheGet(url)])
+      : Promise.any([cacheGet(url), this.getUpstream(url, { etag })])
+
+    this.inflight.set(url, request)
+
+    // Warning: Using .finally() here will result in an unhandled rejection
+    request
+      .then(() => this.inflight.delete(url))
+      .catch(() => this.inflight.delete(url))
+
+    return request
+  }
+
+  private getUpstream(
+    url: string,
+    {
+      cachePut = this.cachePut,
+      etag,
+    }: { cachePut?: SWRCacheV2['cachePut']; etag?: string }
+  ) {
+    /**
+     * 1. Get etag for currently cached resource, if it exists
+     * 2. Request resource, if it does not match etag
+     * 3. Throw if the resouce has not been modified (cached value is up-to-date)
+     * 4. Otherwise save the etag and cache the resource
+     */
+    const headers = etag ? { 'If-None-Match': etag } : {}
+
+    const request = got(url, { headers, responseType: 'buffer' }).then(
+      (response) => {
+        if (response.statusCode === 304) throw new Error('Not Modified')
+
+        const etag = response.headers.etag as string
+
+        cachePut({ data: response.body, etag, url }).catch(() => {})
+
+        return { data: response.body, etag }
+      }
+    )
+
+    // Keep track of this pending request, for the allSettled() method
+    this.pending.add(request)
+
+    request
+      .then(() => this.pending.delete(request))
+      .catch(() => this.pending.delete(request))
+
+    return request
+  }
+}
+
 export default SWRCache
