@@ -64,15 +64,7 @@ export interface PluginOptions {
 
 interface Context {
   db: DatabaseInstance
-  // tilestores: Map<string, Tilestore>
   swrCache: SWRCacheV2
-  // paths: {
-  //   tilesets: string
-  //   styles: string
-  //   fonts: string
-  //   sprites: string
-  //   db: string
-  // }
 }
 
 // Any resource returned by the API will always have an `id` property
@@ -187,9 +179,7 @@ function createApi({
       // e.g. lots of styles created on Mapbox will use the
       // mapbox.mapbox-streets-v7 source
       const tilesetId = getTilesetId(tilejson)
-      // const tilestore = context.tilestores.get(tilesetId)
       const tilesetManager = createTilesetManager(tilesetId)
-      // if (!tilestore) {
       if (!tilesetManager.hasExistingTileset) {
         await api.createTileset(tilejson)
       } else {
@@ -203,11 +193,6 @@ function createApi({
   const api: Api = {
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
-      // if (context.tilestores.has(id)) {
-      //   throw new AlreadyExistsError(
-      //     `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${id} to modify this tileset`
-      //   )
-      // }
 
       const tilesetManager = createTilesetManager(id)
 
@@ -216,14 +201,6 @@ function createApi({
           `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${id} to modify this tileset`
         )
       }
-      // const tilestore = new Tilestore({
-      //   id,
-      //   mode: 'rwc',
-      //   dir: context.paths.tilesets,
-      //   swrCache,
-      // })
-      // context.tilestores.set(id, tilestore)
-      // await tilestore.putTileJSON(tilejson)
 
       const result = {
         ...tilejson,
@@ -242,17 +219,12 @@ function createApi({
       if (id !== tilejson.id) {
         throw new MismatchedIdError(id, tilejson.id)
       }
-      // const tilestore = context.tilestores.get(id)
-      // if (!tilestore) {
-      //   throw new NotFoundError(id)
-      // }
 
       const tilesetManager = createTilesetManager(id)
 
       if (!tilesetManager.hasExistingTileset) {
         throw new NotFoundError(id)
       }
-      // await tilestore.putTileJSON(tilejson)
 
       const result = {
         ...tilejson,
@@ -266,9 +238,6 @@ function createApi({
     },
 
     async listTilesets() {
-      // const tilesetIds = Array.from(context.tilestores.keys())
-      // return Promise.all(tilesetIds.map((id) => api.getTileset(id)))
-
       return db
         .prepare('SELECT id, tilejson FROM Tileset')
         .all()
@@ -279,27 +248,19 @@ function createApi({
     },
 
     async getTileset(id) {
-      // const tilestore = context.tilestores.get(id)
       return {
-        // ...(await tilestore.getTileJSON()),
         ...(await createTilesetManager(id).getTileJSON()),
         id,
       }
     },
 
     async getTile({ tilesetId, zoom, x, y }) {
-      // const tilestore = context.tilestores.get(tilesetId)
-      // if (!tilestore) {
-      // throw new NotFoundError(tilesetId)
-      // }
-
       const tilesetManager = createTilesetManager(tilesetId)
 
       if (!tilesetManager.hasExistingTileset) {
         throw new NotFoundError(tilesetId)
       }
 
-      // return tilestore.getTile(zoom, x, y)
       return tilesetManager.getTile(zoom, x, y)
     },
 
@@ -421,21 +382,7 @@ async function uncompositeStyle(
  * data dirs, to avoid users moving mbtiles internally managed here.
  */
 async function init(dataDir: string): Promise<Context> {
-  // const paths = { tilesets: '', styles: '', sprites: '', fonts: '', db: '' }
-  // for (const pathName of Object.keys(paths) as Array<keyof typeof paths>) {
-  //   paths[pathName] = path.join(process.cwd(), dataDir, pathName)
-  //   await mkdirp(paths[pathName])
-  // }
-
   const db = new Database(dataDir)
-
-  // const etagDb = SubLevel<string, string>(db, 'etag', {
-  //   valueEncoding: 'string',
-  // })
-  // const cacheDb = SubLevel<string, Buffer>(db, 'urlCache', {
-  //   valueEncoding: 'binary',
-  // })
-  // const swrCache = new SWRCache({ etagDb, cacheDb })
 
   // TODO: how to get the tilesetId and quadKey here? can it be extracted from the url?
   // Probably need to rethink how to set this up
@@ -497,17 +444,5 @@ async function init(dataDir: string): Promise<Context> {
     },
   })
 
-  // const tilesetIds = (await fsPromises.readdir(paths.tilesets))
-  //   .filter((fname) => fname.endsWith('.mbtiles'))
-  //   .map((fname) => path.basename(fname, '.mbtiles'))
-
-  // const tilestores = new Map(
-  //   tilesetIds.map((id) => [
-  //     id,
-  //     new Tilestore({ id, mode: 'rw', dir: paths.tilesets, swrCache }),
-  //   ])
-  // )
-
-  // return { db, tilestores, paths, swrCache }
   return { db, swrCache }
 }
