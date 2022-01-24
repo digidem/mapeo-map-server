@@ -113,23 +113,14 @@ type SWRCacheResponse = {
   etag?: string
 }
 
+type CacheAdaptor = {
+  get: () => Promise<SWRCacheResponse>
+  put: (params: { data: Buffer; etag?: string; url: string }) => Promise<void>
+}
+
 export class SWRCacheV2 {
   private inflight = new Map<string, Promise<SWRCacheResponse>>()
   private pending = new Set<Promise<any>>()
-  private cacheGet: (url: string) => Promise<SWRCacheResponse>
-  private cachePut: (params: {
-    data: Buffer
-    etag?: string
-    url: string
-  }) => Promise<void>
-
-  constructor(cache: {
-    get: SWRCacheV2['cacheGet']
-    put: SWRCacheV2['cachePut']
-  }) {
-    this.cacheGet = cache.get
-    this.cachePut = cache.put
-  }
 
   /**
    * Wait until all pending requests have completed (this is necessary because
@@ -143,12 +134,11 @@ export class SWRCacheV2 {
 
   get(
     url: string,
+    cache: CacheAdaptor,
     {
-      cacheGet = this.cacheGet,
       etag,
       forceOffline,
     }: {
-      cacheGet?: SWRCacheV2['cacheGet']
       etag?: string
       forceOffline?: boolean
     } = {}
@@ -160,8 +150,11 @@ export class SWRCacheV2 {
     // Get the resource either from the cache or from upstream, but unless
     // forceOffline is true, always try to revalidate the cache
     const request = forceOffline
-      ? Promise.any([cacheGet(url)])
-      : Promise.any([cacheGet(url), this.getUpstream(url, { etag })])
+      ? Promise.any([cache.get()])
+      : Promise.any([
+          cache.get(),
+          this.getUpstream(url, { cachePut: cache.put, etag }),
+        ])
 
     this.inflight.set(url, request)
 
@@ -175,10 +168,7 @@ export class SWRCacheV2 {
 
   private getUpstream(
     url: string,
-    {
-      cachePut = this.cachePut,
-      etag,
-    }: { cachePut?: SWRCacheV2['cachePut']; etag?: string }
+    { cachePut, etag }: { cachePut: CacheAdaptor['put']; etag?: string }
   ) {
     /**
      * 1. Get etag for currently cached resource, if it exists

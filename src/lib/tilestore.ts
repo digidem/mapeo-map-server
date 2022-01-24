@@ -250,9 +250,72 @@ export class TilesetManager {
     } = {}
   ): Promise<{ data: Buffer; headers: Headers }> {
     const tileUrl = await this.getTileUrl(z, x, y)
+    const quadKey = tileToQuadkey([x, y, z])
+
     if (tileUrl && !forceOffline) {
       // TODO: does the etag come into play here?
-      const { data } = await this.#swrCache.get(tileUrl)
+      const { data } = await this.#swrCache.get(tileUrl, {
+        get: async () => {
+          const tile: { data: Buffer } = this.#db
+            .prepare<{
+              tilesetId: string
+              quadKey: string
+            }>(
+              'SELECT data FROM TileData ' +
+                'JOIN Tile ON TileData.tileHash = Tile.tileHash ' +
+                'JOIN Tileset ON Tile.tilesetId = Tileset.id ' +
+                'WHERE Tileset.id = :tilesetId AND Tile.quadKey = :quadKey'
+            )
+            .get({ tilesetId: this.#tilesetId, quadKey })
+
+          return { data: tile.data }
+        },
+        put: async ({ data, etag, url }) => {
+          const transaction = this.#db.transaction(() => {
+            const tileHash = hash(data).toString('hex')
+
+            this.#db
+              .prepare<{
+                tileHash: string
+                tilesetId: string
+                data: Buffer
+              }>(
+                'INSERT INTO Tile (tileHash, tilesetId, data) VALUES (:tileHash, :tilesetId, :data)'
+              )
+              .run({ tileHash, tilesetId: this.#tilesetId, data })
+
+            this.#db
+              .prepare<{
+                etag?: string
+                tilesetId: string
+                upstreamUrl: string
+              }>(
+                'UPDATE Tileset SET (etag, upstreamUrl) = (:etag, :upstreamUrl) WHERE id = :tilesetId'
+              )
+              .run({
+                etag,
+                tilesetId: this.#tilesetId,
+                upstreamUrl: url,
+              })
+
+            this.#db
+              .prepare<{
+                quadKey: string
+                tileHash: string
+                tilesetId: string
+              }>(
+                'INSERT INTO Tile VALUES (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId)'
+              )
+              .run({
+                quadKey,
+                tileHash,
+                tilesetId: this.#tilesetId,
+              })
+          })
+
+          transaction()
+        },
+      })
       const headers = tiletype.headers(data)
       return { data, headers }
     } else {
