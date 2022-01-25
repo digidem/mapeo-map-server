@@ -1,6 +1,6 @@
 import { promises as fsPromises } from 'fs'
 import path from 'path'
-import Db, {Database, RunResult} from 'better-sqlite3'
+import Db, {Database, RunResult, Statement} from 'better-sqlite3'
 import { Headers } from '@mapbox/mbtiles'
 import { AbstractLevelDOWN } from 'abstract-leveldown'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
@@ -23,6 +23,7 @@ import {
   VectorSourceSpecification,
 } from './types/mapbox_style'
 import { createRasterStyleJSON } from './generate-style'
+import { RasterStyleJSON } from './lib/styles'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -202,11 +203,15 @@ function createApi({
       {
         throw new AlreadyExistsError(id)
       }
+
+      let insertStyle:Statement|undefined
       if(isRaster(tilejson))
       {
         const styleJSON = createRasterStyleJSON(name, id, tilejson.tiles)
-        context.db.prepare("INSERT into Style (id, stylejson) VALUES (?,?)").run(hash(id).toString(), styleJSON)
+        insertStyle = context.db.prepare<[string, RasterStyleJSON]>("INSERT into Style (id, stylejson) VALUES (?,?)")
       }
+
+      //To Do include insertStyle Statement here when creating tileset
       
   
     },
