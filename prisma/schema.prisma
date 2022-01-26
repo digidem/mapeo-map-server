@@ -94,6 +94,7 @@ model OfflineArea {
   zoomLevel   Int
   // Comma-separated string of 4 floats
   boundingBox String
+  name        String
   style       Style     @relation(fields: [styleId], references: [id])
   styleId     String
   download    Download?
