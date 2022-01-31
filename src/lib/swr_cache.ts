@@ -107,19 +107,19 @@ class SWRCache {
   }
 }
 
-type SWRCacheResponse = {
-  data: Buffer
+type SWRCacheResponse<Data> = {
+  data: Data
   // TODO: is this necessary?
   etag?: string
 }
 
-type CacheAdaptor = {
-  get: () => Promise<SWRCacheResponse>
+type CacheAdaptor<Data> = {
+  get: () => Promise<SWRCacheResponse<Data>>
   put: (params: { data: Buffer; etag?: string; url: string }) => Promise<void>
 }
 
-export class SWRCacheV2 {
-  private inflight = new Map<string, Promise<SWRCacheResponse>>()
+export class SWRCacheV2<Data> {
+  private inflight = new Map<string, Promise<SWRCacheResponse<Data>>>()
   private pending = new Set<Promise<any>>()
 
   /**
@@ -134,7 +134,7 @@ export class SWRCacheV2 {
 
   get(
     url: string,
-    cache: CacheAdaptor,
+    cache: CacheAdaptor<Data>,
     {
       etag,
       forceOffline,
@@ -142,7 +142,7 @@ export class SWRCacheV2 {
       etag?: string
       forceOffline?: boolean
     } = {}
-  ): Promise<SWRCacheResponse> {
+  ): Promise<SWRCacheResponse<Data>> {
     // If there is already an inflight request for this url, use that
     const inflightRequest = this.inflight.get(url)
     if (inflightRequest) return inflightRequest
@@ -168,8 +168,8 @@ export class SWRCacheV2 {
 
   private getUpstream(
     url: string,
-    { cachePut, etag }: { cachePut: CacheAdaptor['put']; etag?: string }
-  ) {
+    { cachePut, etag }: { cachePut: CacheAdaptor<Data>['put']; etag?: string }
+  ): Promise<SWRCacheResponse<Data>> {
     /**
      * 1. Get etag for currently cached resource, if it exists
      * 2. Request resource, if it does not match etag

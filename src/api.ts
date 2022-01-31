@@ -64,7 +64,7 @@ export interface PluginOptions {
 
 interface Context {
   db: DatabaseInstance
-  swrCache: SWRCacheV2
+  swrCache: SWRCacheV2<Buffer>
 }
 
 // Any resource returned by the API will always have an `id` property
@@ -383,7 +383,11 @@ async function uncompositeStyle(
  */
 async function init(dataDir: string): Promise<Context> {
   const db = new Database(dataDir)
-  const swrCache = new SWRCacheV2()
+
+  // TODO: Need to execute migrations for db here
+
+  // TODO: We need caches for various types of entities (starting with tiles)
+  const swrCache = new SWRCacheV2<Buffer>()
 
   return { db, swrCache }
 }
