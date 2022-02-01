@@ -65,7 +65,7 @@ export interface PluginOptions {
 
 interface Context {
   db: DatabaseInstance
-  swrCache: SWRCacheV2<Buffer>
+  tileCache: SWRCacheV2<Buffer>
 }
 
 // Any resource returned by the API will always have an `id` property
@@ -101,7 +101,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, swrCache } = context
+  const { db, tileCache } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -137,7 +137,7 @@ function createApi({
   }
 
   function createTilesetManager(id: string) {
-    return new TilesetManager({ id, db, swrCache })
+    return new TilesetManager({ id, db, swrCache: tileCache })
   }
 
   /**
@@ -388,7 +388,7 @@ async function init(dataDir: string): Promise<Context> {
   migrate(db)
 
   // TODO: We need caches for various types of entities (starting with tiles)
-  const swrCache = new SWRCacheV2<Buffer>()
+  const tileCache = new SWRCacheV2<Buffer>()
 
-  return { db, swrCache }
+  return { db, tileCache }
 }
