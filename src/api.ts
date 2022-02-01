@@ -24,6 +24,7 @@ import {
   VectorSourceSpecification,
 } from './types/mapbox_style'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
+import { migrate } from './lib/migrations'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -384,7 +385,7 @@ async function uncompositeStyle(
 async function init(dataDir: string): Promise<Context> {
   const db = new Database(dataDir)
 
-  // TODO: Need to execute migrations for db here
+  migrate(db)
 
   // TODO: We need caches for various types of entities (starting with tiles)
   const swrCache = new SWRCacheV2<Buffer>()
