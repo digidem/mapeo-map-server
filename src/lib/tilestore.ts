@@ -213,7 +213,7 @@ export function getTilesetId(tilejson: TileJSON): string {
 export class TilesetManager {
   #tilesetId: string
   #db: Database
-  #swrCache: SWRCacheV2
+  #swrCache: SWRCacheV2<Buffer>
 
   constructor({
     id,
@@ -224,7 +224,7 @@ export class TilesetManager {
     id: string
     db: Database
     /** Stale-While-Revalidate cache instance */
-    swrCache: SWRCacheV2
+    swrCache: SWRCacheV2<Buffer>
   }) {
     this.#tilesetId = id
     this.#swrCache = swrCache
