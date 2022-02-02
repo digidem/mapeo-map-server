@@ -123,7 +123,16 @@ type CacheAdaptor<Data> = {
   upstreamResponseType: UpstreamResponseType
 }
 
-export class SWRCacheV2<Data> {
+// Derived from https://github.com/sindresorhus/type-fest/blob/61c35052f09caa23de5eef96d95196375d8ed498/source/basic.d.ts#L15-L45
+type JSONValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key in string]?: JSONValue }
+  | JSONValue[]
+
+export class SWRCacheV2<Data extends Buffer | JSONValue> {
   private inflight = new Map<string, Promise<SWRCacheResponse<Data>>>()
   private pending = new Set<Promise<any>>()
 
