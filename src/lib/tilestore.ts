@@ -255,6 +255,7 @@ export class TilesetManager {
     if (tileUrl && !forceOffline) {
       // TODO: does the etag come into play here?
       const { data } = await this.#swrCache.get(tileUrl, {
+        upstreamResponseType: 'buffer',
         get: async () => {
           const tile: { data: Buffer } = this.#db
             .prepare<{

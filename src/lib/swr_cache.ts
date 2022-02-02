@@ -113,9 +113,14 @@ type SWRCacheResponse<Data> = {
   etag?: string
 }
 
+type UpstreamResponseType = 'buffer' | 'text' | 'json'
+
 type CacheAdaptor<Data> = {
   get: () => Promise<SWRCacheResponse<Data>>
-  put: (params: { data: Buffer; etag?: string; url: string }) => Promise<void>
+  put: (params: { data: Data; etag?: string; url: string }) => Promise<void>
+  // TODO: Think of a better name for this?
+  // TODO: Would it be better to pass this into the constructor?
+  upstreamResponseType: UpstreamResponseType
 }
 
 export class SWRCacheV2<Data> {
@@ -153,7 +158,11 @@ export class SWRCacheV2<Data> {
       ? Promise.any([cache.get()])
       : Promise.any([
           cache.get(),
-          this.getUpstream(url, { cachePut: cache.put, etag }),
+          this.getUpstream(url, {
+            cachePut: cache.put,
+            etag,
+            responseType: cache.upstreamResponseType,
+          }),
         ])
 
     this.inflight.set(url, request)
@@ -168,8 +177,16 @@ export class SWRCacheV2<Data> {
 
   private getUpstream(
     url: string,
-    { cachePut, etag }: { cachePut: CacheAdaptor<Data>['put']; etag?: string }
-  ): Promise<SWRCacheResponse<Data>> {
+    {
+      cachePut,
+      etag,
+      responseType,
+    }: {
+      cachePut: CacheAdaptor<Data>['put']
+      etag?: string
+      responseType: UpstreamResponseType
+    }
+  ): ReturnType<CacheAdaptor<Data>['get']> {
     /**
      * 1. Get etag for currently cached resource, if it exists
      * 2. Request resource, if it does not match etag
@@ -178,17 +195,18 @@ export class SWRCacheV2<Data> {
      */
     const headers = etag ? { 'If-None-Match': etag } : {}
 
-    const request = got(url, { headers, responseType: 'buffer' }).then(
-      (response) => {
-        if (response.statusCode === 304) throw new Error('Not Modified')
+    const request = got(url, { headers, responseType }).then((response) => {
+      if (response.statusCode === 304) throw new Error('Not Modified')
 
-        const etag = response.headers.etag as string
+      const etag = response.headers.etag as string
 
-        cachePut({ data: response.body, etag, url }).catch(() => {})
+      // Not excited about this but think it works okay
+      const data = response.body as Data
 
-        return { data: response.body, etag }
-      }
-    )
+      cachePut({ data, etag, url }).catch(() => {})
+
+      return { data, etag }
+    })
 
     // Keep track of this pending request, for the allSettled() method
     this.pending.add(request)
