@@ -1,5 +1,16 @@
 /**
- * Currently assumes that we will use Prisma migrate's directory structure when it comes to migrations
+ * Currently assumes that we will use Prisma migrate's directory structure when it comes to migrations.
+ *
+ * Prisma persists migration history in a table called `_prisma_migrations` with the following structure:
+ *   id: text
+ *   checksum: text
+ *   finished_at: datetime (nullable)
+ *   logs: text (nullable)
+ *   rolled_back_at: datetime (nullable)
+ *   started_at: datetime
+ *   applied_steps_count: integer (unsigned)
+ * Might be worth exploring how to potentially use that for maintaining migration history
+ * https://www.prisma.io/docs/concepts/components/prisma-migrate#migration-history
  */
 import path from 'path'
 import fs from 'fs'
@@ -12,8 +23,8 @@ const BASE_MIGRATIONS_DIR_PATH = path.resolve(
 )
 
 export function migrate(db: Database) {
-  // TODO: We'll need to persist unique names somewhere
-  // if we want to support migrations properly.
+  // TODO: We'll need to persist unique names somewhere if we want to support migrations properly.
+  // Maybe use the `_prisma_migrations` table or create a table that's initialized from that?
   // We could theoretically store this in the db or maybe just persist as a JSON file?
   const mostRecentMigrationName = 'TEST'
 
