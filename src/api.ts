@@ -1,23 +1,13 @@
-import { promises as fsPromises } from 'fs'
 import path from 'path'
-
 import { Headers } from '@mapbox/mbtiles'
-import { AbstractLevelDOWN } from 'abstract-leveldown'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from 'fastify-error'
 import fp from 'fastify-plugin'
-import getStream from 'get-stream'
 import got from 'got'
-import Level from 'level'
-import { LevelUp } from 'levelup'
-import mkdirp from 'mkdirp'
-import SubLevel from 'subleveldown'
-import tiletype from '@mapbox/tiletype'
 
-import SWRCache, { SWRCacheV2 } from './lib/swr_cache'
+import { SWRCacheV2 } from './lib/swr_cache'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { TilesetManager, getTilesetId } from './lib/tileset_manager'
-import Tilestore from './lib/tilestore'
 import { encodeBase32, generateId, hash } from './lib/utils'
 import {
   RasterSourceSpecification,
@@ -328,7 +318,7 @@ const ApiPlugin: FastifyPluginAsync<PluginOptions> = async (
   { dataDir = 'data' }
 ) => {
   // Create context once for each fastify instance
-  const context = await init(dataDir)
+  const context = init(dataDir)
   fastify.decorateRequest('api', {
     getter(this: FastifyRequest) {
       return createApi({ context, request: this, fastify })
@@ -378,13 +368,8 @@ async function uncompositeStyle(
   return style
 }
 
-/**
- * Setup data storage paths and create Tilestore instances for existing mbtiles.
- * TODO: Watch dirs for user-added files? Maybe separate user dir from these
- * data dirs, to avoid users moving mbtiles internally managed here.
- */
-async function init(dataDir: string): Promise<Context> {
-  const db = new Database(dataDir)
+function init(dataDir: string): Context {
+  const db = new Database(path.resolve(dataDir, 'mapeo-map-server.db'))
 
   migrate(db)
 
