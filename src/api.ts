@@ -16,7 +16,8 @@ import tiletype from '@mapbox/tiletype'
 
 import SWRCache, { SWRCacheV2 } from './lib/swr_cache'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
-import Tilestore, { getTilesetId, TilesetManager } from './lib/tilestore'
+import { TilesetManager, getTilesetId } from './lib/tileset_manager'
+import Tilestore from './lib/tilestore'
 import { encodeBase32, generateId, hash } from './lib/utils'
 import {
   RasterSourceSpecification,
