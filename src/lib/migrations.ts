@@ -1,16 +1,21 @@
 /**
  * Currently assumes that we will use Prisma migrate's directory structure when it comes to migrations.
  *
- * Prisma persists migration history in a table called `_prisma_migrations` with the following structure:
- *   id: text
- *   checksum: text
+ * Prisma persists migration history in a table called `_prisma_migrations` with the following structure [^1]:
+ *
+ *   id: text [^2]
+ *   checksum: text [^3]
  *   finished_at: datetime (nullable)
  *   logs: text (nullable)
  *   rolled_back_at: datetime (nullable)
  *   started_at: datetime
  *   applied_steps_count: integer (unsigned)
- * Might be worth exploring how to potentially use that for maintaining migration history
- * https://www.prisma.io/docs/concepts/components/prisma-migrate#migration-history
+ *
+ * [^1] Reference: https://github.com/prisma/prisma-engines/blob/e1a51505ab49d6b3e3d1884d4c74b304d56eed15/migration-engine/connectors/migration-connector/src/migration_persistence.rs#L87
+ * [^2] A UUID v4 string
+ * [^3] A SHA-256 hash of the generated SQL migration file content
+ *
+ * Might be worth exploring how to potentially use that for maintaining migration history (https://www.prisma.io/docs/concepts/components/prisma-migrate#migration-history)
  */
 import path from 'path'
 import fs from 'fs'
@@ -19,7 +24,7 @@ import { Database } from 'better-sqlite3'
 
 const BASE_MIGRATIONS_DIR_PATH = path.resolve(
   process.cwd(),
-  '../prisma/migrations'
+  './prisma/migrations'
 )
 
 export function migrate(db: Database) {
