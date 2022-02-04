@@ -253,7 +253,14 @@ function createApi({
         throw new NotFoundError(tilesetId)
       }
 
-      return tilesetManager.getTile(zoom, x, y)
+      const tile = await tilesetManager.getTile(zoom, x, y)
+
+      if (!tile) {
+        // TODO: Improve error handling here?
+        throw new NotFoundError(`[${zoom}, ${x}, ${y}]`)
+      }
+
+      return tile
     },
 
     async createStyle(style) {

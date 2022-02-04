@@ -51,13 +51,13 @@ export class TilesetManager {
     }: {
       forceOffline?: boolean
     } = {}
-  ): Promise<{ data: Buffer; headers: Headers }> {
+  ): Promise<{ data: Buffer; headers: Headers } | void> {
     const tileUrl = await this.getTileUrl(z, x, y)
     const quadKey = tileToQuadkey([x, y, z])
 
     if (tileUrl && !forceOffline) {
       // TODO: does the etag come into play here?
-      const { data } = await this.#swrCache.get(tileUrl, {
+      const cacheResult = await this.#swrCache.get(tileUrl, {
         upstreamResponseType: 'buffer',
         get: async () => {
           const tile: { data: Buffer } = this.#db
@@ -71,6 +71,11 @@ export class TilesetManager {
                 'WHERE Tileset.id = :tilesetId AND Tile.quadKey = :quadKey'
             )
             .get({ tilesetId: this.#tilesetId, quadKey })
+
+          // TODO: Need to throw more specific error here?
+          if (!tile) {
+            throw new Error('Tile not found in cache')
+          }
 
           return { data: tile.data }
         },
@@ -120,8 +125,13 @@ export class TilesetManager {
           transaction()
         },
       })
-      const headers = tiletype.headers(data)
-      return { data, headers }
+
+      return cacheResult
+        ? {
+            data: cacheResult.data,
+            headers: tiletype.headers(cacheResult.data),
+          }
+        : undefined
     } else {
       const quadKey = tileToQuadkey([x, y, z])
 
@@ -137,8 +147,10 @@ export class TilesetManager {
         )
         .get({ tilesetId: this.#tilesetId, quadKey })
 
-      // TODO: what to do here?
-      if (!tile) throw new Error()
+      // TODO: Need to throw more specific error here?
+      if (!tile) {
+        throw new Error('Tile not found in cache')
+      }
 
       return { data: tile.data, headers: tiletype.headers(tile.data) }
     }

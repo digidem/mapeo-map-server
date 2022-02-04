@@ -107,7 +107,7 @@ class SWRCache {
   }
 }
 
-type SWRCacheResponse<Data> = {
+export type SWRCacheResponse<Data> = {
   data: Data
   // TODO: is this necessary?
   etag?: string
@@ -153,6 +153,7 @@ export class SWRCacheV2<Data extends Buffer | JSONValue> {
       etag,
       forceOffline,
     }: {
+      // TODO: This complicates the API and we need to figure out a better way to get the latest etag each time
       etag?: string
       forceOffline?: boolean
     } = {}
@@ -195,7 +196,7 @@ export class SWRCacheV2<Data extends Buffer | JSONValue> {
       etag?: string
       responseType: UpstreamResponseType
     }
-  ): ReturnType<CacheAdaptor<Data>['get']> {
+  ): Promise<SWRCacheResponse<Data>> {
     /**
      * 1. Get etag for currently cached resource, if it exists
      * 2. Request resource, if it does not match etag
