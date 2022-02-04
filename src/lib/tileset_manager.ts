@@ -9,7 +9,7 @@ import tiletype from '@mapbox/tiletype'
 import { getTileBBox } from '@mapbox/whoots-js'
 import { Database } from 'better-sqlite3'
 
-import { SWRCacheV2 } from './swr_cache'
+import { SWRCacheV2 } from './swr_cache_v2'
 import { TileJSON } from './tilejson'
 import { encodeBase32, hash } from './utils'
 

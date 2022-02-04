@@ -5,7 +5,7 @@ import createError from 'fastify-error'
 import fp from 'fastify-plugin'
 import got from 'got'
 
-import { SWRCacheV2 } from './lib/swr_cache'
+import { SWRCacheV2 } from './lib/swr_cache_v2'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { TilesetManager, getTilesetId } from './lib/tileset_manager'
 import { encodeBase32, generateId, hash } from './lib/utils'

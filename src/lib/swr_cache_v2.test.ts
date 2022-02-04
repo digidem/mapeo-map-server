@@ -5,7 +5,7 @@ import tap from 'tap'
 import tmp from 'tmp'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 
-import { SWRCacheResponse, SWRCacheV2 } from './swr_cache'
+import { SWRCacheResponse, SWRCacheV2 } from './swr_cache_v2'
 
 type TestContext = {
   db: DatabaseInstance
