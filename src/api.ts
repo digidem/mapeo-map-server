@@ -4,18 +4,25 @@ import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from 'fastify-error'
 import fp from 'fastify-plugin'
 import got from 'got'
+import { tileToQuadkey } from '@mapbox/tilebelt'
+import { headers } from '@mapbox/tiletype'
+import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 
-import { SWRCacheV2 } from './lib/swr_cache_v2'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
-import { TilesetManager, getTilesetId } from './lib/tileset_manager'
-import { encodeBase32, generateId, hash } from './lib/utils'
+import {
+  encodeBase32,
+  generateId,
+  getTilesetId,
+  getUpstreamTileUrl,
+  hash,
+} from './lib/utils'
+import { migrate } from './lib/migrations'
+import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 import {
   RasterSourceSpecification,
   StyleSpecification,
   VectorSourceSpecification,
 } from './types/mapbox_style'
-import Database, { Database as DatabaseInstance } from 'better-sqlite3'
-import { migrate } from './lib/migrations'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -56,7 +63,7 @@ export interface PluginOptions {
 
 interface Context {
   db: DatabaseInstance
-  tileCache: SWRCacheV2<Buffer>
+  upstreamRequestsManager: UpstreamRequestsManager
 }
 
 // Any resource returned by the API will always have an `id` property
@@ -75,6 +82,14 @@ export interface Api {
     x: number
     y: number
   }): Promise<{ data: Buffer; headers: Headers }>
+  putTile(opts: {
+    tilesetId: string
+    zoom: number
+    x: number
+    y: number
+    data: Buffer
+    etag?: string
+  }): Promise<void>
   createStyle(style: StyleSpecification): Promise<OfflineStyle>
   putStyle(id: string, style: OfflineStyle): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
@@ -92,7 +107,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, tileCache } = context
+  const { db, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -125,10 +140,6 @@ function createApi({
       glyphs: style.glyphs && getGlyphsUrl(style.id),
       sprite: style.sprite && getSpriteUrl(style.id),
     }
-  }
-
-  function createTilesetManager(id: string) {
-    return new TilesetManager({ id, db, swrCache: tileCache })
   }
 
   /**
@@ -171,8 +182,13 @@ function createApi({
       // e.g. lots of styles created on Mapbox will use the
       // mapbox.mapbox-streets-v7 source
       const tilesetId = getTilesetId(tilejson)
-      const tilesetManager = createTilesetManager(tilesetId)
-      if (!tilesetManager.hasExistingTileset) {
+
+      const tilesetExists =
+        db
+          .prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?')
+          .get(tilesetId).count > 0
+
+      if (!tilesetExists) {
         await api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
@@ -186,45 +202,76 @@ function createApi({
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
 
-      const tilesetManager = createTilesetManager(id)
+      const tilesetExists =
+        db.prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?').get(id)
+          .count > 0
 
-      if (tilesetManager.hasExistingTileset) {
+      if (tilesetExists) {
         throw new AlreadyExistsError(
           `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${id} to modify this tileset`
         )
       }
 
+      db.prepare<{
+        id: string
+        format: TileJSON['format']
+        tilejson: string
+        upstreamTileUrls: string
+      }>(
+        'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls) ' +
+          'VALUES (:id, :tilejson, :format, :upstreamTileUrls)'
+      ).run({
+        id,
+        format: tilejson.format,
+        tilejson: JSON.stringify(tilejson),
+        upstreamTileUrls: JSON.stringify(tilejson.tiles),
+      })
+
       const result = {
         ...tilejson,
         id,
-        // TODO: is this what we want to do with `tiles` field?
         tiles: [getTileUrl(id)],
       }
-
-      await tilesetManager.putTileJSON(result)
 
       return result
     },
 
-    // TODO: this is basically the same as createTileset at the moment since TileManager.putTileJSON is an upsert for now
     async putTileset(id, tilejson) {
       if (id !== tilejson.id) {
         throw new MismatchedIdError(id, tilejson.id)
       }
 
-      const tilesetManager = createTilesetManager(id)
+      const tilesetExists =
+        db.prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?').get(id)
+          .count > 0
 
-      if (!tilesetManager.hasExistingTileset) {
+      if (!tilesetExists) {
         throw new NotFoundError(id)
       }
+
+      db.prepare<{
+        id: string
+        format: TileJSON['format']
+        tilejson: string
+        upstreamTileUrls: string
+      }>(
+        'UPDATE Tileset SET ' +
+          'tilejson = :tilejson, ' +
+          'format = :format, ' +
+          'upstreamTileUrls = :upstreamTileUrls ' +
+          'WHERE id = :id'
+      ).run({
+        id,
+        format: tilejson.format,
+        tilejson: JSON.stringify(tilejson),
+        upstreamTileUrls: JSON.stringify(tilejson.tiles),
+      })
 
       const result = {
         ...tilejson,
         id,
         tiles: [getTileUrl(id)],
       }
-
-      await tilesetManager.putTileJSON(result)
 
       return result
     },
@@ -240,34 +287,151 @@ function createApi({
     },
 
     async getTileset(id) {
-      return {
-        ...(await createTilesetManager(id).getTileJSON()),
-        id,
+      const row:
+        | { tilejson: TileJSON; etag?: string; upstreamUrl?: string }
+        | undefined = db
+        .prepare('SELECT tilejson, etag, upstreamUrl FROM Tileset WHERE id = ?')
+        .get(id)
+
+      if (!row) {
+        throw new NotFoundError(id)
       }
+
+      async function fetchOnlineResource(url: string, etag?: string) {
+        const { data } = await upstreamRequestsManager.getUpstream<TileJSON>({
+          url,
+          etag,
+          responseType: 'json',
+        })
+
+        if (data) api.putTileset(id, data)
+      }
+
+      if (row.upstreamUrl) {
+        fetchOnlineResource(row.upstreamUrl, row.etag).catch(() => {})
+      }
+
+      return { ...row.tilejson, id }
     },
 
     async getTile({ tilesetId, zoom, x, y }) {
-      const tilesetManager = createTilesetManager(tilesetId)
+      const tilejson = await api.getTileset(tilesetId)
 
-      if (!tilesetManager.hasExistingTileset) {
-        throw new NotFoundError(tilesetId)
-      }
+      const upstreamTileUrl = getUpstreamTileUrl(tilejson, { zoom, x, y })
 
-      const tile = await tilesetManager.getTile(zoom, x, y)
+      const quadKey = tileToQuadkey([x, y, zoom])
+
+      let tile: { data: Buffer; etag?: string } | undefined = db
+        .prepare<{
+          tilesetId: string
+          quadKey: string
+        }>(
+          'SELECT TileData.data as data, Tileset.etag as etag FROM TileData ' +
+            'JOIN Tile ON TileData.tileHash = Tile.tileHash ' +
+            'JOIN Tileset ON Tile.tilesetId = Tileset.id ' +
+            'WHERE Tileset.id = :tilesetId AND Tile.quadKey = :quadKey'
+        )
+        .get({ tilesetId, quadKey })
 
       if (!tile) {
         // TODO: Improve error handling here?
-        throw new NotFoundError(`[${zoom}, ${x}, ${y}]`)
+        throw new NotFoundError(
+          `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
+        )
       }
 
-      return tile
+      async function fetchOnlineResource(): Promise<{
+        data: Buffer
+        etag?: string
+      } | void> {
+        // TODO: Need to check if online too
+        if (upstreamTileUrl) {
+          const response = await upstreamRequestsManager.getUpstream<Buffer>({
+            url: upstreamTileUrl,
+            etag: tile?.etag,
+            responseType: 'buffer',
+          })
+
+          if (response) {
+            await api.putTile({
+              tilesetId,
+              zoom,
+              x,
+              y,
+              data: response.data,
+              etag: response.etag,
+            })
+
+            return { data: response.data, etag: response.etag }
+          }
+        }
+      }
+
+      if (tile.data) {
+        fetchOnlineResource().catch(() => {})
+      } else {
+        const response = await fetchOnlineResource()
+
+        // TODO: Should this throw if false?
+        if (response) {
+          tile = response
+        }
+      }
+
+      return { data: tile.data, headers: headers(tile.data) }
+    },
+
+    async putTile({ tilesetId, zoom, x, y, data, etag }) {
+      const tilejson = await api.getTileset(tilesetId)
+
+      const upstreamTileUrl = getUpstreamTileUrl(tilejson, { zoom, x, y })
+
+      const quadKey = tileToQuadkey([x, y, zoom])
+
+      const transaction = db.transaction(() => {
+        const tileHash = hash(data).toString('hex')
+
+        db.prepare<{
+          tileHash: string
+          tilesetId: string
+          data: Buffer
+        }>(
+          'INSERT INTO Tile (tileHash, tilesetId, data) VALUES (:tileHash, :tilesetId, :data)'
+        ).run({ tileHash, tilesetId, data })
+
+        db.prepare<{
+          etag?: string
+          tilesetId: string
+          upstreamUrl?: string
+        }>(
+          'UPDATE Tileset SET (etag, upstreamUrl) = (:etag, :upstreamUrl) WHERE id = :tilesetId'
+        ).run({
+          etag,
+          tilesetId,
+          upstreamUrl: upstreamTileUrl || undefined,
+        })
+
+        db.prepare<{
+          quadKey: string
+          tileHash: string
+          tilesetId: string
+        }>(
+          'INSERT INTO Tile VALUES (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId)'
+        ).run({
+          quadKey,
+          tileHash,
+          tilesetId,
+        })
+      })
+
+      transaction()
     },
 
     async createStyle(style) {
       const styleId = getStyleId(style)
 
       const styleExists =
-        context.db
+        db
           .prepare('SELECT COUNT(*) as count FROM Style WHERE id = ?')
           .get(styleId).count > 0
 
@@ -283,17 +447,17 @@ function createApi({
         sources: await createOfflineSources(style.sources),
       }
 
-      context.db
-        .prepare('INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)')
-        .run({ id: styleId, stylejson: JSON.stringify(offlineStyle) })
+      db.prepare(
+        'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
+      ).run({ id: styleId, stylejson: JSON.stringify(offlineStyle) })
 
       return addOfflineUrls(offlineStyle)
     },
 
     async putStyle(id, style) {
-      context.db
-        .prepare('INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)')
-        .run({ id, stylejson: style })
+      db.prepare(
+        'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
+      ).run({ id, stylejson: style })
       return { ...style, id }
     },
 
@@ -301,8 +465,8 @@ function createApi({
       const baseQuery = 'SELECT stylejson FROM Style'
       const stmt =
         limit !== undefined
-          ? context.db.prepare(`${baseQuery} LIMIT ?`).bind(limit)
-          : context.db.prepare(baseQuery)
+          ? db.prepare(`${baseQuery} LIMIT ?`).bind(limit)
+          : db.prepare(baseQuery)
 
       return stmt
         .all()
@@ -310,9 +474,7 @@ function createApi({
     },
 
     async getStyle(id) {
-      const row = context.db
-        .prepare('SELECT stylejson FROM Style WHERE id = ?')
-        .get(id)
+      const row = db.prepare('SELECT stylejson FROM Style WHERE id = ?').get(id)
 
       return JSON.parse(row.stylejson)
     },
@@ -380,8 +542,7 @@ function init(dataDir: string): Context {
 
   migrate(db)
 
-  // TODO: We need caches for various types of entities (starting with tiles)
-  const tileCache = new SWRCacheV2<Buffer>()
+  const upstreamRequestsManager = new UpstreamRequestsManager()
 
-  return { db, tileCache }
+  return { db, upstreamRequestsManager }
 }

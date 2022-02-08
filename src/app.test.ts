@@ -3,7 +3,7 @@ import tmp from 'tmp'
 
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
-import { getTilesetId } from './lib/tileset_manager'
+import { getTilesetId } from './lib/utils'
 
 tmp.setGracefulCleanup()
 

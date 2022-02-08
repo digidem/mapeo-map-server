@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'crypto'
 import path from 'path'
 import { URL } from 'url'
+import { getTileBBox } from '@mapbox/whoots-js'
+import { tileToQuadkey } from '@mapbox/tilebelt'
 
 import base32 from 'base32.js'
 
@@ -43,4 +45,65 @@ export function generateId(): string {
 export function encodeBase32(buf: Buffer): string {
   const encoder = new base32.Encoder({ type: 'crockford', lc: true })
   return encoder.write(buf).finalize()
+}
+
+/**
+ * Generate an idempotent unique id for a given tilejson. Not all tilejson has
+ * an id field, so we use the tile URL as an identifier (assumes two tilejsons
+ * refering to the same tile URL are the same)
+ */
+export function getTilesetId(tilejson: TileJSON): string {
+  // If the tilejson has no id, use the tile URL as the id
+  const id = tilejson.id || tilejson.tiles.sort()[0]
+  return encodeBase32(hash(id))
+}
+
+/**
+ * Get the upstream tile URL for a particular tile
+ */
+export function getUpstreamTileUrl(
+  tileset: TileJSON,
+  {
+    zoom,
+    x,
+    y,
+  }: {
+    zoom: number
+    x: number
+    y: number
+  }
+): string | void {
+  // TODO: Support {ratio} in template URLs, not used in mapbox-gl-js, only in
+  // the mobile SDKs
+  const ratio = ''
+
+  const tilejson: TileJSON = JSON.parse(tileset.tilejson)
+
+  const { scheme: upstreamScheme = 'xyz', tiles: templateUrls } = tilejson
+
+  if (!isStringArray(templateUrls))
+    return console.log('templateUrls', templateUrls)
+
+  const bbox = getTileBBox(x, y, zoom)
+  const quadkey = tileToQuadkey([x, y, zoom])
+
+  return templateUrls[(x + y) % templateUrls.length]
+    .replace('{prefix}', (x % 16).toString(16) + (y % 16).toString(16))
+    .replace('{z}', String(zoom))
+    .replace('{x}', String(x))
+    .replace(
+      '{y}',
+      String(upstreamScheme === 'tms' ? Math.pow(2, zoom) - y - 1 : y)
+    )
+    .replace('{quadkey}', quadkey)
+    .replace('{bbox-epsg-3857}', bbox)
+    .replace('{ratio}', ratio ? `@${ratio}x` : '')
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((d) => typeof d === 'string')
+  )
 }
