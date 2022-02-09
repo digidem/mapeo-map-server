@@ -68,7 +68,7 @@ tap.afterEach(async (_done, t) => {
  * 2. Client requests same resource again
  * 3. Manager does not make additional requests, fulfills with existing request
  */
-tap.only('Repeat requests in same tick only hit server once', async (t) => {
+tap.test('Repeat requests in same tick only hit server once', async (t) => {
   const { server, upstreamRequestsManager } = t.context as TestContext
 
   const responses: UpstreamResponse<Buffer>[] = await Promise.all([
