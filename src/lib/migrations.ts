@@ -1,63 +1,144 @@
 /**
  * Currently assumes that we will use Prisma migrate's directory structure when it comes to migrations.
  *
- * Prisma persists migration history in a table called `_prisma_migrations` with the following structure [^1]:
+ * Prisma persists migration history in a table called `_prisma_migrations`:
+ * https://github.com/prisma/prisma-engines/blob/main/migration-engine/ARCHITECTURE.md#the-_prisma_migrations-table
  *
- *   id: text [^2]
- *   checksum: text [^3]
- *   finished_at: datetime (nullable)
- *   logs: text (nullable)
- *   rolled_back_at: datetime (nullable)
- *   started_at: datetime
- *   applied_steps_count: integer (unsigned)
- *
- * [^1] Reference: https://github.com/prisma/prisma-engines/blob/e1a51505ab49d6b3e3d1884d4c74b304d56eed15/migration-engine/connectors/migration-connector/src/migration_persistence.rs#L87
- * [^2] A UUID v4 string
- * [^3] A SHA-256 hash of the generated SQL migration file content
- *
- * Might be worth exploring how to potentially use that for maintaining migration history (https://www.prisma.io/docs/concepts/components/prisma-migrate#migration-history)
+ * Docs on migration history: https://www.prisma.io/docs/concepts/components/prisma-migrate#migration-history
  */
-import path from 'path'
+import crypto from 'crypto'
 import fs from 'fs'
-import process from 'process'
-import { Database } from 'better-sqlite3'
+import path from 'path'
+import { v4 as uuidv4 } from 'uuid'
+import { Database, SqliteError } from 'better-sqlite3'
 
-const BASE_MIGRATIONS_DIR_PATH = path.resolve(
-  process.cwd(),
-  './prisma/migrations'
-)
+export function migrate(db: Database, dataDir: string) {
+  // Determine whether the initial setup has been completed before
+  const migrationsTableExists =
+    db
+      .prepare(
+        "SELECT COUNT(name) as count FROM sqlite_master WHERE type = 'table' AND name = '_prisma_migrations'"
+      )
+      .get().count > 0
 
-export function migrate(db: Database) {
-  // TODO: We'll need to persist unique names somewhere if we want to support migrations properly.
-  // Maybe use the `_prisma_migrations` table or create a table that's initialized from that?
-  // We could theoretically store this in the db or maybe just persist as a JSON file?
-  const mostRecentMigrationName = 'TEST'
+  if (!migrationsTableExists) {
+    // Taken from `prisma-engines` with a slight alteration to how we store dates (we want more granular):
+    // https://github.com/prisma/prisma-engines/blob/863b4a98c22936a01efd27ab814b452f6a62cd73/migration-engine/connectors/sql-migration-connector/src/flavour/sqlite.rs#L61
+    db.prepare(
+      `CREATE TABLE "_prisma_migrations" (
+        "id"                    TEXT PRIMARY KEY NOT NULL,
+        "checksum"              TEXT NOT NULL,
+        "finished_at"           DATETIME,
+        "migration_name"        TEXT NOT NULL,
+        "logs"                  TEXT,
+        "rolled_back_at"        DATETIME,
+        "started_at"            DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', current_timestamp)),
+        "applied_steps_count"   INTEGER UNSIGNED NOT NULL DEFAULT 0
+      );`
+    ).run()
+  }
 
-  const migrationFilePaths = getMigrationFilePaths(mostRecentMigrationName)
+  const mostRecentMigrationName: string | undefined = db
+    // Note that `finished_at` must have millisecond granularity in order for the ORDER BY to work as expected
+    // Otherwise, it won't work in the case where multiple migrations are applied in one go
+    .prepare(
+      `SELECT migration_name as name FROM '_prisma_migrations'
+      WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+      ORDER BY finished_at DESC LIMIT 1;`
+    )
+    .get()?.name
 
-  migrationFilePaths.forEach((p) => {
-    const migration = fs.readFileSync(p, 'utf8')
-    db.exec(migration)
+  const migrationsToApply = getUnappliedMigrations(
+    dataDir,
+    mostRecentMigrationName
+  )
 
-    // TODO: Persist the name of the migration that's been applied
+  migrationsToApply.forEach((migration) => {
+    const migrationFile = fs.readFileSync(migration.path, 'utf8')
+
+    const migrationId = uuidv4()
+
+    db.prepare<{
+      id: string
+      checksum: string
+      migration_name: string
+    }>(
+      "INSERT INTO '_prisma_migrations' (id, checksum, migration_name) VALUES (:id, :checksum, :migration_name);"
+    ).run({
+      id: migrationId,
+      checksum: crypto
+        .createHash('sha256')
+        .update(migrationFile.toString())
+        .digest('hex'),
+      migration_name: migration.name,
+    })
+
+    const executeMigration = db.transaction(() => {
+      db.exec(migrationFile)
+    })
+
+    try {
+      executeMigration()
+
+      // Reference for SQLite date functions: https://www.sqlite.org/lang_datefunc.html
+      db.prepare<{
+        id: string
+        finished_at: number
+      }>(
+        `UPDATE '_prisma_migrations' 
+        SET
+          finished_at = strftime('%Y-%m-%d %H:%M:%f', :finished_at / 1000, 'unixepoch'),
+          applied_steps_count = 1
+        WHERE id = :id;`
+      ).run({
+        id: migrationId,
+        finished_at: Date.now().valueOf(),
+      })
+    } catch (err) {
+      if (err instanceof SqliteError) {
+        db.prepare<{
+          id: string
+          logs: string
+          rolled_back_at: number
+        }>(
+          `UPDATE '_prisma_migrations' 
+          SET
+            logs = :logs,
+            rolled_back_at = strftime('%Y-%m-%d %H:%M:%f', :rolled_back_at / 1000, 'unixepoch')
+          WHERE id = :id;`
+        ).run({
+          id: migrationId,
+          logs: err.message,
+          rolled_back_at: Date.now().valueOf(),
+        })
+      }
+
+      throw err
+    }
   })
 }
 
-// TODO: At the moment, there's really only ever gonna be a single migration to read.
-// However, we should be able to support multiple to make things easier later on
-function getMigrationFilePaths(mostRecentMigrationName?: string): string[] {
-  const prismaMigrateDirents = fs.readdirSync(BASE_MIGRATIONS_DIR_PATH, {
+function getUnappliedMigrations(
+  dataDir: string,
+  mostRecentMigrationName?: string
+): { path: string; name: string }[] {
+  const migrationsDirectoryPath = path.resolve(dataDir, 'migrations')
+
+  const prismaMigrateDirents = fs.readdirSync(migrationsDirectoryPath, {
     withFileTypes: true,
   })
 
+  // TODO: Kind of a lazy approach: we sort the directories (each of which is a migration name) based on their creation date
+  // and then use the provided `mostRecentMigrationName` to determine which migrations we want to apply
+  // i.e. any migration directory that was created after the directory named `mostRecentMigrationName`
   const sortedMigrationDirectories = prismaMigrateDirents
     .filter((dirent) => dirent.isDirectory())
     .sort((dir1, dir2) => {
       const dir1Stat = fs.statSync(
-        path.resolve(BASE_MIGRATIONS_DIR_PATH, dir1.name)
+        path.resolve(migrationsDirectoryPath, dir1.name)
       )
       const dir2Stat = fs.statSync(
-        path.resolve(BASE_MIGRATIONS_DIR_PATH, dir2.name)
+        path.resolve(migrationsDirectoryPath, dir2.name)
       )
 
       // Sort from oldest to newest created date
@@ -72,7 +153,8 @@ function getMigrationFilePaths(mostRecentMigrationName?: string): string[] {
 
   return sortedMigrationDirectories
     .slice(currentMigrationIndex + 1, sortedMigrationDirectories.length)
-    .map((dirent) =>
-      path.resolve(BASE_MIGRATIONS_DIR_PATH, dirent.name, 'migration.sql')
-    )
+    .map((dirent) => ({
+      name: dirent.name,
+      path: path.resolve(migrationsDirectoryPath, dirent.name, 'migration.sql'),
+    }))
 }

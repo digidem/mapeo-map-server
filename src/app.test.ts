@@ -1,5 +1,7 @@
 import { test, beforeEach, afterEach } from 'tap'
 import tmp from 'tmp'
+import path from 'path'
+import fs from 'fs-extra'
 
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
@@ -9,6 +11,20 @@ tmp.setGracefulCleanup()
 
 beforeEach((done, t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
+
+  // Copy over /prisma/migrations to tmp directory
+  try {
+    fs.copySync(
+      path.resolve(__dirname, '../prisma/migrations'),
+      path.resolve(dataDir, 'migrations')
+    )
+  } catch (err) {
+    console.log('Could not find prisma migrations directory 🤔')
+    console.log(
+      'Make sure you run `npm run prisma:migrate-dev -- --name MIGRATION_NAME_HERE` first!'
+    )
+    throw err
+  }
   t.context.app = app({ logger: false }, { dataDir })
   done()
 })

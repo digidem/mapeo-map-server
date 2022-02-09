@@ -540,7 +540,7 @@ async function uncompositeStyle(
 function init(dataDir: string): Context {
   const db = new Database(path.resolve(dataDir, 'mapeo-map-server.db'))
 
-  migrate(db)
+  migrate(db, dataDir)
 
   const upstreamRequestsManager = new UpstreamRequestsManager()
 
