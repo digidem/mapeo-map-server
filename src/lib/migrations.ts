@@ -12,6 +12,17 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { Database, SqliteError } from 'better-sqlite3'
 
+export type Migration = {
+  id: string
+  checksum: string
+  finished_at?: string
+  migration_name: string
+  logs?: string
+  rolled_back_at?: string
+  started_at?: string
+  applied_steps_count: number
+}
+
 export function migrate(db: Database, dataDir: string) {
   // Determine whether the initial setup has been completed before
   const migrationsTableExists =
