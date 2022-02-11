@@ -7,13 +7,22 @@ import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 
 import { Migration, migrate } from './migrations'
 
+type TestContext = {
+  buildMigration: (name: string, query: string) => void
+  db: DatabaseInstance
+  getSQLiteTableInfo: (tableName?: string) => any[]
+  runMigrations: () => void
+}
+
 tmp.setGracefulCleanup()
+
+const TEST_TABLE_NAME = 'Developers'
 
 function generateMigrationChecksum(s: string) {
   return crypto.createHash('sha256').update(s).digest('hex')
 }
 
-function isMigrationRecordedAsSuccessful({
+function migrationRecordedAsSuccess({
   finished_at,
   logs,
   rolled_back_at,
@@ -23,7 +32,7 @@ function isMigrationRecordedAsSuccessful({
 
 const fixtures = {
   initial: `
-    CREATE TABLE "Developers" (
+    CREATE TABLE "${TEST_TABLE_NAME}" (
         "id" TEXT NOT NULL,
         "first_name" STRING NOT NULL,
         "last_name" STRING NOT NULL,
@@ -31,13 +40,22 @@ const fixtures = {
         PRIMARY KEY ("id")
     );
     `,
-  migrationAddColumn: `ALTER TABLE "Developers" ADD COLUMN "years_of_experience" INTEGER NOT NULL DEFAULT 0;`,
-}
-
-type TestContext = {
-  buildMigration: (name: string, query: string) => void
-  db: DatabaseInstance
-  runMigrations: () => void
+  migrationOk: `ALTER TABLE "${TEST_TABLE_NAME}" ADD COLUMN "years_of_experience" INTEGER NOT NULL DEFAULT 0;`,
+  // This migration references a non-existing column, "age". Should throw an error because of this.
+  migrationBad: `
+    PRAGMA foreign_keys=OFF;
+    CREATE TABLE "new_${TEST_TABLE_NAME}" (
+        "id" TEXT NOT NULL,
+        "first_name" STRING NOT NULL,
+        "last_name" STRING NOT NULL,
+        "age" INTEGER NOT NULL
+    );
+    INSERT INTO "new_${TEST_TABLE_NAME}" ("id", "first_name", "last_name", "age") SELECT "id", "first_name", "last_name", "age" FROM "${TEST_TABLE_NAME}";
+    DROP TABLE "${TEST_TABLE_NAME}";
+    ALTER TABLE "new_${TEST_TABLE_NAME}" RENAME TO "${TEST_TABLE_NAME}";
+    PRAGMA foreign_key_check;
+    PRAGMA foreign_keys=ON;
+  `,
 }
 
 beforeEach((done, t) => {
@@ -57,6 +75,11 @@ beforeEach((done, t) => {
     fs.writeFileSync(path.resolve(migrationDir, 'migration.sql'), query)
   }
 
+  function getSQLiteTableInfo(tableName: string = TEST_TABLE_NAME) {
+    // https://www.sqlite.org/pragma.html#pragma_table_info
+    return db.pragma(`table_info(${tableName})`)
+  }
+
   function runMigrations() {
     migrate(db, dataDir)
   }
@@ -64,6 +87,7 @@ beforeEach((done, t) => {
   t.context = {
     buildMigration,
     db,
+    getSQLiteTableInfo,
     runMigrations,
   }
 
@@ -114,7 +138,7 @@ test('Works when database schema is not initialized', (t) => {
   )
 
   t.ok(
-    isMigrationRecordedAsSuccessful(persistedMigration),
+    migrationRecordedAsSuccess(persistedMigration),
     'Migration recorded as successful'
   )
 
@@ -122,15 +146,18 @@ test('Works when database schema is not initialized', (t) => {
 })
 
 test('Works when a subsequent migration is run', (t) => {
-  const { buildMigration, db, runMigrations } = t.context as TestContext
+  const { buildMigration, db, getSQLiteTableInfo, runMigrations } =
+    t.context as TestContext
 
   buildMigration('init', fixtures.initial)
 
   runMigrations()
 
+  const tableInfoBefore = getSQLiteTableInfo()
+
   const migrationName = 'add_column'
 
-  buildMigration(migrationName, fixtures.migrationAddColumn)
+  buildMigration(migrationName, fixtures.migrationOk)
 
   t.doesNotThrow(runMigrations, 'Subsequent migration runs without error')
 
@@ -144,12 +171,23 @@ test('Works when a subsequent migration is run', (t) => {
     'Both migration records inserted into db'
   )
 
-  allPersistedMigrations.forEach((migration) => {
-    t.ok(
-      isMigrationRecordedAsSuccessful(migration),
-      `Migration with name "${migration.migration_name}" recorded as successful`
-    )
-  })
+  t.ok(
+    allPersistedMigrations.every((migration) =>
+      t.ok(
+        migrationRecordedAsSuccess(migration),
+        `Migration with name "${migration.migration_name}" recorded as successful`
+      )
+    ),
+    'All migrations recorded as successful'
+  )
+
+  const tableInfoAfter = getSQLiteTableInfo()
+
+  t.deepInequal(
+    tableInfoBefore,
+    tableInfoAfter,
+    'Table schema successfully changed after subsequent migration'
+  )
 
   t.done()
 })
@@ -178,6 +216,79 @@ test('Does nothing when no new migrations need to be applied (idempotency)', (t)
     migrationsBefore,
     migrationsAfter,
     'Persisted migrations are unchanged after empty migration run'
+  )
+
+  t.done()
+})
+
+test('Applies multiple migrations sequentially if necessary', (t) => {
+  const { buildMigration, db, runMigrations } = t.context as TestContext
+
+  const firstMigrationName = 'init'
+  const secondMigrationName = 'add_column'
+  buildMigration(firstMigrationName, fixtures.initial)
+  buildMigration(secondMigrationName, fixtures.migrationOk)
+
+  t.doesNotThrow(runMigrations, 'Runs migrations with no errors')
+
+  const allMigrations: Migration[] = db
+    .prepare("SELECT * FROM '_prisma_migrations' ORDER BY finished_at ASC;")
+    .all()
+
+  t.equal(allMigrations.length, 2, 'All migrations recorded in db')
+
+  t.ok(
+    allMigrations[0].migration_name === firstMigrationName &&
+      allMigrations[1].migration_name === secondMigrationName,
+    'Migration order matches expected execution order'
+  )
+
+  t.ok(
+    allMigrations.every((migration) =>
+      t.ok(
+        migrationRecordedAsSuccess(migration),
+        `Migration with name "${migration.migration_name}" recorded as successful`
+      )
+    ),
+    'All migrations recorded as successful'
+  )
+
+  t.done()
+})
+
+test('Only updates migrations table when bad migration is attempted', (t) => {
+  const { buildMigration, db, getSQLiteTableInfo, runMigrations } =
+    t.context as TestContext
+
+  buildMigration('init', fixtures.initial)
+
+  runMigrations()
+
+  const tableInfoBefore = getSQLiteTableInfo()
+
+  const badMigrationName = 'bad'
+
+  buildMigration(badMigrationName, fixtures.migrationBad)
+
+  t.throws(runMigrations, 'Bad migration throws an error')
+
+  const tableInfoAfter = getSQLiteTableInfo()
+
+  const failedMigration: Migration = db
+    .prepare("SELECT * FROM '_prisma_migrations' WHERE migration_name = ?;")
+    .get(badMigrationName)
+
+  t.ok(failedMigration, 'Bad migration recorded in db')
+
+  t.notOk(
+    migrationRecordedAsSuccess(failedMigration),
+    'Bad migration recorded as unsuccessful'
+  )
+
+  t.deepEquals(
+    tableInfoBefore,
+    tableInfoAfter,
+    'Table info unchanged after failed migration attempt'
   )
 
   t.done()
