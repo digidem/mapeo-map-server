@@ -212,6 +212,8 @@ function createApi({
         )
       }
 
+      const tilesFieldValue = [getTileUrl(id)]
+
       db.prepare<{
         id: string
         format: TileJSON['format']
@@ -223,14 +225,14 @@ function createApi({
       ).run({
         id,
         format: tilejson.format,
-        tilejson: JSON.stringify(tilejson),
+        tilejson: JSON.stringify({ ...tilejson, tiles: tilesFieldValue }),
         upstreamTileUrls: JSON.stringify(tilejson.tiles),
       })
 
       const result = {
         ...tilejson,
+        tiles: tilesFieldValue,
         id,
-        tiles: [getTileUrl(id)],
       }
 
       return result
@@ -249,6 +251,8 @@ function createApi({
         throw new NotFoundError(id)
       }
 
+      const tilesFieldValue = [getTileUrl(id)]
+
       db.prepare<{
         id: string
         format: TileJSON['format']
@@ -263,14 +267,14 @@ function createApi({
       ).run({
         id,
         format: tilejson.format,
-        tilejson: JSON.stringify(tilejson),
+        tilejson: JSON.stringify({ ...tilejson, tiles: tilesFieldValue }),
         upstreamTileUrls: JSON.stringify(tilejson.tiles),
       })
 
       const result = {
         ...tilejson,
+        tiles: tilesFieldValue,
         id,
-        tiles: [getTileUrl(id)],
       }
 
       return result

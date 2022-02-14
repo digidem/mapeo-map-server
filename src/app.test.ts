@@ -46,6 +46,31 @@ test('GET /tilesets (empty)', async (t) => {
   t.deepEqual(response.json(), [], 'returns empty array')
 })
 
+test('GET /tilesets (not empty)', async (t) => {
+  const { app } = t.context
+
+  await app.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: mapboxRasterTilejson,
+  })
+
+  // @ts-ignore
+  const expectedId = getTilesetId(mapboxRasterTilejson)
+  const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
+  const expectedResponse = [
+    {
+      ...mapboxRasterTilejson,
+      id: expectedId,
+      tiles: [expectedTileUrl],
+    },
+  ]
+
+  const response = await app.inject({ method: 'GET', url: '/tilesets' })
+
+  t.deepEqual(response.json(), expectedResponse)
+})
+
 test('POST /tilesets', async (t) => {
   const { app } = t.context
 
