@@ -1,4 +1,4 @@
-import { test, beforeEach, afterEach } from 'tap'
+import { afterEach, beforeEach, test } from 'tap'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs-extra'
@@ -9,7 +9,7 @@ import { getTilesetId } from './lib/utils'
 
 tmp.setGracefulCleanup()
 
-beforeEach((done, t) => {
+beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
   // Copy over /prisma/migrations to tmp directory
@@ -25,25 +25,28 @@ beforeEach((done, t) => {
     )
     throw err
   }
+
   t.context.app = app({ logger: false }, { dataDir })
-  done()
 })
 
-afterEach((done, t) => {
-  t.context.app.close().then(done)
+afterEach((t) => {
+  t.context.app.close()
 })
 
 test('GET /tilesets (empty)', async (t) => {
   const { app } = t.context
 
   const response = await app.inject({ method: 'GET', url: '/tilesets' })
-  t.strictEqual(response.statusCode, 200, 'returns a status code of 200')
-  t.strictEqual(
+
+  t.equal(response.statusCode, 200, 'returns a status code of 200')
+
+  t.equal(
     response.headers['content-type'],
     'application/json; charset=utf-8',
     'returns correct content-type header'
   )
-  t.deepEqual(response.json(), [], 'returns empty array')
+
+  t.same(response.json(), [], 'returns empty array')
 })
 
 test('GET /tilesets (not empty)', async (t) => {
@@ -68,7 +71,7 @@ test('GET /tilesets (not empty)', async (t) => {
 
   const response = await app.inject({ method: 'GET', url: '/tilesets' })
 
-  t.deepEqual(response.json(), expectedResponse)
+  t.same(response.json(), expectedResponse)
 })
 
 test('POST /tilesets', async (t) => {
@@ -88,5 +91,6 @@ test('POST /tilesets', async (t) => {
     url: '/tilesets',
     payload: mapboxRasterTilejson,
   })
-  t.deepEqual(response.json(), expectedResponse)
+
+  t.same(response.json(), expectedResponse)
 })

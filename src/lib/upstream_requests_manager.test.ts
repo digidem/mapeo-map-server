@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
 import Etag from 'fastify-etag'
-import tap from 'tap'
+import { afterEach, beforeEach, test } from 'tap'
 
 import {
   UpstreamRequestsManager,
@@ -48,7 +48,7 @@ function createServer() {
   }
 }
 
-tap.beforeEach(async (_done, t) => {
+beforeEach(async (t) => {
   const server = createServer()
   await server.listen(PORT)
 
@@ -58,8 +58,8 @@ tap.beforeEach(async (_done, t) => {
   }
 })
 
-tap.afterEach(async (_done, t) => {
-  await t.context.server.close()
+afterEach((t) => {
+  t.context.server.close()
 })
 
 /**
@@ -68,7 +68,7 @@ tap.afterEach(async (_done, t) => {
  * 2. Client requests same resource again
  * 3. Manager does not make additional requests, fulfills with existing request
  */
-tap.test('Repeat requests in same tick only hit server once', async (t) => {
+test('Repeat requests in same tick only hit server once', async (t) => {
   const { server, upstreamRequestsManager } = t.context as TestContext
 
   const responses: UpstreamResponse<Buffer>[] = await Promise.all([
@@ -107,7 +107,7 @@ tap.test('Repeat requests in same tick only hit server once', async (t) => {
  * 4. Server updates associated resource again
  * 5. Client make subsequent request for resource *based on resource from step 1*. Response should reflect updated resource
  */
-tap.test('Upstream resource updated when modified', async (t) => {
+test('Upstream resource updated when modified', async (t) => {
   const { server, upstreamRequestsManager } = t.context as TestContext
 
   const response1 = await upstreamRequestsManager.getUpstream<Buffer>({
@@ -115,7 +115,7 @@ tap.test('Upstream resource updated when modified', async (t) => {
     responseType: 'buffer',
   })
 
-  t.deepEqual(
+  t.same(
     JSON.parse(response1.data.toString()),
     { hello: 'world' },
     'First response comes from server'
@@ -130,7 +130,7 @@ tap.test('Upstream resource updated when modified', async (t) => {
     etag: response1.etag,
   })
 
-  t.deepEqual(
+  t.same(
     JSON.parse(response2.data.toString()),
     { hello: 'earth' },
     'Second response comes from updated server'
@@ -145,7 +145,7 @@ tap.test('Upstream resource updated when modified', async (t) => {
     etag: response1.etag,
   })
 
-  t.deepEqual(
+  t.same(
     JSON.parse(response3.data.toString()),
     { hello: 'goodbye' },
     'Third response comes from updated server'
@@ -174,7 +174,7 @@ tap.test('Upstream resource updated when modified', async (t) => {
 /**
  * Requesting an upstream resource that hasn't been modified should reject with a not modified error
  */
-tap.test('Upstream resource not modified', async (t) => {
+test('Upstream resource not modified', async (t) => {
   const { server, upstreamRequestsManager } = t.context as TestContext
 
   const response1 = await upstreamRequestsManager.getUpstream<Buffer>({
@@ -201,5 +201,5 @@ tap.test('Upstream resource not modified', async (t) => {
     'On second request, server says not modified'
   )
 
-  t.done()
+  t.end()
 })

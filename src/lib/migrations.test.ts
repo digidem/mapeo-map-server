@@ -58,7 +58,7 @@ const fixtures = {
   `,
 }
 
-beforeEach((done, t) => {
+beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
   const allMigrationsDir = path.resolve(dataDir, 'migrations')
@@ -90,8 +90,6 @@ beforeEach((done, t) => {
     getSQLiteTableInfo,
     runMigrations,
   }
-
-  done()
 })
 
 test('Works when database schema is not initialized', (t) => {
@@ -142,7 +140,7 @@ test('Works when database schema is not initialized', (t) => {
     'Migration recorded as successful'
   )
 
-  t.done()
+  t.end()
 })
 
 test('Works when a subsequent migration is run', (t) => {
@@ -183,13 +181,13 @@ test('Works when a subsequent migration is run', (t) => {
 
   const tableInfoAfter = getSQLiteTableInfo()
 
-  t.deepInequal(
+  t.notSame(
     tableInfoBefore,
     tableInfoAfter,
     'Table schema successfully changed after subsequent migration'
   )
 
-  t.done()
+  t.end()
 })
 
 test('Does nothing when no new migrations need to be applied (idempotency)', (t) => {
@@ -212,13 +210,13 @@ test('Does nothing when no new migrations need to be applied (idempotency)', (t)
 
   const migrationsAfter: Migration[] = allMigrationsStatement.all()
 
-  t.deepEquals(
+  t.same(
     migrationsBefore,
     migrationsAfter,
     'Persisted migrations are unchanged after empty migration run'
   )
 
-  t.done()
+  t.end()
 })
 
 test('Applies multiple migrations sequentially if necessary', (t) => {
@@ -253,7 +251,7 @@ test('Applies multiple migrations sequentially if necessary', (t) => {
     'All migrations recorded as successful'
   )
 
-  t.done()
+  t.end()
 })
 
 test('Only updates migrations table when bad migration is attempted', (t) => {
@@ -285,11 +283,11 @@ test('Only updates migrations table when bad migration is attempted', (t) => {
     'Bad migration recorded as unsuccessful'
   )
 
-  t.deepEquals(
+  t.same(
     tableInfoBefore,
     tableInfoAfter,
     'Table info unchanged after failed migration attempt'
   )
 
-  t.done()
+  t.end()
 })
