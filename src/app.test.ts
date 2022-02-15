@@ -162,3 +162,39 @@ test('PUT /tilesets (tileset exists)', async (t) => {
 
   t.end()
 })
+
+test('PUT /tilesets (bad param)', async (t) => {
+  const { sampleTileJSON, server } = t.context as TestContext
+
+  const response = await server.inject({
+    method: 'PUT',
+    url: `/tilesets/bad-id`,
+    payload: { ...sampleTileJSON, name: 'Map Server Test' },
+  })
+
+  t.equal(
+    response.statusCode,
+    400,
+    'Mismatched id param returns Bad Request error code (400)'
+  )
+
+  t.end()
+})
+
+test('PUT /tilesets (tileset does not exist)', async (t) => {
+  const { sampleTileJSON, server } = t.context as TestContext
+
+  const response = await server.inject({
+    method: 'PUT',
+    url: `/tilesets/${sampleTileJSON.id}`,
+    payload: { ...sampleTileJSON, name: 'Map Server Test' },
+  })
+
+  t.equal(
+    response.statusCode,
+    404,
+    'Attempt to update non-existent tileset returns Not Found status code (404)'
+  )
+
+  t.end()
+})
