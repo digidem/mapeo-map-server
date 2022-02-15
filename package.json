@@ -11,10 +11,11 @@
     "start": "npm run clean && npm run build && node dist/src/server.js",
     "build": "npm run clean && tsc -b",
     "clean": "tsc -b --clean",
-    "test": "TS_NODE_FILES=true tap --ts --no-check-coverage --test-ignore='^dist'",
+    "test": "TS_NODE_FILES=true tap --ts --no-check-coverage --test-ignore='^(dist|scripts)'",
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate-dev": "prisma migrate dev"
+    "prisma:migrate-dev": "prisma migrate dev",
+    "updateDataDir": "scripts/update-data-dir.js"
   },
   "author": "Digital Democracy",
   "license": "MIT",
