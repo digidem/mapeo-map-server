@@ -198,3 +198,5 @@ test('PUT /tilesets (tileset does not exist)', async (t) => {
 
   t.end()
 })
+
+// TODO: Add test for tile GET
