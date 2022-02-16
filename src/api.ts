@@ -344,10 +344,13 @@ function createApi({
         )
       }
 
-      async function fetchOnlineResource(): Promise<{
-        data: Buffer
-        etag?: string
-      } | void> {
+      async function fetchOnlineResource(): Promise<
+        | {
+            data: Buffer
+            etag?: string
+          }
+        | undefined
+      > {
         // TODO: Need to check if online too
         if (upstreamTileUrl) {
           const response = await upstreamRequestsManager.getUpstream<Buffer>({
@@ -412,7 +415,7 @@ function createApi({
         ).run({
           etag,
           tilesetId,
-          upstreamUrl: upstreamTileUrl || undefined,
+          upstreamUrl: upstreamTileUrl,
         })
 
         db.prepare<{

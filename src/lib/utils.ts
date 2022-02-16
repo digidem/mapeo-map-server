@@ -72,7 +72,7 @@ export function getUpstreamTileUrl(
     x: number
     y: number
   }
-): string | void {
+): string | undefined {
   // TODO: Support {ratio} in template URLs, not used in mapbox-gl-js, only in
   // the mobile SDKs
   const ratio = ''
@@ -81,8 +81,10 @@ export function getUpstreamTileUrl(
 
   const { scheme: upstreamScheme = 'xyz', tiles: templateUrls } = tilejson
 
-  if (!isStringArray(templateUrls))
-    return console.log('templateUrls', templateUrls)
+  if (!isStringArray(templateUrls)) {
+    console.log('templateUrls', templateUrls)
+    return
+  }
 
   const bbox = getTileBBox(x, y, zoom)
   const quadkey = tileToQuadkey([x, y, zoom])
