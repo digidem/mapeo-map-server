@@ -449,7 +449,7 @@ function createApi({
           tilesetId: string
           data: Buffer
         }>(
-          'INSERT INTO Tile (tileHash, tilesetId, data) VALUES (:tileHash, :tilesetId, :data)'
+          'INSERT INTO TileData (tileHash, tilesetId, data) VALUES (:tileHash, :tilesetId, :data)'
         ).run({ tileHash, tilesetId, data })
 
         db.prepare<{
@@ -469,7 +469,7 @@ function createApi({
           tileHash: string
           tilesetId: string
         }>(
-          'INSERT INTO Tile VALUES (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId)'
+          'INSERT INTO Tile (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId)'
         ).run({
           quadKey,
           tileHash,
