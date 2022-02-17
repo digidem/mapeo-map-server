@@ -292,7 +292,7 @@ function createApi({
 
     async getTileset(id) {
       const row:
-        | { tilejson: TileJSON; etag?: string; upstreamUrl?: string }
+        | { tilejson: string; etag?: string; upstreamUrl?: string }
         | undefined = db
         .prepare('SELECT tilejson, etag, upstreamUrl FROM Tileset WHERE id = ?')
         .get(id)
@@ -315,7 +315,7 @@ function createApi({
         fetchOnlineResource(row.upstreamUrl, row.etag).catch(() => {})
       }
 
-      return { ...row.tilejson, id }
+      return { ...JSON.parse(row.tilejson), id }
     },
 
     async getTile({ tilesetId, zoom, x, y }) {
