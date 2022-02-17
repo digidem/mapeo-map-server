@@ -428,7 +428,12 @@ function createApi({
         )
       }
 
-      return { data: tile.data, headers: headers(tile.data) }
+      return {
+        data: tile.data,
+        // TODO: This never returns a Last-Modified header but seems like the endpoint would want it to if possible?
+        // Would require changing the return type of UpstreamRequestsManager.getUpstream
+        headers: { ...headers(tile.data), Etag: tile.etag },
+      }
     },
 
     async putTile({ tilesetId, zoom, x, y, data, etag }) {
