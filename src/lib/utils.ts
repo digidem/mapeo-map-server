@@ -60,23 +60,22 @@ export function getTilesetId(tilejson: TileJSON): string {
 /**
  * Get the upstream tile URL for a particular tile
  */
-export function getUpstreamTileUrl(
-  tileset: TileJSON,
-  {
-    zoom,
-    x,
-    y,
-  }: {
-    zoom: number
-    x: number
-    y: number
-  }
-): string | undefined {
+export function getInterpolatedUpstreamTileUrl({
+  tiles: templateUrls,
+  scheme: upstreamScheme = 'xyz',
+  zoom,
+  x,
+  y,
+}: {
+  tiles: TileJSON['tiles']
+  scheme: TileJSON['scheme']
+  zoom: number
+  x: number
+  y: number
+}): string | undefined {
   // TODO: Support {ratio} in template URLs, not used in mapbox-gl-js, only in
   // the mobile SDKs
   const ratio = ''
-
-  const { scheme: upstreamScheme = 'xyz', tiles: templateUrls } = tileset
 
   if (!isStringArray(templateUrls)) {
     console.log('templateUrls', templateUrls)
