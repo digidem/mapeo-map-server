@@ -3,7 +3,6 @@ import path from 'path'
 import { URL } from 'url'
 import { getTileBBox } from '@mapbox/whoots-js'
 import { tileToQuadkey } from '@mapbox/tilebelt'
-
 import base32 from 'base32.js'
 
 import { TileJSON } from './tilejson'
@@ -77,9 +76,7 @@ export function getUpstreamTileUrl(
   // the mobile SDKs
   const ratio = ''
 
-  const tilejson: TileJSON = JSON.parse(tileset.tilejson)
-
-  const { scheme: upstreamScheme = 'xyz', tiles: templateUrls } = tilejson
+  const { scheme: upstreamScheme = 'xyz', tiles: templateUrls } = tileset
 
   if (!isStringArray(templateUrls)) {
     console.log('templateUrls', templateUrls)
