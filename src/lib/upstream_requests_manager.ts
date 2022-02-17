@@ -1,5 +1,10 @@
 import got from 'got'
 
+// TODO: Consider changing this to:
+// export type UpstreamResponse<Data> = {
+//   data: Data
+//   headers: Headers  // from @mapbox/mbtiles
+// }
 export type UpstreamResponse<Data> = {
   data: Data
   etag?: string
