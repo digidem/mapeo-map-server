@@ -420,14 +420,16 @@ function createApi({
           })
 
           if (response) {
-            await api.putTile({
-              tilesetId,
-              zoom,
-              x,
-              y,
-              data: response.data,
-              etag: response.etag,
-            })
+            api
+              .putTile({
+                tilesetId,
+                zoom,
+                x,
+                y,
+                data: response.data,
+                etag: response.etag,
+              })
+              .catch(noop)
 
             return { data: response.data, etag: response.etag }
           }
@@ -437,12 +439,7 @@ function createApi({
       if (tile) {
         fetchOnlineResource().catch(noop)
       } else {
-        const response = await fetchOnlineResource()
-
-        // TODO: Should this throw if false?
-        if (response) {
-          tile = response
-        }
+        tile = await fetchOnlineResource()
       }
 
       if (!tile) {
