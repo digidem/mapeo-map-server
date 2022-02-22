@@ -48,6 +48,9 @@ const MismatchedIdError = createError(
   400
 )
 
+// TODO: Fix naming and description here
+const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
+
 type OfflineStyle = StyleSpecification & {
   id: string
   sources?: {
@@ -164,17 +167,27 @@ function createApi({
       throw new NotFoundError(`Tileset id = ${tilesetId}`)
     }
 
-    const tilejson: TileJSON = JSON.parse(tilesetRow.tilejson)
+    if (!tilesetRow.upstreamTileUrls) return
 
-    return tilesetRow.upstreamTileUrls
-      ? getInterpolatedUpstreamTileUrl({
-          tiles: JSON.parse(tilesetRow.upstreamTileUrls) as TileJSON['tiles'],
-          scheme: tilejson.scheme,
-          zoom,
-          x,
-          y,
-        })
-      : undefined
+    let scheme: TileJSON['scheme']
+    let tiles: TileJSON['tiles']
+
+    try {
+      const tilejson: TileJSON = JSON.parse(tilesetRow.tilejson)
+
+      scheme = tilejson.scheme
+      tiles = JSON.parse(tilesetRow.upstreamTileUrls)
+    } catch (err) {
+      throw new ParseError(err)
+    }
+
+    return getInterpolatedUpstreamTileUrl({
+      tiles,
+      scheme,
+      zoom,
+      x,
+      y,
+    })
   }
 
   /**
