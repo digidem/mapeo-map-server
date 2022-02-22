@@ -259,8 +259,6 @@ function createApi({
         )
       }
 
-      const tilesFieldValue = [getTileUrl(id)]
-
       db.prepare<{
         id: string
         format: TileJSON['format']
@@ -272,13 +270,13 @@ function createApi({
       ).run({
         id,
         format: tilejson.format,
-        tilejson: JSON.stringify({ ...tilejson, tiles: tilesFieldValue }),
+        tilejson: JSON.stringify(tilejson),
         upstreamTileUrls: JSON.stringify(tilejson.tiles),
       })
 
       const result = {
         ...tilejson,
-        tiles: tilesFieldValue,
+        tiles: [getTileUrl(id)],
         id,
       }
 
@@ -294,8 +292,6 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      const tilesFieldValue = [getTileUrl(id)]
-
       db.prepare<{
         id: string
         format: TileJSON['format']
@@ -310,13 +306,13 @@ function createApi({
       ).run({
         id,
         format: tilejson.format,
-        tilejson: JSON.stringify({ ...tilejson, tiles: tilesFieldValue }),
+        tilejson: JSON.stringify(tilejson),
         upstreamTileUrls: JSON.stringify(tilejson.tiles),
       })
 
       const result = {
         ...tilejson,
-        tiles: tilesFieldValue,
+        tiles: [getTileUrl(id)],
         id,
       }
 
@@ -324,13 +320,25 @@ function createApi({
     },
 
     async listTilesets() {
-      return db
-        .prepare('SELECT id, tilejson FROM Tileset')
+      const tilesets: (TileJSON & IdResource)[] = []
+
+      db.prepare('SELECT id, tilejson FROM Tileset')
         .all()
-        .map(({ id, tilejson }: { id: string; tilejson: string }) => ({
-          ...JSON.parse(tilejson),
-          id,
-        }))
+        .forEach(({ id, tilejson }: { id: string; tilejson: string }) => {
+          try {
+            const tileset: TileJSON = JSON.parse(tilejson)
+
+            tilesets.push({
+              ...tileset,
+              tiles: [getTileUrl(id)],
+              id,
+            })
+          } catch (err) {
+            // TODO: What should we do here? e.g. omit or throw?
+          }
+        })
+
+      return tilesets
     },
 
     async getTileset(id) {
@@ -358,7 +366,15 @@ function createApi({
         fetchOnlineResource(row.upstreamUrl, row.etag).catch(() => {})
       }
 
-      return { ...JSON.parse(row.tilejson), id }
+      let tileset: TileJSON
+
+      try {
+        tileset = JSON.parse(row.tilejson)
+      } catch (err) {
+        throw new ParseError(err)
+      }
+
+      return { ...tileset, tiles: [getTileUrl(id)], id }
     },
 
     async getTile({ tilesetId, zoom, x, y }) {
