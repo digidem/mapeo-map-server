@@ -363,7 +363,7 @@ function createApi({
       }
 
       if (row.upstreamUrl) {
-        fetchOnlineResource(row.upstreamUrl, row.etag).catch(() => {})
+        fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
       }
 
       let tileset: TileJSON
@@ -435,7 +435,7 @@ function createApi({
       }
 
       if (tile) {
-        fetchOnlineResource().catch(() => {})
+        fetchOnlineResource().catch(noop)
       } else {
         const response = await fetchOnlineResource()
 
@@ -628,3 +628,5 @@ function init(dataDir: string): Context {
 
   return { db, upstreamRequestsManager }
 }
+
+function noop() {}
