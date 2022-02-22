@@ -145,6 +145,14 @@ function createApi({
     }
   }
 
+  function tilesetExists(tilesetId: string) {
+    return (
+      db
+        .prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?')
+        .get(tilesetId).count > 0
+    )
+  }
+
   function getUpstreamTileUrl({
     tilesetId,
     zoom,
@@ -231,12 +239,7 @@ function createApi({
       // mapbox.mapbox-streets-v7 source
       const tilesetId = getTilesetId(tilejson)
 
-      const tilesetExists =
-        db
-          .prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?')
-          .get(tilesetId).count > 0
-
-      if (!tilesetExists) {
+      if (!tilesetExists(tilesetId)) {
         await api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
@@ -250,11 +253,7 @@ function createApi({
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
 
-      const tilesetExists =
-        db.prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?').get(id)
-          .count > 0
-
-      if (tilesetExists) {
+      if (tilesetExists(id)) {
         throw new AlreadyExistsError(
           `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${id} to modify this tileset`
         )
@@ -291,11 +290,7 @@ function createApi({
         throw new MismatchedIdError(id, tilejson.id)
       }
 
-      const tilesetExists =
-        db.prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?').get(id)
-          .count > 0
-
-      if (!tilesetExists) {
+      if (!tilesetExists(id)) {
         throw new NotFoundError(id)
       }
 
