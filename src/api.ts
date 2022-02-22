@@ -64,9 +64,13 @@ export interface PluginOptions {
   dataDir?: string
 }
 
+// Map of tileset ids to their respective upstream map server tile url
+type UpstreamTileUrlsCache = Map<string, string | undefined>
+
 interface Context {
   db: DatabaseInstance
   upstreamRequestsManager: UpstreamRequestsManager
+  upstreamTileUrlsCache: UpstreamTileUrlsCache
 }
 
 // Any resource returned by the API will always have an `id` property
@@ -110,7 +114,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, upstreamRequestsManager } = context
+  const { db, upstreamRequestsManager, upstreamTileUrlsCache } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -164,9 +168,11 @@ function createApi({
     x: number
     y: number
   }) {
-    const tilesetRow:
-      | { tilejson: string; upstreamTileUrls?: string }
-      | undefined = db
+    const cachedUrl = upstreamTileUrlsCache.get(tilesetId)
+
+    if (cachedUrl) return cachedUrl
+
+    const tilesetRow = db
       .prepare('SELECT tilejson, upstreamTileUrls FROM Tileset where id = ?')
       .get(tilesetId)
 
@@ -189,13 +195,17 @@ function createApi({
       throw new ParseError(err)
     }
 
-    return getInterpolatedUpstreamTileUrl({
+    const upstreamTileUrl = getInterpolatedUpstreamTileUrl({
       tiles,
       scheme,
       zoom,
       x,
       y,
     })
+
+    upstreamTileUrlsCache.set(tilesetId, upstreamTileUrl)
+
+    return upstreamTileUrl
   }
 
   /**
@@ -621,9 +631,11 @@ function init(dataDir: string): Context {
 
   migrate(db, dataDir)
 
-  const upstreamRequestsManager = new UpstreamRequestsManager()
-
-  return { db, upstreamRequestsManager }
+  return {
+    db,
+    upstreamRequestsManager: new UpstreamRequestsManager(),
+    upstreamTileUrlsCache: new Map(),
+  }
 }
 
 function noop() {}
