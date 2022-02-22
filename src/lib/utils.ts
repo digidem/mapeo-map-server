@@ -2,7 +2,6 @@ import { createHash, randomBytes } from 'crypto'
 import path from 'path'
 import { URL } from 'url'
 import { getTileBBox } from '@mapbox/whoots-js'
-import { tileToQuadkey } from '@mapbox/tilebelt'
 import base32 from 'base32.js'
 
 import { TileJSON } from './tilejson'
@@ -83,7 +82,7 @@ export function getInterpolatedUpstreamTileUrl({
   }
 
   const bbox = getTileBBox(x, y, zoom)
-  const quadkey = tileToQuadkey([x, y, zoom])
+  const quadkey = tileToQuadKey({ x, y, zoom })
 
   return templateUrls[(x + y) % templateUrls.length]
     .replace('{prefix}', (x % 16).toString(16) + (y % 16).toString(16))
@@ -104,4 +103,25 @@ function isStringArray(value: unknown): value is string[] {
     value.length > 0 &&
     value.every((d) => typeof d === 'string')
   )
+}
+
+// Roughly identical implementation as https://github.com/mapbox/tilebelt/blob/876af65cfc68f152aeed2e514289e401c5d95196/index.js#L175-L195
+export function tileToQuadKey({
+  x,
+  y,
+  zoom,
+}: {
+  x: number
+  y: number
+  zoom: number
+}) {
+  let index = ''
+  for (let z = zoom; z > 0; z--) {
+    let b = 0
+    const mask = 1 << (z - 1)
+    if ((x & mask) !== 0) b++
+    if ((y & mask) !== 0) b += 2
+    index += b.toString()
+  }
+  return index
 }

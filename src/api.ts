@@ -4,7 +4,6 @@ import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from 'fastify-error'
 import fp from 'fastify-plugin'
 import got from 'got'
-import { tileToQuadkey } from '@mapbox/tilebelt'
 import { headers } from '@mapbox/tiletype'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 
@@ -14,6 +13,7 @@ import {
   generateId,
   getInterpolatedUpstreamTileUrl,
   getTilesetId,
+  tileToQuadKey,
   hash,
 } from './lib/utils'
 import { migrate } from './lib/migrations'
@@ -388,7 +388,7 @@ function createApi({
     },
 
     async getTile({ tilesetId, zoom, x, y }) {
-      const quadKey = tileToQuadkey([x, y, zoom])
+      const quadKey = tileToQuadKey({ x, y, zoom })
 
       let tile:
         | {
@@ -475,7 +475,7 @@ function createApi({
         y,
       })
 
-      const quadKey = tileToQuadkey([x, y, zoom])
+      const quadKey = tileToQuadKey({ x, y, zoom })
 
       const transaction = db.transaction(() => {
         const tileHash = hash(data).toString('hex')
