@@ -61,7 +61,7 @@ type OfflineStyle = StyleSpecification & {
 }
 
 export interface PluginOptions {
-  dataDir?: string
+  dbPath: string
 }
 
 // Map of tileset ids to their respective upstream map server tile url
@@ -573,10 +573,10 @@ function createApi({
 
 const ApiPlugin: FastifyPluginAsync<PluginOptions> = async (
   fastify,
-  { dataDir = 'data' }
+  { dbPath }
 ) => {
   // Create context once for each fastify instance
-  const context = init(dataDir)
+  const context = init(dbPath)
   fastify.decorateRequest('api', {
     getter(this: FastifyRequest) {
       return createApi({ context, request: this, fastify })
@@ -626,10 +626,10 @@ async function uncompositeStyle(
   return style
 }
 
-function init(dataDir: string): Context {
-  const db = new Database(path.resolve(dataDir, 'mapeo-map-server.db'))
+function init(dbPath: string): Context {
+  const db = new Database(dbPath)
 
-  migrate(db, dataDir)
+  migrate(db, path.resolve(__dirname, '../prisma/migrations'))
 
   return {
     db,

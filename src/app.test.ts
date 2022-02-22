@@ -1,7 +1,7 @@
 import { afterEach, before, beforeEach, teardown, test } from 'tap'
 import tmp from 'tmp'
 import path from 'path'
-import fs from 'fs-extra'
+import fs from 'fs'
 import { FastifyInstance } from 'fastify'
 
 import app from './app'
@@ -17,19 +17,24 @@ type TestContext = {
   sampleTileJSON: TileJSON
 }
 
-before(() => {
-  function assertSampleTileJSONIsValid(
-    data: unknown
-  ): asserts data is TileJSON {
-    if (!validateTileJSON(data)) {
-      const message = `Sample input does not conform to TileJSON schema spec: ${JSON.stringify(
-        validateTileJSON.errors,
-        null,
-        2
-      )}`
+function assertSampleTileJSONIsValid(data: unknown): asserts data is TileJSON {
+  if (!validateTileJSON(data)) {
+    const message = `Sample input does not conform to TileJSON schema spec: ${JSON.stringify(
+      validateTileJSON.errors,
+      null,
+      2
+    )}`
 
-      throw new Error(message)
-    }
+    throw new Error(message)
+  }
+}
+
+before(() => {
+  // Check if prisma/migrations directory exists in project
+  if (!fs.existsSync(path.resolve(__dirname, '../prisma/migrations'))) {
+    throw new Error(
+      'Could not find prisma migrations directory. Make sure you run `npm run prisma:migrate-dev -- --name MIGRATION_NAME_HERE` first!'
+    )
   }
 
   assertSampleTileJSONIsValid(mapboxRasterTilejson)
@@ -40,22 +45,11 @@ before(() => {
 beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
-  // Copy over /prisma/migrations to tmp directory
-  try {
-    fs.copySync(
-      path.resolve(__dirname, '../prisma/migrations'),
-      path.resolve(dataDir, 'migrations')
-    )
-  } catch (err) {
-    console.log('Could not find prisma migrations directory 🤔')
-    console.log(
-      'Make sure you run `npm run prisma:migrate-dev -- --name MIGRATION_NAME_HERE` first!'
-    )
-    throw err
-  }
-
   t.context = {
-    server: app({ logger: false }, { dataDir }),
+    server: app(
+      { logger: false },
+      { dbPath: path.resolve(dataDir, 'test.db') }
+    ),
     sampleTileJSON: mapboxRasterTilejson,
   }
 })

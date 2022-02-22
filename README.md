@@ -28,4 +28,3 @@ Some notes before working on this locally:
 
 - If you make any changes to the schema via `schema.prisma`, run the following commands afterwards:
   - `npm run prisma:migrate:dev -- --name MIGRATION_NAME_HERE` - creates a new migration in the `prisma/migrations/` directory, which is used by tests and the server if running locally
-  - `npm run updateDataDir` - updates the `data/` directory by copying the `prisma/migrations/` directory, which is used by the server if running locally

@@ -2,7 +2,7 @@ import { beforeEach, test } from 'tap'
 import tmp from 'tmp'
 import crypto from 'crypto'
 import path from 'path'
-import fs from 'fs-extra'
+import fs from 'fs'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 
 import { Migration, migrate } from './migrations'
@@ -61,9 +61,9 @@ const fixtures = {
 beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
-  const allMigrationsDir = path.resolve(dataDir, 'migrations')
+  const allMigrationsDir = path.resolve(dataDir, './prisma/migrations')
 
-  fs.mkdirSync(allMigrationsDir)
+  fs.mkdirSync(allMigrationsDir, { recursive: true })
 
   const db = new Database(path.resolve(dataDir, 'migrations-test.db'))
 
@@ -81,7 +81,7 @@ beforeEach((t) => {
   }
 
   function runMigrations() {
-    migrate(db, dataDir)
+    migrate(db, allMigrationsDir)
   }
 
   t.context = {

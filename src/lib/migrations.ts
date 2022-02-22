@@ -23,7 +23,7 @@ export type Migration = {
   applied_steps_count: number
 }
 
-export function migrate(db: Database, dataDir: string) {
+export function migrate(db: Database, migrationsDirPath: string) {
   // Determine whether the initial setup has been completed before
   const migrationsTableExists =
     db
@@ -60,7 +60,7 @@ export function migrate(db: Database, dataDir: string) {
     .get()?.name
 
   const migrationsToApply = getUnappliedMigrations(
-    dataDir,
+    migrationsDirPath,
     mostRecentMigrationName
   )
 
@@ -130,12 +130,10 @@ export function migrate(db: Database, dataDir: string) {
 }
 
 function getUnappliedMigrations(
-  dataDir: string,
+  migrationsDirPath: string,
   mostRecentMigrationName?: string
 ): { path: string; name: string }[] {
-  const migrationsDirectoryPath = path.resolve(dataDir, 'migrations')
-
-  const prismaMigrateDirents = fs.readdirSync(migrationsDirectoryPath, {
+  const prismaMigrateDirents = fs.readdirSync(migrationsDirPath, {
     withFileTypes: true,
   })
 
@@ -145,12 +143,8 @@ function getUnappliedMigrations(
   const sortedMigrationDirectories = prismaMigrateDirents
     .filter((dirent) => dirent.isDirectory())
     .sort((dir1, dir2) => {
-      const dir1Stat = fs.statSync(
-        path.resolve(migrationsDirectoryPath, dir1.name)
-      )
-      const dir2Stat = fs.statSync(
-        path.resolve(migrationsDirectoryPath, dir2.name)
-      )
+      const dir1Stat = fs.statSync(path.resolve(migrationsDirPath, dir1.name))
+      const dir2Stat = fs.statSync(path.resolve(migrationsDirPath, dir2.name))
 
       // Sort from oldest to newest created date
       return dir1Stat.ctimeMs - dir2Stat.ctimeMs
@@ -166,6 +160,6 @@ function getUnappliedMigrations(
     .slice(currentMigrationIndex + 1, sortedMigrationDirectories.length)
     .map((dirent) => ({
       name: dirent.name,
-      path: path.resolve(migrationsDirectoryPath, dirent.name, 'migration.sql'),
+      path: path.resolve(migrationsDirPath, dirent.name, 'migration.sql'),
     }))
 }
