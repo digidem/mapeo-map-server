@@ -1,4 +1,4 @@
-import { afterEach, before, beforeEach, test } from 'tap'
+import { afterEach, before, beforeEach, teardown, test } from 'tap'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs-extra'
@@ -8,6 +8,7 @@ import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import { getTilesetId } from './lib/utils'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
+import { server as mockTileServer } from './mocks/server'
 
 tmp.setGracefulCleanup()
 
@@ -32,6 +33,8 @@ before(() => {
   }
 
   assertSampleTileJSONIsValid(mapboxRasterTilejson)
+
+  mockTileServer.listen()
 })
 
 beforeEach((t) => {
@@ -59,6 +62,11 @@ beforeEach((t) => {
 
 afterEach((t) => {
   t.context.server.close()
+  mockTileServer.resetHandlers()
+})
+
+teardown(() => {
+  mockTileServer.close()
 })
 
 test('GET /tilesets (empty)', async (t) => {
@@ -199,4 +207,47 @@ test('PUT /tilesets (tileset does not exist)', async (t) => {
   t.end()
 })
 
-// TODO: Add test for tile GET
+test('GET /tile before tileset created', async (t) => {
+  const { server } = t.context as TestContext
+
+  const response = await server.inject({
+    method: 'GET',
+    url: `/tilesets/foobar/1/2/3`,
+  })
+
+  t.equal(
+    response.statusCode,
+    404,
+    'Responds with Not Found error code (404) when requested before tileset creation'
+  )
+})
+
+test('GET /tile (png)', async (t) => {
+  const { sampleTileJSON, server } = t.context as TestContext
+
+  // Create initial tileset
+  const initialResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: sampleTileJSON,
+  })
+
+  const tilesetId = initialResponse.json<TileJSON & { id: string }>().id
+
+  const response = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${tilesetId}/1/2/3`,
+  })
+
+  t.equal(response.statusCode, 200, 'Responds with 200 status code')
+
+  t.equal(
+    response.headers['content-type'],
+    'image/png',
+    'Response content type matches desired resource type'
+  )
+
+  t.equal(typeof response.body, 'string', 'Response body type is a string')
+
+  t.end()
+})
