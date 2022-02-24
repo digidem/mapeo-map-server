@@ -21,6 +21,7 @@
   "dependencies": {
     "@mapbox/mapbox-gl-style-spec": "^13.23.0",
     "@mapbox/mbtiles": "^0.12.1",
+    "@mapbox/sphericalmercator": "^1.2.0",
     "@mapbox/tiletype": "^0.3.1",
     "@mapbox/whoots-js": "^3.1.0",
     "@sinclair/typebox": "^0.20.6",
@@ -44,6 +45,7 @@
     "@types/better-sqlite3": "^7.4.2",
     "@types/is-url": "^1.2.30",
     "@types/json-schema": "^7.0.9",
+    "@types/mapbox__sphericalmercator": "^1.1.5",
     "@types/node": "^14.14.5",
     "@types/tap": "^15.0.5",
     "@types/tilebelt": "^1.0.3",

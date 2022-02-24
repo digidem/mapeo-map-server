@@ -10,6 +10,7 @@ import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
 import { TileJSON, validateTileJSON } from './lib/tilejson'
+import { isValidMBTilesFormat, mbTilesToTileJSON } from './lib/mbtiles'
 import {
   encodeBase32,
   generateId,
@@ -53,6 +54,24 @@ const MismatchedIdError = createError(
 // TODO: Fix naming and description here
 const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
 
+const UnsupportedMBTilesFormatError = createError(
+  'FST_UNSUPPORTED_MBTILES_FORMAT',
+  '`format` must be `jpg`, `png`, `pbf`, or `webp`',
+  400
+)
+
+const MBTilesImportTargetMissingError = createError(
+  'FST_MBTILES_IMPORT_TARGET_MISSING',
+  'mbtiles file at `%s` could not be read',
+  400
+)
+
+const MBTilesInvalidMetadataError = createError(
+  'FST_MBTILES_INVALID_METADATA',
+  'mbtiles file has invalid metadata schema',
+  400
+)
+
 type OfflineStyle = StyleSpecification & {
   id: string
   sources?: {
@@ -77,6 +96,7 @@ export interface IdResource {
 }
 
 export interface Api {
+  importMBTiles(filePath: string): Promise<TileJSON & IdResource>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
@@ -262,6 +282,92 @@ function createApi({
   }
 
   const api: Api = {
+    async importMBTiles(filePath: string) {
+      const filePathWithExtension =
+        path.extname(filePath) === '.mbtiles' ? filePath : filePath + '.mbtiles'
+
+      let mbTilesDb: DatabaseInstance
+
+      try {
+        mbTilesDb = new Database(filePathWithExtension, {
+          // Ideally would set `readOnly` to `true` here but causes `fileMustExist` to be ignored:
+          // https://github.com/JoshuaWise/better-sqlite3/blob/230ea65ed0d7566e32d41c3d13a90fb32ccdbee6/docs/api.md#new-databasepath-options
+          fileMustExist: true,
+        })
+      } catch (_err) {
+        throw new MBTilesImportTargetMissingError(filePath)
+      }
+
+      const tilejson = mbTilesToTileJSON(mbTilesDb, apiUrl)
+
+      // TODO: Should this be handled in extractMBTilesMetadata?
+      if (!(tilejson.format && isValidMBTilesFormat(tilejson.format))) {
+        throw new UnsupportedMBTilesFormatError()
+      }
+
+      if (!validateTileJSON(tilejson)) {
+        mbTilesDb.close()
+        throw new MBTilesInvalidMetadataError()
+      }
+
+      const insertTileData = db.prepare<{
+        data: Buffer
+        tileHash: string
+        tilesetId: string
+      }>(
+        'INSERT INTO TileData (tileHash, data, tilesetId) VALUES (:tileHash, :data, :tilesetId)'
+      )
+
+      const insertTile = db.prepare<{
+        quadKey: string
+        tileHash: string
+        tilesetId: string
+      }>(
+        'INSERT INTO Tile (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId)'
+      )
+
+      const tilesetId = getTilesetId(tilejson)
+
+      // TODO: Look into whether we need to have a transaction for this
+      // Concerns regarding memory due to tile data size
+      const tilesImportTransaction = db.transaction(async () => {
+        const getMBTilesQuery = mbTilesDb.prepare(
+          'SELECT zoom_level as z, tile_column as y, tile_row as x, tile_data as data FROM tiles'
+        )
+
+        // TODO: See comment about transaction above. This would be the area of concern.
+        for (const { data, x, y, z } of getMBTilesQuery.iterate() as Iterable<{
+          data: Buffer
+          x: number
+          y: number
+          z: number
+        }>) {
+          const quadKey = tileToQuadKey({ zoom: z, x, y })
+
+          const tileHash = hash(data).toString('hex')
+
+          insertTileData.run({
+            tileHash,
+            data,
+            tilesetId,
+          })
+
+          insertTile.run({
+            quadKey,
+            tileHash,
+            tilesetId,
+          })
+        }
+      })
+
+      const tileset = await api.createTileset(tilejson)
+
+      tilesImportTransaction()
+
+      mbTilesDb.close()
+
+      return tileset
+    },
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
 
@@ -271,23 +377,27 @@ function createApi({
         )
       }
 
+      const { mbTilesImport, ...tileset } = tilejson
+
       db.prepare<{
         id: string
         format: TileJSON['format']
         tilejson: string
-        upstreamTileUrls: string
+        upstreamTileUrls?: string
       }>(
         'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls) ' +
           'VALUES (:id, :tilejson, :format, :upstreamTileUrls)'
       ).run({
         id,
         format: tilejson.format,
-        tilejson: JSON.stringify(tilejson),
-        upstreamTileUrls: JSON.stringify(tilejson.tiles),
+        tilejson: JSON.stringify(tileset),
+        upstreamTileUrls: !!mbTilesImport
+          ? undefined
+          : JSON.stringify(tilejson.tiles),
       })
 
       const result = {
-        ...tilejson,
+        ...tileset,
         tiles: [getTileUrl(id)],
         id,
       }
@@ -304,11 +414,13 @@ function createApi({
         throw new NotFoundError(id)
       }
 
+      const { mbTilesImport, ...tileset } = tilejson
+
       db.prepare<{
         id: string
         format: TileJSON['format']
         tilejson: string
-        upstreamTileUrls: string
+        upstreamTileUrls?: string
       }>(
         'UPDATE Tileset SET ' +
           'tilejson = :tilejson, ' +
@@ -318,14 +430,16 @@ function createApi({
       ).run({
         id,
         format: tilejson.format,
-        tilejson: JSON.stringify(tilejson),
-        upstreamTileUrls: JSON.stringify(tilejson.tiles),
+        tilejson: JSON.stringify(tileset),
+        upstreamTileUrls: !!mbTilesImport
+          ? undefined
+          : JSON.stringify(tilejson.tiles),
       })
 
       mem.clear(memoizedGetTilesetInfo)
 
       const result = {
-        ...tilejson,
+        ...tileset,
         tiles: [getTileUrl(id)],
         id,
       }
@@ -367,9 +481,15 @@ function createApi({
       }
 
       let tileset: TileJSON
+      let allowUpstreamRequest = true
 
       try {
-        tileset = JSON.parse(row.tilejson)
+        const { mbTilesImport, ...tilejson } = JSON.parse(row.tilejson)
+
+        tileset = tilejson
+
+        // We want to disable the upstream request if the tileset was created via MB Tiles import
+        allowUpstreamRequest = !mbTilesImport
       } catch (err) {
         throw new ParseError(err)
       }
@@ -384,7 +504,7 @@ function createApi({
         if (data) api.putTileset(id, data)
       }
 
-      if (row.upstreamUrl) {
+      if (row.upstreamUrl && allowUpstreamRequest) {
         fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
       }
 
@@ -394,10 +514,11 @@ function createApi({
     async getTile({ tilesetId, zoom, x, y }) {
       const quadKey = tileToQuadKey({ x, y, zoom })
 
-      let tile:
+      const row:
         | {
             data: Buffer
             etag?: string
+            tilejson: string
           }
         | undefined = db
         .prepare<{
@@ -429,7 +550,7 @@ function createApi({
         if (upstreamTileUrl) {
           const response = await upstreamRequestsManager.getUpstream({
             url: upstreamTileUrl,
-            etag: tile?.etag,
+            etag: row?.etag,
             responseType: 'buffer',
           })
 
@@ -450,7 +571,10 @@ function createApi({
         }
       }
 
-      if (tile) {
+      let tile: { data: Buffer; etag?: string } | undefined
+
+      if (row) {
+        tile = { data: row.data, etag: row.etag }
         fetchOnlineResource().catch(noop)
       } else {
         tile = await fetchOnlineResource()

@@ -262,3 +262,28 @@ test('GET /tile (png)', async (t) => {
 
   t.end()
 })
+
+test('POST /import (success)', async (t) => {
+  const { server } = t.context as TestContext
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: `/tilesets/import`,
+    payload: {
+      filePath: path.resolve(__dirname, './fixtures/trails.mbtiles'),
+    },
+  })
+
+  t.equal(importResponse.statusCode, 200, 'Successful import responds with 200')
+
+  const tileset = importResponse.json<TileJSON & { id: string }>()
+
+  const tilesetGetResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${tileset.id}`,
+  })
+
+  t.same(tileset, tilesetGetResponse.json(), 'Tileset successfully created')
+
+  t.end()
+})

@@ -17,6 +17,10 @@ const PutTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
 })
 
+const ImportMBTilesBodySchema = T.Object({
+  filePath: T.String(),
+})
+
 const tilesets: FastifyPluginAsync = async function (fastify) {
   fastify.get(
     '/',
@@ -105,7 +109,23 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
       return tilejson
     }
-  )
+  ),
+    fastify.post<{ Body: Static<typeof ImportMBTilesBodySchema> }>(
+      '/import',
+      {
+        schema: {
+          body: ImportMBTilesBodySchema,
+          response: {
+            200: TileJSONSchema,
+          },
+        },
+      },
+      async function (request, reply) {
+        const tilejson = await request.api.importMBTiles(request.body.filePath)
+        reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
+        return tilejson
+      }
+    )
 }
 
 export default tilesets
