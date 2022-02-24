@@ -362,6 +362,14 @@ function createApi({
         throw new NotFoundError(id)
       }
 
+      let tileset: TileJSON
+
+      try {
+        tileset = JSON.parse(row.tilejson)
+      } catch (err) {
+        throw new ParseError(err)
+      }
+
       async function fetchOnlineResource(url: string, etag?: string) {
         const { data } = await upstreamRequestsManager.getUpstream<TileJSON>({
           url,
@@ -374,14 +382,6 @@ function createApi({
 
       if (row.upstreamUrl) {
         fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
-      }
-
-      let tileset: TileJSON
-
-      try {
-        tileset = JSON.parse(row.tilejson)
-      } catch (err) {
-        throw new ParseError(err)
       }
 
       return { ...tileset, tiles: [getTileUrl(id)], id }
