@@ -377,8 +377,6 @@ function createApi({
         )
       }
 
-      const { mbTilesImport, ...tileset } = tilejson
-
       db.prepare<{
         id: string
         format: TileJSON['format']
@@ -390,14 +388,15 @@ function createApi({
       ).run({
         id,
         format: tilejson.format,
-        tilejson: JSON.stringify(tileset),
-        upstreamTileUrls: !!mbTilesImport
-          ? undefined
-          : JSON.stringify(tilejson.tiles),
+        tilejson: JSON.stringify(tilejson),
+        upstreamTileUrls:
+          tilejson.tiles.length === 0
+            ? undefined
+            : JSON.stringify(tilejson.tiles),
       })
 
       const result = {
-        ...tileset,
+        ...tilejson,
         tiles: [getTileUrl(id)],
         id,
       }
@@ -414,8 +413,6 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      const { mbTilesImport, ...tileset } = tilejson
-
       db.prepare<{
         id: string
         format: TileJSON['format']
@@ -430,16 +427,17 @@ function createApi({
       ).run({
         id,
         format: tilejson.format,
-        tilejson: JSON.stringify(tileset),
-        upstreamTileUrls: !!mbTilesImport
-          ? undefined
-          : JSON.stringify(tilejson.tiles),
+        tilejson: JSON.stringify(tilejson),
+        upstreamTileUrls:
+          tilejson.tiles.length === 0
+            ? undefined
+            : JSON.stringify(tilejson.tiles),
       })
 
       mem.clear(memoizedGetTilesetInfo)
 
       const result = {
-        ...tileset,
+        ...tilejson,
         tiles: [getTileUrl(id)],
         id,
       }
@@ -480,16 +478,10 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      let tileset: TileJSON
-      let allowUpstreamRequest = true
+      let tilejson: TileJSON
 
       try {
-        const { mbTilesImport, ...tilejson } = JSON.parse(row.tilejson)
-
-        tileset = tilejson
-
-        // We want to disable the upstream request if the tileset was created via MB Tiles import
-        allowUpstreamRequest = !mbTilesImport
+        tilejson = JSON.parse(row.tilejson)
       } catch (err) {
         throw new ParseError(err)
       }
@@ -504,11 +496,11 @@ function createApi({
         if (data) api.putTileset(id, data)
       }
 
-      if (row.upstreamUrl && allowUpstreamRequest) {
+      if (row.upstreamUrl) {
         fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
       }
 
-      return { ...tileset, tiles: [getTileUrl(id)], id }
+      return { ...tilejson, tiles: [getTileUrl(id)], id }
     },
 
     async getTile({ tilesetId, zoom, x, y }) {

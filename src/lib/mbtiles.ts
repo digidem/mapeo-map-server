@@ -31,7 +31,6 @@ export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
     tilejson: '2.2.0',
     // Technically not compliant with spec
     tiles: [],
-    mbTilesImport: true,
   }
 }
 
