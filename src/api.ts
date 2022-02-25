@@ -298,7 +298,7 @@ function createApi({
         throw new MBTilesImportTargetMissingError(filePath)
       }
 
-      const tilejson = mbTilesToTileJSON(mbTilesDb, apiUrl)
+      const tilejson = mbTilesToTileJSON(mbTilesDb)
 
       // TODO: Should this be handled in extractMBTilesMetadata?
       if (!(tilejson.format && isValidMBTilesFormat(tilejson.format))) {

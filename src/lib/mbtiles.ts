@@ -20,10 +20,7 @@ export function isValidMBTilesFormat(
   return VALID_MBTILES_FORMATS.includes(format as ValidMBTilesFormat)
 }
 
-export function mbTilesToTileJSON(
-  mbTilesDb: DatabaseInstance,
-  apiUrl: string
-): TileJSON {
+export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
   const metadata = extractMBTilesMetadata(mbTilesDb)
 
   return {
@@ -32,8 +29,8 @@ export function mbTilesToTileJSON(
     name: metadata.name,
     // TODO: are we strictly supporting this version of the tilejson spec?
     tilejson: '2.2.0',
-    // TODO: What should `tiles` be in this case?
-    tiles: [apiUrl + '{z}/{x}/{y}.' + metadata.format],
+    // Technically not compliant with spec
+    tiles: [],
     mbTilesImport: true,
   }
 }

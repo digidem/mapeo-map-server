@@ -22,28 +22,16 @@ afterEach((t) => {
 test('Conversion outputs spec-compliant tilejson', (t) => {
   const { mbTilesDb } = t.context as TestContext
 
-  const baseTilesUrl = 'http://localhost/'
-
-  const tilejson = mbTilesToTileJSON(mbTilesDb, baseTilesUrl)
+  const tilejson = mbTilesToTileJSON(mbTilesDb)
 
   t.ok(
     validateTileJSON(tilejson),
     'Converted output complies with tilejson spec'
   )
 
-  const { format, tiles } = tilejson
+  const { tiles } = tilejson
 
-  const tilesUrl = tiles[0]
-
-  t.ok(
-    tilesUrl.startsWith(baseTilesUrl),
-    "Provided base url is used for beginning 'tiles' url"
-  )
-
-  t.ok(
-    tilesUrl.endsWith('.' + format),
-    "Detected format is used for ending of 'tiles' url"
-  )
+  t.equal(tiles.length, 0, '`tiles` field is an empty array')
 
   t.end()
 })
