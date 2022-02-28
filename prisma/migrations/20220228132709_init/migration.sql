@@ -9,6 +9,7 @@ CREATE TABLE "TileData" (
 
 -- CreateTable
 CREATE TABLE "Tile" (
+    "etag" TEXT,
     "quadKey" TEXT NOT NULL,
     "tileHash" TEXT NOT NULL,
     "tilesetId" TEXT NOT NULL,
