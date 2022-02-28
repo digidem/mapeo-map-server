@@ -6,6 +6,8 @@ import fp from 'fastify-plugin'
 import got from 'got'
 import { headers } from '@mapbox/tiletype'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
+import mem from 'mem'
+import QuickLRU from 'quick-lru'
 
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import {
@@ -64,13 +66,9 @@ export interface PluginOptions {
   dbPath: string
 }
 
-// Map of tileset ids to their respective upstream map server tile url
-type UpstreamTileUrlsCache = Map<string, string | undefined>
-
 interface Context {
   db: DatabaseInstance
   upstreamRequestsManager: UpstreamRequestsManager
-  upstreamTileUrlsCache: UpstreamTileUrlsCache
 }
 
 // Any resource returned by the API will always have an `id` property
@@ -114,7 +112,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, upstreamRequestsManager, upstreamTileUrlsCache } = context
+  const { db, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -157,6 +155,33 @@ function createApi({
     )
   }
 
+  function getTilesetInfo(tilesetId: string) {
+    const tilesetRow = db
+      .prepare('SELECT tilejson, upstreamTileUrls FROM Tileset where id = ?')
+      .get(tilesetId)
+
+    if (!tilesetRow) {
+      // TODO: Is this the appropriate error?
+      throw new NotFoundError(`Tileset id = ${tilesetId}`)
+    }
+
+    const upstreamTileUrls: TileJSON['tiles'] | undefined =
+      tilesetRow.upstreamTileUrls && JSON.parse(tilesetRow.upstreamTileUrls)
+
+    try {
+      return {
+        tilejson: JSON.parse(tilesetRow.tilejson) as TileJSON,
+        upstreamTileUrls,
+      }
+    } catch (err) {
+      throw new ParseError(err)
+    }
+  }
+
+  const memoizedGetTilesetInfo = mem(getTilesetInfo, {
+    cache: new QuickLRU({ maxSize: 10 }),
+  })
+
   function getUpstreamTileUrl({
     tilesetId,
     zoom,
@@ -168,42 +193,17 @@ function createApi({
     x: number
     y: number
   }) {
-    const cachedUrl = upstreamTileUrlsCache.get(tilesetId)
+    const { tilejson, upstreamTileUrls } = memoizedGetTilesetInfo(tilesetId)
 
-    if (cachedUrl) return cachedUrl
-
-    const tilesetRow = db
-      .prepare('SELECT tilejson, upstreamTileUrls FROM Tileset where id = ?')
-      .get(tilesetId)
-
-    if (!tilesetRow) {
-      // TODO: Is this the appropriate error?
-      throw new NotFoundError(`Tileset id = ${tilesetId}`)
-    }
-
-    if (!tilesetRow.upstreamTileUrls) return
-
-    let scheme: TileJSON['scheme']
-    let tiles: TileJSON['tiles']
-
-    try {
-      const tilejson: TileJSON = JSON.parse(tilesetRow.tilejson)
-
-      scheme = tilejson.scheme
-      tiles = JSON.parse(tilesetRow.upstreamTileUrls)
-    } catch (err) {
-      throw new ParseError(err)
-    }
+    if (!upstreamTileUrls) return
 
     const upstreamTileUrl = getInterpolatedUpstreamTileUrl({
-      tiles,
-      scheme,
+      tiles: upstreamTileUrls,
+      scheme: tilejson.scheme,
       zoom,
       x,
       y,
     })
-
-    upstreamTileUrlsCache.set(tilesetId, upstreamTileUrl)
 
     return upstreamTileUrl
   }
@@ -319,6 +319,8 @@ function createApi({
         tilejson: JSON.stringify(tilejson),
         upstreamTileUrls: JSON.stringify(tilejson.tiles),
       })
+
+      mem.clear(memoizedGetTilesetInfo)
 
       const result = {
         ...tilejson,
@@ -636,7 +638,6 @@ function init(dbPath: string): Context {
   return {
     db,
     upstreamRequestsManager: new UpstreamRequestsManager(),
-    upstreamTileUrlsCache: new Map(),
   }
 }
 

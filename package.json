@@ -36,7 +36,9 @@
     "get-stream": "^6.0.1",
     "got": "^11.8.3",
     "is-url": "^1.2.4",
-    "make-promises-safe": "^5.1.0"
+    "make-promises-safe": "^5.1.0",
+    "mem": "^8.1.1",
+    "quick-lru": "^5.1.1"
   },
   "devDependencies": {
     "@tsconfig/node12": "^1.0.9",
