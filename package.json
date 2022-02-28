@@ -14,8 +14,7 @@
     "test": "TS_NODE_FILES=true tap --ts --no-check-coverage --test-ignore='^(dist|scripts)'",
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate-dev": "prisma migrate dev",
-    "updateDataDir": "scripts/update-data-dir.js"
+    "prisma:migrate-dev": "prisma migrate dev"
   },
   "author": "Digital Democracy",
   "license": "MIT",
