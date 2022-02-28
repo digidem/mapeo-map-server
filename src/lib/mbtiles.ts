@@ -26,7 +26,6 @@ export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
   return {
     ...metadata,
     id: generateId(),
-    name: metadata.name,
     // TODO: are we strictly supporting this version of the tilejson spec?
     tilejson: '2.2.0',
     // Technically not compliant with spec
