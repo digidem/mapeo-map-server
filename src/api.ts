@@ -400,7 +400,7 @@ function createApi({
           tilesetId: string
           quadKey: string
         }>(
-          'SELECT TileData.data as data, Tileset.etag as etag FROM TileData ' +
+          'SELECT TileData.data as data, Tile.etag as etag FROM TileData ' +
             'JOIN Tile ON TileData.tileHash = Tile.tileHash ' +
             'JOIN Tileset ON Tile.tilesetId = Tileset.id ' +
             'WHERE Tileset.id = :tilesetId AND Tile.quadKey = :quadKey'
@@ -488,25 +488,27 @@ function createApi({
           'INSERT INTO TileData (tileHash, tilesetId, data) VALUES (:tileHash, :tilesetId, :data)'
         ).run({ tileHash, tilesetId, data })
 
+        // TODO: Is this still necessary?
         db.prepare<{
           etag?: string
           tilesetId: string
           upstreamUrl?: string
         }>(
-          'UPDATE Tileset SET (etag, upstreamUrl) = (:etag, :upstreamUrl) WHERE id = :tilesetId'
+          'UPDATE Tileset SET (upstreamUrl) = (:upstreamUrl) WHERE id = :tilesetId'
         ).run({
-          etag,
           tilesetId,
           upstreamUrl: upstreamTileUrl,
         })
 
         db.prepare<{
+          etag?: string
           quadKey: string
           tileHash: string
           tilesetId: string
         }>(
-          'INSERT INTO Tile (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId)'
+          'INSERT INTO Tile (etag, quadKey, tileHash, tilesetId) VALUES (:etag, :quadKey, :tileHash, :tilesetId)'
         ).run({
+          etag,
           quadKey,
           tileHash,
           tilesetId,
