@@ -328,24 +328,23 @@ function createApi({
 
       const tilesetId = getTilesetId(tilejson)
 
-      // TODO: Look into whether we need to have a transaction for this
-      // Concerns regarding memory due to tile data size
-      const tilesImportTransaction = db.transaction(async () => {
-        const getMBTilesQuery = mbTilesDb.prepare(
-          'SELECT zoom_level as z, tile_column as y, tile_row as x, tile_data as data FROM tiles'
-        )
+      const tileset = await api.createTileset(tilejson)
 
-        // TODO: See comment about transaction above. This would be the area of concern.
-        for (const { data, x, y, z } of getMBTilesQuery.iterate() as Iterable<{
-          data: Buffer
-          x: number
-          y: number
-          z: number
-        }>) {
-          const quadKey = tileToQuadKey({ zoom: z, x, y })
+      const getMBTilesQuery = mbTilesDb.prepare(
+        'SELECT zoom_level as z, tile_column as y, tile_row as x, tile_data as data FROM tiles'
+      )
 
-          const tileHash = hash(data).toString('hex')
+      for (const { data, x, y, z } of getMBTilesQuery.iterate() as Iterable<{
+        data: Buffer
+        x: number
+        y: number
+        z: number
+      }>) {
+        const quadKey = tileToQuadKey({ zoom: z, x, y })
 
+        const tileHash = hash(data).toString('hex')
+
+        const tilesImportTransaction = () => {
           insertTileData.run({
             tileHash,
             data,
@@ -358,11 +357,9 @@ function createApi({
             tilesetId,
           })
         }
-      })
 
-      const tileset = await api.createTileset(tilejson)
-
-      tilesImportTransaction()
+        tilesImportTransaction()
+      }
 
       mbTilesDb.close()
 
