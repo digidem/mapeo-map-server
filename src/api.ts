@@ -156,7 +156,9 @@ function createApi({
   }
 
   function getTilesetInfo(tilesetId: string) {
-    const tilesetRow = db
+    const tilesetRow:
+      | { tilejson: string; upstreamTileUrls?: string }
+      | undefined = db
       .prepare('SELECT tilejson, upstreamTileUrls FROM Tileset where id = ?')
       .get(tilesetId)
 
