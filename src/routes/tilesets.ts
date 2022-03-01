@@ -17,6 +17,14 @@ const PutTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
 })
 
+const DeleteTilesetParamsSchema = T.Object({
+  tilesetId: T.String(),
+})
+
+const DeleteTilesetResponseSchema = T.Object({
+  id: T.String(),
+})
+
 const tilesets: FastifyPluginAsync = async function (fastify) {
   fastify.get(
     '/',
@@ -104,6 +112,22 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       )
       reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
       return tilejson
+    }
+  )
+
+  fastify.delete<{ Params: Static<typeof DeleteTilesetParamsSchema> }>(
+    '/:tilesetId',
+    {
+      schema: {
+        description: 'Delete a tileset based on id',
+        params: DeleteTilesetParamsSchema,
+        response: {
+          200: DeleteTilesetResponseSchema,
+        },
+      },
+    },
+    async function (request) {
+      return request.api.deleteTileset(request.params.tilesetId)
     }
   )
 }

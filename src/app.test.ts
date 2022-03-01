@@ -218,6 +218,35 @@ test('PUT /tilesets (tileset does not exist)', async (t) => {
   t.end()
 })
 
+test('DELETE /tileset (success)', async (t) => {
+  const { accessDb, sampleTileJSON, server } = t.context as TestContext
+
+  // Create initial tileset
+  const postResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: sampleTileJSON,
+  })
+
+  const tilesetId = postResponse.json<TileJSON & { id: string }>().id
+
+  const deleteResponse = await server.inject({
+    method: 'DELETE',
+    url: `/tilesets/${tilesetId}`,
+  })
+
+  t.equal(
+    deleteResponse.statusCode,
+    200,
+    'Delete response returned 200 status code'
+  )
+
+  accessDb((db) => {
+    const row = db.prepare('SELECT id FROM Tileset WHERE id = ?').get(tilesetId)
+    t.notOk(row, 'Tileset was successfully deleted from database')
+  })
+})
+
 test('GET /tile before tileset created', async (t) => {
   const { server } = t.context as TestContext
 

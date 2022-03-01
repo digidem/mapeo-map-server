@@ -80,6 +80,7 @@ export interface Api {
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
+  deleteTileset(id: string): Promise<IdResource>
   getTileset(id: string): Promise<TileJSON & IdResource>
   getTile(opts: {
     tilesetId: string
@@ -389,6 +390,16 @@ function createApi({
       }
 
       return { ...tileset, tiles: [getTileUrl(id)], id }
+    },
+
+    async deleteTileset(id: string) {
+      if (!tilesetExists(id)) {
+        throw new NotFoundError(id)
+      }
+
+      db.prepare('DELETE FROM Tileset WHERE id = ?').run(id)
+
+      return { id }
     },
 
     async getTile({ tilesetId, zoom, x, y }) {
