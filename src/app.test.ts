@@ -9,10 +9,12 @@ import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejso
 import { getTilesetId } from './lib/utils'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
+import DB, { Database as DatabaseInstance } from 'better-sqlite3'
 
 tmp.setGracefulCleanup()
 
 type TestContext = {
+  accessDb: (cb: (db: DatabaseInstance) => void) => void
   server: FastifyInstance
   sampleTileJSON: TileJSON
 }
@@ -45,11 +47,15 @@ before(() => {
 beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
+  const dbPath = path.resolve(dataDir, 'test.db')
+
   t.context = {
-    server: app(
-      { logger: false },
-      { dbPath: path.resolve(dataDir, 'test.db') }
-    ),
+    accessDb: (cb: (db: DatabaseInstance) => void) => {
+      const db = new DB(dbPath, { readonly: true })
+      cb(db)
+      db.close()
+    },
+    server: app({ logger: false }, { dbPath }),
     sampleTileJSON: mapboxRasterTilejson,
   }
 })
