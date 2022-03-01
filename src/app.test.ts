@@ -11,6 +11,8 @@ import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 import DB, { Database as DatabaseInstance } from 'better-sqlite3'
 
+import { IdResource } from './api'
+
 tmp.setGracefulCleanup()
 
 type TestContext = {
@@ -232,7 +234,7 @@ test('GET /tile (png)', async (t) => {
     payload: sampleTileJSON,
   })
 
-  const tilesetId = initialResponse.json<TileJSON & { id: string }>().id
+  const tilesetId = initialResponse.json<TileJSON & IdResource>().id
 
   const response = await server.inject({
     method: 'GET',

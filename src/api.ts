@@ -72,7 +72,7 @@ interface Context {
 }
 
 // Any resource returned by the API will always have an `id` property
-interface IdResource {
+export interface IdResource {
   id: string
 }
 
