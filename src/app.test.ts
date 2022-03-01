@@ -3,13 +3,13 @@ import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
 import { FastifyInstance } from 'fastify'
+import DB, { Database as DatabaseInstance } from 'better-sqlite3'
 
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import { getTilesetId } from './lib/utils'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
-import DB, { Database as DatabaseInstance } from 'better-sqlite3'
 
 import { IdResource } from './api'
 
@@ -116,7 +116,7 @@ test('GET /tilesets (not empty)', async (t) => {
 })
 
 test('POST /tilesets', async (t) => {
-  const { sampleTileJSON, server } = t.context as TestContext
+  const { accessDb, sampleTileJSON, server } = t.context as TestContext
 
   const expectedId = getTilesetId(sampleTileJSON)
   const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
@@ -132,7 +132,19 @@ test('POST /tilesets', async (t) => {
     payload: sampleTileJSON,
   })
 
-  t.same(response.json(), expectedResponse)
+  t.same(
+    response.json(),
+    expectedResponse,
+    'TileJSON response matches expected response'
+  )
+
+  accessDb((db) => {
+    const row = db
+      .prepare('SELECT * FROM Tileset WHERE id = ?')
+      .get(response.json<TileJSON & IdResource>().id)
+
+    t.ok(row, 'Tileset successfully created in database')
+  })
 
   t.end()
 })
@@ -185,7 +197,7 @@ test('PUT /tilesets (bad param)', async (t) => {
   t.equal(
     response.statusCode,
     400,
-    'Mismatched id param returns Bad Request error code (400)'
+    'Mismatched id param and body id returns Bad Request error code (400)'
   )
 
   t.end()
