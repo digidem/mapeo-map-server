@@ -82,7 +82,7 @@ test('GET /tilesets (empty)', async (t) => {
 })
 
 test('GET /tilesets (not empty)', async (t) => {
-  const { sampleTileJSON, server } = t.context
+  const { sampleTileJSON, server } = t.context as TestContext
 
   await server.inject({
     method: 'POST',
