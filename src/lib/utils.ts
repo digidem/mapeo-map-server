@@ -38,6 +38,8 @@ export function getTilesetId(tilejson: TileJSON): string {
 
 /**
  * Get the upstream tile URL for a particular tile
+ * The provided tile coordinates should be based on the XYZ scheme,
+ * which will then be converted to TMS if necessary based on the `upstreamScheme` that is provided
  */
 export function getInterpolatedUpstreamTileUrl({
   tiles: templateUrls,
@@ -61,17 +63,23 @@ export function getInterpolatedUpstreamTileUrl({
     return
   }
 
+  // getTileBBox expects XYZ scheme and does the TMS conversion internally
+  // https://github.com/mapbox/whoots-js#what-is-it
+  // https://github.com/mapbox/whoots-js/blob/63b423ee084d47713256f9b0e310a0d3bbeeba64/index.mjs#L55
   const bbox = getTileBBox(x, y, zoom)
-  const quadkey = tileToQuadKey({ x, y, zoom })
 
-  return templateUrls[(x + y) % templateUrls.length]
-    .replace('{prefix}', (x % 16).toString(16) + (y % 16).toString(16))
+  const upstreamY =
+    upstreamScheme === 'tms'
+      ? convertTileFromScheme({ x, y, zoom }, 'xyz')[0].y
+      : y
+
+  const quadkey = tileToQuadKey({ x, y: upstreamY, zoom })
+
+  return templateUrls[(x + upstreamY) % templateUrls.length]
+    .replace('{prefix}', (x % 16).toString(16) + (upstreamY % 16).toString(16))
     .replace('{z}', String(zoom))
     .replace('{x}', String(x))
-    .replace(
-      '{y}',
-      String(upstreamScheme === 'tms' ? Math.pow(2, zoom) - y - 1 : y)
-    )
+    .replace('{y}', String(upstreamY))
     .replace('{quadkey}', quadkey)
     .replace('{bbox-epsg-3857}', bbox)
     .replace('{ratio}', ratio ? `@${ratio}x` : '')
@@ -104,4 +112,31 @@ export function tileToQuadKey({
     index += b.toString()
   }
   return index
+}
+
+/**
+ * Returns tuple of [convertedTile, toScheme], where `toScheme` is mostly just useful for keeping track of what convertedTile represents
+ **/
+function convertTileFromScheme(
+  tile: {
+    x: number
+    y: number
+    zoom: number
+  },
+  fromScheme: NonNullable<TileJSON['scheme']>
+): [
+  {
+    x: number
+    y: number
+    zoom: number
+  },
+  NonNullable<TileJSON['scheme']>
+] {
+  return [
+    {
+      ...tile,
+      y: Math.pow(2, tile.zoom) - tile.y - 1,
+    },
+    fromScheme === 'tms' ? 'xyz' : 'tms',
+  ]
 }
