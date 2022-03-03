@@ -24,6 +24,7 @@ model TileData {
 }
 
 model Tile {
+  etag      String?
   quadKey   String
   tileData  TileData @relation(fields: [tileHash, tilesetId], references: [tileHash, tilesetId], onUpdate: Cascade)
   tileHash  String
