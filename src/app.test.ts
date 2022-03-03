@@ -6,7 +6,6 @@ import { FastifyInstance } from 'fastify'
 
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
-import { getTilesetId } from './lib/utils'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 
@@ -92,7 +91,7 @@ test('GET /tilesets (not empty)', async (t) => {
     payload: sampleTileJSON,
   })
 
-  const expectedId = getTilesetId(sampleTileJSON)
+  const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
   const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
   const expectedResponse = [
     {
@@ -112,7 +111,7 @@ test('GET /tilesets (not empty)', async (t) => {
 test('POST /tilesets', async (t) => {
   const { sampleTileJSON, server } = t.context as TestContext
 
-  const expectedId = getTilesetId(sampleTileJSON)
+  const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
   const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
   const expectedResponse = {
     ...sampleTileJSON,
@@ -120,16 +119,28 @@ test('POST /tilesets', async (t) => {
     tiles: [expectedTileUrl],
   }
 
-  const response = await server.inject({
+  const responsePost = await server.inject({
     method: 'POST',
     url: '/tilesets',
     payload: sampleTileJSON,
   })
 
   t.same(
-    response.json(),
+    responsePost.json(),
     expectedResponse,
-    'TileJSON response matches expected response'
+    'TileJSON POST response matches expected response'
+  )
+
+  const responseGet = await server.inject({
+    method: 'GET',
+    url: '/tilesets',
+    payload: { tilesetId: expectedId },
+  })
+
+  t.equal(
+    responseGet.statusCode,
+    200,
+    'Can GET the specific tileset after creation'
   )
 
   t.end()
