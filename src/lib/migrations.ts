@@ -137,18 +137,11 @@ function getUnappliedMigrations(
     withFileTypes: true,
   })
 
-  // TODO: Kind of a lazy approach: we sort the directories (each of which is a migration name) based on their creation date
-  // and then use the provided `mostRecentMigrationName` to determine which migrations we want to apply
-  // i.e. any migration directory that was created after the directory named `mostRecentMigrationName`
-  const sortedMigrationDirectories = prismaMigrateDirents
-    .filter((dirent) => dirent.isDirectory())
-    .sort((dir1, dir2) => {
-      const dir1Stat = fs.statSync(path.resolve(migrationsDirPath, dir1.name))
-      const dir2Stat = fs.statSync(path.resolve(migrationsDirPath, dir2.name))
-
-      // Sort from oldest to newest created date
-      return dir1Stat.ctimeMs - dir2Stat.ctimeMs
-    })
+  // Migration directories are already sorted due to using a sequential formatted date as the prefix for the name
+  // https://github.com/prisma/prisma-engines/blob/6d0d1f6ebabd0497065a8d8e13be1d4dbc2d7c05/migration-engine/connectors/migration-connector/src/migrations_directory.rs#L26
+  const sortedMigrationDirectories = prismaMigrateDirents.filter((dirent) =>
+    dirent.isDirectory()
+  )
 
   const currentMigrationIndex = mostRecentMigrationName
     ? sortedMigrationDirectories.findIndex(

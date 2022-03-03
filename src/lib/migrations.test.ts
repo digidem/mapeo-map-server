@@ -10,6 +10,7 @@ import { Migration, migrate } from './migrations'
 type TestContext = {
   buildMigration: (name: string, query: string) => void
   db: DatabaseInstance
+  generateMigrationName: (name: string) => string
   getSQLiteTableInfo: (tableName?: string) => any[]
   runMigrations: () => void
 }
@@ -58,6 +59,10 @@ const fixtures = {
   `,
 }
 
+function formatTimeUnit(n: number) {
+  return n.toString().padStart(2, '0')
+}
+
 beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
@@ -75,6 +80,25 @@ beforeEach((t) => {
     fs.writeFileSync(path.resolve(migrationDir, 'migration.sql'), query)
   }
 
+  // Used in `generateMigrationName` to guarantee sequential directory names when called multiple times in a test
+  let migrationSequenceNumber = 0
+
+  // Roughly equivalent to the Prisma implementation for generating the migration's directory name
+  // https://github.com/prisma/prisma-engines/blob/6d0d1f6ebabd0497065a8d8e13be1d4dbc2d7c05/migration-engine/connectors/migration-connector/src/migrations_directory.rs#L26
+  function generateMigrationName(name: string): string {
+    const d = new Date()
+    const year = formatTimeUnit(d.getUTCFullYear())
+    const month = formatTimeUnit(d.getUTCMonth() + 1)
+    const date = formatTimeUnit(d.getUTCDate())
+    const hours = formatTimeUnit(d.getUTCHours())
+    const minutes = formatTimeUnit(d.getUTCMinutes())
+    const seconds = formatTimeUnit(d.getUTCSeconds() + migrationSequenceNumber)
+
+    migrationSequenceNumber += 1
+
+    return year + month + date + hours + minutes + seconds + '_' + name
+  }
+
   function getSQLiteTableInfo(tableName: string = TEST_TABLE_NAME) {
     // https://www.sqlite.org/pragma.html#pragma_table_info
     return db.pragma(`table_info(${tableName})`)
@@ -87,15 +111,17 @@ beforeEach((t) => {
   t.context = {
     buildMigration,
     db,
+    generateMigrationName,
     getSQLiteTableInfo,
     runMigrations,
   }
 })
 
 test('Works when database schema is not initialized', (t) => {
-  const { buildMigration, db, runMigrations } = t.context as TestContext
+  const { buildMigration, db, generateMigrationName, runMigrations } =
+    t.context as TestContext
 
-  const migrationName = 'init'
+  const migrationName = generateMigrationName('init')
 
   function migrationsTableExists() {
     return (
@@ -144,16 +170,21 @@ test('Works when database schema is not initialized', (t) => {
 })
 
 test('Works when a subsequent migration is run', (t) => {
-  const { buildMigration, db, getSQLiteTableInfo, runMigrations } =
-    t.context as TestContext
+  const {
+    buildMigration,
+    db,
+    generateMigrationName,
+    getSQLiteTableInfo,
+    runMigrations,
+  } = t.context as TestContext
 
-  buildMigration('init', fixtures.initial)
+  buildMigration(generateMigrationName('init'), fixtures.initial)
 
   runMigrations()
 
   const tableInfoBefore = getSQLiteTableInfo()
 
-  const migrationName = 'add_column'
+  const migrationName = generateMigrationName('add_column')
 
   buildMigration(migrationName, fixtures.migrationOk)
 
@@ -191,9 +222,10 @@ test('Works when a subsequent migration is run', (t) => {
 })
 
 test('Does nothing when no new migrations need to be applied (idempotency)', (t) => {
-  const { buildMigration, db, runMigrations } = t.context as TestContext
+  const { buildMigration, db, generateMigrationName, runMigrations } =
+    t.context as TestContext
 
-  buildMigration('init', fixtures.initial)
+  buildMigration(generateMigrationName('init'), fixtures.initial)
 
   runMigrations()
 
@@ -220,10 +252,12 @@ test('Does nothing when no new migrations need to be applied (idempotency)', (t)
 })
 
 test('Applies multiple migrations sequentially if necessary', (t) => {
-  const { buildMigration, db, runMigrations } = t.context as TestContext
+  const { buildMigration, db, generateMigrationName, runMigrations } =
+    t.context as TestContext
 
-  const firstMigrationName = 'init'
-  const secondMigrationName = 'add_column'
+  const firstMigrationName = generateMigrationName('init')
+  const secondMigrationName = generateMigrationName('add_column')
+
   buildMigration(firstMigrationName, fixtures.initial)
   buildMigration(secondMigrationName, fixtures.migrationOk)
 
@@ -255,16 +289,21 @@ test('Applies multiple migrations sequentially if necessary', (t) => {
 })
 
 test('Only updates migrations table when bad migration is attempted', (t) => {
-  const { buildMigration, db, getSQLiteTableInfo, runMigrations } =
-    t.context as TestContext
+  const {
+    buildMigration,
+    db,
+    generateMigrationName,
+    getSQLiteTableInfo,
+    runMigrations,
+  } = t.context as TestContext
 
-  buildMigration('init', fixtures.initial)
+  buildMigration(generateMigrationName('init'), fixtures.initial)
 
   runMigrations()
 
   const tableInfoBefore = getSQLiteTableInfo()
 
-  const badMigrationName = 'bad'
+  const badMigrationName = generateMigrationName('bad')
 
   buildMigration(badMigrationName, fixtures.migrationBad)
 
