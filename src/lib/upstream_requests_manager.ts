@@ -29,9 +29,6 @@ export class UpstreamRequestsManager {
     return Promise.allSettled(this.pending).then(() => {})
   }
 
-  // The `Data` generic will generally need to be provided and align with the provided `responseType` param
-  // e.g. `buffer` => Buffer, `json` => TileJSON, `text` => string
-  // I'm sure there's some TS wizardry that could make this inferred or less manual
   async getUpstream<ResType extends ResponseType>({
     url,
     etag,
