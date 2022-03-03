@@ -2,10 +2,7 @@ import Fastify from 'fastify'
 import Etag from 'fastify-etag'
 import { afterEach, beforeEach, test } from 'tap'
 
-import {
-  UpstreamRequestsManager,
-  UpstreamResponse,
-} from './upstream_requests_manager'
+import { UpstreamRequestsManager } from './upstream_requests_manager'
 
 const PORT = 3001
 const ENDPOINT_URL = `http://localhost:${PORT}/`
@@ -71,16 +68,16 @@ afterEach((t) => {
 test('Repeat requests in same tick only hit server once', async (t) => {
   const { server, upstreamRequestsManager } = t.context as TestContext
 
-  const responses: UpstreamResponse<Buffer>[] = await Promise.all([
-    upstreamRequestsManager.getUpstream<Buffer>({
+  const responses = await Promise.all([
+    upstreamRequestsManager.getUpstream({
       url: ENDPOINT_URL,
       responseType: 'buffer',
     }),
-    upstreamRequestsManager.getUpstream<Buffer>({
+    upstreamRequestsManager.getUpstream({
       url: ENDPOINT_URL,
       responseType: 'buffer',
     }),
-    upstreamRequestsManager.getUpstream<Buffer>({
+    upstreamRequestsManager.getUpstream({
       url: ENDPOINT_URL,
       responseType: 'buffer',
     }),
@@ -110,7 +107,7 @@ test('Repeat requests in same tick only hit server once', async (t) => {
 test('Upstream resource updated when modified', async (t) => {
   const { server, upstreamRequestsManager } = t.context as TestContext
 
-  const response1 = await upstreamRequestsManager.getUpstream<Buffer>({
+  const response1 = await upstreamRequestsManager.getUpstream({
     url: ENDPOINT_URL,
     responseType: 'buffer',
   })
@@ -124,7 +121,7 @@ test('Upstream resource updated when modified', async (t) => {
   // Change server resource
   server.setPayload(Buffer.from(JSON.stringify({ hello: 'earth' })))
 
-  const response2 = await upstreamRequestsManager.getUpstream<Buffer>({
+  const response2 = await upstreamRequestsManager.getUpstream({
     url: ENDPOINT_URL,
     responseType: 'buffer',
     etag: response1.etag,
@@ -139,7 +136,7 @@ test('Upstream resource updated when modified', async (t) => {
   // Change server resource again
   server.setPayload(Buffer.from(JSON.stringify({ hello: 'goodbye' })))
 
-  const response3 = await upstreamRequestsManager.getUpstream<Buffer>({
+  const response3 = await upstreamRequestsManager.getUpstream({
     url: ENDPOINT_URL,
     responseType: 'buffer',
     etag: response1.etag,
@@ -177,13 +174,13 @@ test('Upstream resource updated when modified', async (t) => {
 test('Upstream resource not modified', async (t) => {
   const { server, upstreamRequestsManager } = t.context as TestContext
 
-  const response1 = await upstreamRequestsManager.getUpstream<Buffer>({
+  const response1 = await upstreamRequestsManager.getUpstream({
     url: ENDPOINT_URL,
     responseType: 'buffer',
   })
 
   t.rejects(
-    upstreamRequestsManager.getUpstream<Buffer>({
+    upstreamRequestsManager.getUpstream({
       url: ENDPOINT_URL,
       responseType: 'buffer',
       etag: response1.etag,

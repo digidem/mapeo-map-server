@@ -375,7 +375,7 @@ function createApi({
       }
 
       async function fetchOnlineResource(url: string, etag?: string) {
-        const { data } = await upstreamRequestsManager.getUpstream<TileJSON>({
+        const { data } = await upstreamRequestsManager.getUpstream({
           url,
           etag,
           responseType: 'json',
@@ -427,7 +427,7 @@ function createApi({
 
         // TODO: Need to check if we can make online requests too
         if (upstreamTileUrl) {
-          const response = await upstreamRequestsManager.getUpstream<Buffer>({
+          const response = await upstreamRequestsManager.getUpstream({
             url: upstreamTileUrl,
             etag: tile?.etag,
             responseType: 'buffer',

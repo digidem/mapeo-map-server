@@ -1,12 +1,23 @@
 import got from 'got'
+import { TileJSON } from './tilejson'
+
+type ResponseType = 'buffer' | 'json' | 'text'
+
+type DataType<T extends ResponseType> = T extends 'buffer'
+  ? Buffer
+  : T extends 'json'
+  ? TileJSON
+  : T extends 'text'
+  ? string
+  : never
 
 // TODO: Consider changing this to:
-// export type UpstreamResponse<Data> = {
-//   data: Data
-//   headers: Headers  // from @mapbox/mbtiles
+// export type UpstreamResponse<T extends ResponseType> = {
+//   data: DataType<T>
+//   headers: Headers // from @mapbox/mbtiles
 // }
-export type UpstreamResponse<Data> = {
-  data: Data
+export type UpstreamResponse<T extends ResponseType> = {
+  data: DataType<T>
   etag?: string
 }
 
@@ -21,15 +32,15 @@ export class UpstreamRequestsManager {
   // The `Data` generic will generally need to be provided and align with the provided `responseType` param
   // e.g. `buffer` => Buffer, `json` => TileJSON, `text` => string
   // I'm sure there's some TS wizardry that could make this inferred or less manual
-  async getUpstream<Data>({
+  async getUpstream<ResType extends ResponseType>({
     url,
     etag,
-    responseType = 'buffer',
+    responseType,
   }: {
     url: string
     etag?: string
-    responseType: 'buffer' | 'json' | 'text'
-  }): Promise<UpstreamResponse<Data>> {
+    responseType: ResType
+  }): Promise<UpstreamResponse<ResType>> {
     // If there is already an inflight request for this url, use that
     const inflightRequest = this.inflight.get(url)
     if (inflightRequest) return inflightRequest
@@ -42,7 +53,7 @@ export class UpstreamRequestsManager {
       const etag = response.headers.etag as string | undefined
 
       // Not ideal but think it's fine in this case
-      const data = response.body as Data
+      const data = response.body as DataType<ResType>
 
       return { data, etag }
     })
