@@ -3,7 +3,6 @@ import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
 import { FastifyInstance } from 'fastify'
-import DB, { Database as DatabaseInstance } from 'better-sqlite3'
 
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
@@ -16,7 +15,6 @@ import { IdResource } from './api'
 tmp.setGracefulCleanup()
 
 type TestContext = {
-  accessDb: (cb: (db: DatabaseInstance) => void) => void
   server: FastifyInstance
   sampleTileJSON: TileJSON
 }
@@ -49,15 +47,11 @@ before(() => {
 beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
-  const dbPath = path.resolve(dataDir, 'test.db')
-
   t.context = {
-    accessDb: (cb: (db: DatabaseInstance) => void) => {
-      const db = new DB(dbPath, { readonly: true })
-      cb(db)
-      db.close()
-    },
-    server: app({ logger: false }, { dbPath }),
+    server: app(
+      { logger: false },
+      { dbPath: path.resolve(dataDir, 'test.db') }
+    ),
     sampleTileJSON: mapboxRasterTilejson,
   }
 })
@@ -116,7 +110,7 @@ test('GET /tilesets (not empty)', async (t) => {
 })
 
 test('POST /tilesets', async (t) => {
-  const { accessDb, sampleTileJSON, server } = t.context as TestContext
+  const { sampleTileJSON, server } = t.context as TestContext
 
   const expectedId = getTilesetId(sampleTileJSON)
   const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
@@ -137,14 +131,6 @@ test('POST /tilesets', async (t) => {
     expectedResponse,
     'TileJSON response matches expected response'
   )
-
-  accessDb((db) => {
-    const row = db
-      .prepare('SELECT * FROM Tileset WHERE id = ?')
-      .get(response.json<TileJSON & IdResource>().id)
-
-    t.ok(row, 'Tileset successfully created in database')
-  })
 
   t.end()
 })
