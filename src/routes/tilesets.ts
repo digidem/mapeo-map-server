@@ -109,23 +109,24 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
       return tilejson
     }
-  ),
-    fastify.post<{ Body: Static<typeof ImportMBTilesBodySchema> }>(
-      '/import',
-      {
-        schema: {
-          body: ImportMBTilesBodySchema,
-          response: {
-            200: TileJSONSchema,
-          },
+  )
+
+  fastify.post<{ Body: Static<typeof ImportMBTilesBodySchema> }>(
+    '/import',
+    {
+      schema: {
+        body: ImportMBTilesBodySchema,
+        response: {
+          200: TileJSONSchema,
         },
       },
-      async function (request, reply) {
-        const tilejson = await request.api.importMBTiles(request.body.filePath)
-        reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
-        return tilejson
-      }
-    )
+    },
+    async function (request, reply) {
+      const tilejson = await request.api.importMBTiles(request.body.filePath)
+      reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
+      return tilejson
+    }
+  )
 }
 
 export default tilesets
