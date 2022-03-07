@@ -285,5 +285,7 @@ test('POST /import (success)', async (t) => {
 
   t.same(tileset, tilesetGetResponse.json(), 'Tileset successfully created')
 
+  // TODO: Test a import progress endpoint
+
   t.end()
 })

@@ -26,6 +26,13 @@ import {
   StyleSpecification,
   VectorSourceSpecification,
 } from './types/mapbox_style'
+import { EventEmitter } from 'events'
+import TypedEmitter from 'typed-emitter'
+import { Worker } from 'worker_threads'
+
+const worker = new Worker(
+  path.resolve(__dirname, './lib/mbtiles_import_worker.js')
+)
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -87,6 +94,7 @@ export interface PluginOptions {
 
 interface Context {
   db: DatabaseInstance
+  progressEmitter: ReturnType<typeof createProgressEmitter>
   upstreamRequestsManager: UpstreamRequestsManager
 }
 
@@ -132,7 +140,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, upstreamRequestsManager } = context
+  const { db, progressEmitter, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -300,71 +308,49 @@ function createApi({
 
       const tilejson = mbTilesToTileJSON(mbTilesDb)
 
+      mbTilesDb.close()
+
       // TODO: Should this be handled in extractMBTilesMetadata?
       if (!(tilejson.format && isValidMBTilesFormat(tilejson.format))) {
         throw new UnsupportedMBTilesFormatError()
       }
 
       if (!validateTileJSON(tilejson)) {
-        mbTilesDb.close()
         throw new MBTilesInvalidMetadataError()
       }
-
-      const insertTileData = db.prepare<{
-        data: Buffer
-        tileHash: string
-        tilesetId: string
-      }>(
-        'INSERT INTO TileData (tileHash, data, tilesetId) VALUES (:tileHash, :data, :tilesetId)'
-      )
-
-      const insertTile = db.prepare<{
-        quadKey: string
-        tileHash: string
-        tilesetId: string
-      }>(
-        'INSERT INTO Tile (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId)'
-      )
 
       const tilesetId = getTilesetId(tilejson)
 
       const tileset = await api.createTileset(tilejson)
 
-      const getMBTilesQuery = mbTilesDb.prepare(
-        'SELECT zoom_level as z, tile_column as y, tile_row as x, tile_data as data FROM tiles'
-      )
+      progressEmitter.emit('start', tilesetId)
 
-      for (const { data, x, y, z } of getMBTilesQuery.iterate() as Iterable<{
-        data: Buffer
-        x: number
-        y: number
-        z: number
-      }>) {
-        const quadKey = tileToQuadKey({ zoom: z, x, y })
+      worker.on('message', (payload: { soFar: number; total: number }) => {
+        console.log(
+          `${payload.soFar} / ${payload.total} = ${(
+            (payload.soFar / payload.total) *
+            100
+          ).toFixed(2)}%`
+        )
+        progressEmitter.emit('progress', tilesetId, payload)
+      })
 
-        const tileHash = hash(data).toString('hex')
+      // TODO: Is this the proper way of doing this or should I use a port message?
+      worker.on('exit', () => {
+        progressEmitter.emit('finished', tilesetId)
+      })
 
-        const tilesImportTransaction = () => {
-          insertTileData.run({
-            tileHash,
-            data,
-            tilesetId,
-          })
-
-          insertTile.run({
-            quadKey,
-            tileHash,
-            tilesetId,
-          })
-        }
-
-        tilesImportTransaction()
-      }
-
-      mbTilesDb.close()
+      worker.postMessage({
+        dbPath: db.name,
+        mbTilesDbPath: mbTilesDb.name,
+        tilesetId,
+      })
 
       return tileset
     },
+    // async listenToMbTilesImportProgress(tilesetId) {
+    //   return progressEmitter
+    // },
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
 
@@ -753,7 +739,45 @@ function init(dbPath: string): Context {
   return {
     db,
     upstreamRequestsManager: new UpstreamRequestsManager(),
+    progressEmitter: createProgressEmitter(),
   }
+}
+
+function createProgressEmitter() {
+  // TODO: This may be an unnecessary abstraction
+  class ProgressEmitter extends (EventEmitter as new () => TypedEmitter<{
+    start: (importId: string) => void
+    progress: (
+      importId: string,
+      data: {
+        total: number
+        soFar: number
+      }
+    ) => void
+    finished: (importId: string) => void
+  }>) {
+    private _imports = new Set<string>()
+
+    createImport(importId: string) {
+      this._imports.add(importId)
+    }
+
+    deleteImport(importId: string) {
+      this._imports.delete(importId)
+    }
+  }
+
+  const progressEmitter = new ProgressEmitter()
+
+  progressEmitter.on('start', (importId) => {
+    progressEmitter.createImport(importId)
+  })
+
+  progressEmitter.on('finished', (importId) => {
+    progressEmitter.deleteImport(importId)
+  })
+
+  return progressEmitter
 }
 
 function noop() {}

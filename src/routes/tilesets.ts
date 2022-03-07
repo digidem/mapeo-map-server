@@ -127,6 +127,8 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       return tilejson
     }
   )
+
+  // TODO: Create import progress endpoint (maybe using SSE?)
 }
 
 export default tilesets
