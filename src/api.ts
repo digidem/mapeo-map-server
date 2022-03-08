@@ -347,12 +347,6 @@ function createApi({
       })
 
       worker.on('message', (data: ImportProgressData) => {
-        // console.log(
-        //   `${payload.soFar} / ${payload.total} = ${(
-        //     (payload.soFar / payload.total) *
-        //     100
-        //   ).toFixed(2)}%`
-        // )
         importProgress.emit('progress', data)
       })
 

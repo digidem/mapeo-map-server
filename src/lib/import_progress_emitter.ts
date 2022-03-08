@@ -16,10 +16,10 @@ export class ImportProgressEmitter extends (EventEmitter as new () => TypedEmitt
   progress: (data: ImportProgressData) => void
   finished: (error?: string) => void
 }>) {
+  public id: string
   private soFar = 0
   private total?: number
   private error?: string
-  public id: string
 
   constructor(id: string) {
     super()
