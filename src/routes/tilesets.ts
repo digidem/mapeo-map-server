@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
 import { TileJSON, TileJSONSchema } from '../lib/tilejson'
 import { Static, Type as T } from '@sinclair/typebox'
+import { on } from 'events'
 
 const GetTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
@@ -19,6 +20,10 @@ const PutTilesetParamsSchema = T.Object({
 
 const ImportMBTilesBodySchema = T.Object({
   filePath: T.String(),
+})
+
+const GetImportProgressParamsSchema = T.Object({
+  tilesetId: T.String(),
 })
 
 const tilesets: FastifyPluginAsync = async function (fastify) {
@@ -128,7 +133,30 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  // TODO: Create import progress endpoint (maybe using SSE?)
+  fastify.get<{ Params: Static<typeof GetImportProgressParamsSchema> }>(
+    '/import/:tilesetId',
+    {
+      schema: {
+        params: GetImportProgressParamsSchema,
+      },
+    },
+    async function (request, reply) {
+      const emitter = await request.api.getImportProgress(
+        request.params.tilesetId
+      )
+
+      async function* sendProgress() {
+        for await (const event of on(emitter, 'progress')) {
+          yield {
+            type: 'progress',
+            data: JSON.stringify(event),
+          }
+        }
+      }
+
+      reply.sse(sendProgress())
+    }
+  )
 }
 
 export default tilesets

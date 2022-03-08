@@ -1,5 +1,6 @@
 import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
 import fastifySwagger from 'fastify-swagger'
+import { FastifySSEPlugin } from 'fastify-sse-v2'
 
 import api, { PluginOptions } from './api'
 import * as routes from './routes'
@@ -10,6 +11,8 @@ function build(
   pluginOpts?: PluginOptions
 ): FastifyInstance {
   const fastify = createFastify(opts)
+
+  fastify.register(FastifySSEPlugin)
 
   fastify.register(api, pluginOpts)
 
