@@ -1,4 +1,5 @@
 import path from 'path'
+import { Worker } from 'worker_threads'
 import { Headers } from '@mapbox/mbtiles'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from 'fastify-error'
@@ -22,13 +23,15 @@ import {
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 import {
+  ImportProgressData,
+  ImportProgressEmitter,
+} from './lib/import_progress_emitter'
+import { TilesetImportManager } from './lib/tileset_import_manager'
+import {
   RasterSourceSpecification,
   StyleSpecification,
   VectorSourceSpecification,
 } from './types/mapbox_style'
-import { EventEmitter } from 'events'
-import TypedEmitter from 'typed-emitter'
-import { Worker } from 'worker_threads'
 
 const worker = new Worker(
   path.resolve(__dirname, './lib/mbtiles_import_worker.js')
@@ -94,7 +97,7 @@ export interface PluginOptions {
 
 interface Context {
   db: DatabaseInstance
-  progressEmitter: ReturnType<typeof createProgressEmitter>
+  tilesetImportManager: TilesetImportManager
   upstreamRequestsManager: UpstreamRequestsManager
 }
 
@@ -105,6 +108,7 @@ export interface IdResource {
 
 export interface Api {
   importMBTiles(filePath: string): Promise<TileJSON & IdResource>
+  getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
@@ -140,7 +144,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, progressEmitter, upstreamRequestsManager } = context
+  const { db, tilesetImportManager, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -323,22 +327,18 @@ function createApi({
 
       const tileset = await api.createTileset(tilejson)
 
-      progressEmitter.emit('start', tilesetId)
+      const importProgress = new ImportProgressEmitter(tilesetId)
 
-      worker.on('message', (payload: { soFar: number; total: number }) => {
-        console.log(
-          `${payload.soFar} / ${payload.total} = ${(
-            (payload.soFar / payload.total) *
-            100
-          ).toFixed(2)}%`
-        )
-        progressEmitter.emit('progress', tilesetId, payload)
+      importProgress.on('started', (size) => {
+        console.log('(started) Import size is', size)
       })
 
-      // TODO: Is this the proper way of doing this or should I use a port message?
-      worker.on('exit', () => {
-        progressEmitter.emit('finished', tilesetId)
+      importProgress.on('finished', (_error) => {
+        console.log('(finished) Import is', importProgress.status)
+        tilesetImportManager.remove(tilesetId)
       })
+
+      tilesetImportManager.add(tilesetId, importProgress)
 
       worker.postMessage({
         dbPath: db.name,
@@ -346,11 +346,21 @@ function createApi({
         tilesetId,
       })
 
+      worker.on('message', (data: ImportProgressData) => {
+        // console.log(
+        //   `${payload.soFar} / ${payload.total} = ${(
+        //     (payload.soFar / payload.total) *
+        //     100
+        //   ).toFixed(2)}%`
+        // )
+        importProgress.emit('progress', data)
+      })
+
       return tileset
     },
-    // async listenToMbTilesImportProgress(tilesetId) {
-    //   return progressEmitter
-    // },
+    async getImportProgress(tilesetId) {
+      return tilesetImportManager.get(tilesetId)
+    },
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
 
@@ -738,46 +748,9 @@ function init(dbPath: string): Context {
 
   return {
     db,
+    tilesetImportManager: new TilesetImportManager(),
     upstreamRequestsManager: new UpstreamRequestsManager(),
-    progressEmitter: createProgressEmitter(),
   }
-}
-
-function createProgressEmitter() {
-  // TODO: This may be an unnecessary abstraction
-  class ProgressEmitter extends (EventEmitter as new () => TypedEmitter<{
-    start: (importId: string) => void
-    progress: (
-      importId: string,
-      data: {
-        total: number
-        soFar: number
-      }
-    ) => void
-    finished: (importId: string) => void
-  }>) {
-    private _imports = new Set<string>()
-
-    createImport(importId: string) {
-      this._imports.add(importId)
-    }
-
-    deleteImport(importId: string) {
-      this._imports.delete(importId)
-    }
-  }
-
-  const progressEmitter = new ProgressEmitter()
-
-  progressEmitter.on('start', (importId) => {
-    progressEmitter.createImport(importId)
-  })
-
-  progressEmitter.on('finished', (importId) => {
-    progressEmitter.deleteImport(importId)
-  })
-
-  return progressEmitter
 }
 
 function noop() {}

@@ -1,6 +1,6 @@
+const process = require('process')
 const { parentPort } = require('worker_threads')
 const Database = require('better-sqlite3')
-const process = require('process')
 
 const { hash, tileToQuadKey } = require('./utils')
 
@@ -84,11 +84,11 @@ parentPort.on('message', ({ dbPath, mbTilesDbPath, tilesetId }) => {
         tileHash,
         tilesetId,
       })
+
+      // TODO: Create an offline area in the db here
     }
 
     tilesImportTransaction()
-
-    // TODO: Create an offline area in the db here
 
     parentPort.postMessage({
       soFar: (bytesSoFar += byteCount),
