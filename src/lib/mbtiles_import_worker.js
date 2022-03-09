@@ -72,7 +72,7 @@ parentPort.on('message', ({ dbPath, mbTilesDbPath, tilesetId }) => {
 
     const tileHash = hash(data).toString('hex')
 
-    const tilesImportTransaction = () => {
+    const tilesImportTransaction = db.transaction(() => {
       insertTileData.run({
         tileHash,
         data,
@@ -86,7 +86,7 @@ parentPort.on('message', ({ dbPath, mbTilesDbPath, tilesetId }) => {
       })
 
       // TODO: Create an offline area in the db here
-    }
+    })
 
     tilesImportTransaction()
 
