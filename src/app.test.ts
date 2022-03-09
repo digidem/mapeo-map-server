@@ -270,7 +270,7 @@ test('POST /import (success)', async (t) => {
     method: 'POST',
     url: `/tilesets/import`,
     payload: {
-      filePath: path.resolve(__dirname, './fixtures/trails.mbtiles'),
+      filePath: path.resolve(__dirname, './fixtures/mbtiles/trails.mbtiles'),
     },
   })
 

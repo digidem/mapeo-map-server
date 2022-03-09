@@ -5,7 +5,10 @@ import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import { mbTilesToTileJSON } from './mbtiles'
 import { validateTileJSON } from './tilejson'
 
-const FIXTURE_PATH = path.resolve(__dirname, '../fixtures/trails.mbtiles')
+const FIXTURE_PATH = path.resolve(
+  __dirname,
+  '../fixtures/mbtiles/trails.mbtiles'
+)
 
 type TestContext = { mbTilesDb: DatabaseInstance }
 
