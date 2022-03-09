@@ -59,15 +59,15 @@ parentPort.on('message', ({ dbPath, mbTilesDbPath, tilesetId }) => {
     .get().total
 
   /**
-   * @type {IterableIterator<{ byteCount: number, data: Buffer, x: number, y: number, z: number }>}
+   * @type {IterableIterator<{ data: Buffer, x: number, y: number, z: number }>}
    */
   const iterableQuery = mbTilesDb
     .prepare(
-      'SELECT zoom_level AS z, tile_column AS y, tile_row AS x, tile_data AS data, LENGTH(tile_data) AS byteCount FROM tiles'
+      'SELECT zoom_level AS z, tile_column AS y, tile_row AS x, tile_data AS data FROM tiles'
     )
     .iterate()
 
-  for (const { byteCount, data, x, y, z } of iterableQuery) {
+  for (const { data, x, y, z } of iterableQuery) {
     const quadKey = tileToQuadKey({ zoom: z, x, y })
 
     const tileHash = hash(data).toString('hex')
@@ -91,7 +91,7 @@ parentPort.on('message', ({ dbPath, mbTilesDbPath, tilesetId }) => {
     tilesImportTransaction()
 
     parentPort.postMessage({
-      soFar: (bytesSoFar += byteCount),
+      soFar: (bytesSoFar += data.byteLength),
       total: approximateTotalBytes,
     })
   }
