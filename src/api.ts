@@ -22,20 +22,12 @@ import {
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
-import {
-  ImportProgressData,
-  ImportProgressEmitter,
-} from './lib/import_progress_emitter'
-import { TilesetImportManager } from './lib/tileset_import_manager'
+import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import {
   RasterSourceSpecification,
   StyleSpecification,
   VectorSourceSpecification,
 } from './types/mapbox_style'
-
-const worker = new Worker(
-  path.resolve(__dirname, './lib/mbtiles_import_worker.js')
-)
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -97,7 +89,7 @@ export interface PluginOptions {
 
 interface Context {
   db: DatabaseInstance
-  tilesetImportManager: TilesetImportManager
+  tilesetImportWorker: Worker
   upstreamRequestsManager: UpstreamRequestsManager
 }
 
@@ -144,7 +136,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, tilesetImportManager, upstreamRequestsManager } = context
+  const { db, tilesetImportWorker, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -327,33 +319,22 @@ function createApi({
 
       const tileset = await api.createTileset(tilejson)
 
-      const importProgress = new ImportProgressEmitter(tilesetId)
-
-      importProgress.on('started', (size) => {
-        console.log('(started) Import size is', size)
-      })
-
-      importProgress.on('finished', (_error) => {
-        console.log('(finished) Import is', importProgress.status)
-        tilesetImportManager.remove(tilesetId)
-      })
-
-      tilesetImportManager.add(tilesetId, importProgress)
-
-      worker.postMessage({
-        dbPath: db.name,
+      tilesetImportWorker.postMessage({
+        importId: generateId(),
         mbTilesDbPath: mbTilesDb.name,
         tilesetId,
       })
 
-      worker.on('message', (data: ImportProgressData) => {
-        importProgress.emit('progress', data)
-      })
-
+      // TODO: Return url to the desired import resource?
       return tileset
     },
-    async getImportProgress(tilesetId) {
-      return tilesetImportManager.get(tilesetId)
+    async getImportProgress(offlineAreaId) {
+      const importIds: string[] = db
+        .prepare('SELECT id FROM Import WHERE areaId = ?')
+        .all(offlineAreaId)
+        .map((row: { id: string }) => row.id)
+
+      return new ImportProgressEmitter(tilesetImportWorker, importIds)
     },
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
@@ -742,7 +723,10 @@ function init(dbPath: string): Context {
 
   return {
     db,
-    tilesetImportManager: new TilesetImportManager(),
+    tilesetImportWorker: new Worker(
+      path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
+      { workerData: { dbPath } }
+    ),
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
 }
