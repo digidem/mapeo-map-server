@@ -8,6 +8,7 @@ import {
   Type as T,
 } from '@sinclair/typebox'
 import Ajv from 'ajv/dist/2019'
+import isUrl from 'is-url'
 
 const ColorSpecificationSchema = (options?: StringOptions<string>) =>
   T.String(options)
@@ -1105,7 +1106,7 @@ type PromoteIdSpecification = Static<typeof PromoteIdSpecificationSchema>
 
 const VectorSourceSpecificationSchema = T.Object({
   type: T.Literal('vector'),
-  url: T.Optional(T.String()),
+  url: T.Optional(T.String({ format: 'uri' })),
   tiles: T.Optional(T.Array(T.String())),
   bounds: T.Optional(
     T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()], {
@@ -1125,7 +1126,7 @@ type VectorSourceSpecification = Static<typeof VectorSourceSpecificationSchema>
 
 const RasterSourceSpecificationSchema = T.Object({
   type: T.Literal('raster'),
-  url: T.Optional(T.String()),
+  url: T.Optional(T.String({ format: 'uri' })),
   tiles: T.Optional(T.Array(T.String())),
   bounds: T.Optional(
     T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()], {
@@ -1145,7 +1146,7 @@ type RasterSourceSpecification = Static<typeof RasterSourceSpecificationSchema>
 
 const RasterDEMSourceSpecificationSchema = T.Object({
   type: T.Literal('raster-dem'),
-  url: T.Optional(T.String()),
+  url: T.Optional(T.String({ format: 'uri' })),
   tiles: T.Optional(T.Array(T.String())),
   bounds: T.Optional(
     T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()], {
@@ -1190,7 +1191,7 @@ type GeoJSONSourceSpecification = Static<
 
 const VideoSourceSpecificationSchema = T.Object({
   type: T.Literal('video'),
-  urls: T.Array(T.String()),
+  urls: T.Array(T.String({ format: 'uri' })),
   coordinates: T.Tuple([
     T.Tuple([T.Number(), T.Number()]),
     T.Tuple([T.Number(), T.Number()]),
@@ -1258,7 +1259,13 @@ const ajv = new Ajv({
   removeAdditional: false,
   useDefaults: true,
   coerceTypes: true,
+  formats: {
+    // Less strict uri validator, since strictly uris cannot have {z},{x},{y}
+    uri: isUrl,
+  },
 })
+
+ajv.addKeyword('kind').addKeyword('modifier')
 
 const validateStyleJSONSchema = ajv.compile<StyleJSON>(StyleJSONSchema)
 
