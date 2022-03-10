@@ -36,7 +36,7 @@ export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
 // Reference implementations from:
 // https://github.com/mapbox/node-mbtiles/blob/03220bc2fade2ba197ea2bab9cc44033f3a0b37e/lib/mbtiles.js#L256-L387
 // https://github.com/yuiseki/mbtiles2tilejson/blob/a21c3fb14502cf2cee73bc6362602ace23fa061b/src/index.ts#L28-L60
-function extractMBTilesMetadata(mbTilesDb: DatabaseInstance): Metadata {
+export function extractMBTilesMetadata(mbTilesDb: DatabaseInstance): Metadata {
   const metadata: any = {}
 
   mbTilesDb

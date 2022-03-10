@@ -4,6 +4,7 @@ const { parentPort, workerData } = require('worker_threads')
 const Database = require('better-sqlite3')
 
 const { hash, tileToQuadKey } = require('./utils')
+const { extractMBTilesMetadata } = require('./mbtiles')
 
 /**
  * @typedef {Object} WorkerData
@@ -38,25 +39,34 @@ const subscriptions = new Set()
 const db = new Database(workerData.dbPath)
 
 /** @type {Statement<{ id: string, zoomLevel: string, boundingBox: string, name: string, styleId: string }>} */
-const insertOfflineArea = db.prepare(
+const upsertOfflineArea = db.prepare(
   'INSERT INTO OfflineArea (id, zoomLevel, boundingBox, name, styleId) ' +
-    'VALUES (:id, :zoomLevel, :boundingBox, :name, :styleId)'
+    'VALUES (:id, :zoomLevel, :boundingBox, :name, :styleId) ' +
+    'ON CONFLICT (id) DO UPDATE SET ' +
+    'zoomLevel = excluded.zoomLevel, boundingBox = excluded.boundingBox, name = excluded.name, styleId = excluded.styleId'
 )
 
-/** @type {Statement<{ id: string, downloadedResources: number, totalResources: number, isComplete: boolean, finished: number, areaId: string }>} */
+/** @type {Statement<{ id: string, totalResources: number, areaId: string, tilesetId?: string}>} */
 const insertImport = db.prepare(
-  'INSERT INTO Import (id, downloadedResources, totalResources, isComplete, finished, areaId) ' +
-    "VALUES (:id, :downloadedResources, :totalResources, :isComplete, :finished, 'unixepoch'), :areaId)"
+  'INSERT INTO Import (id, importedResources, totalResources, isComplete, finished, areaId, tilesetId, importType) ' +
+    'VALUES (:id, 0, :totalResources, false, :areaId, :tilesetID, "tileset")'
+)
+
+/** @type {Statement<{ id: string, importedResources: number, isComplete: boolean}>} */
+const updateImport = db.prepare(
+  'UPDATE Import SET importedResources = :importedResources, isComplete = :isComplete, finished = CURRENT_TIMESTAMP WHERE id = :id'
 )
 
 /** @type {Statement<{ data: buffer, tileHash: string, tilesetId: string }>} */
-const insertTileData = db.prepare(
-  'INSERT INTO TileData (tileHash, data, tilesetId) VALUES (:tileHash, :data, :tilesetId)'
+const upsertTileData = db.prepare(
+  'INSERT INTO TileData (tileHash, data, tilesetId) VALUES (:tileHash, :data, :tilesetId) ' +
+    'ON CONFLICT (tileHash, tilesetId) DO UPDATE SET data = excluded.data'
 )
 
 /** @type {Statement<{ quadKey: string, tileHash: string, tilesetId: string }>} */
-const insertTile = db.prepare(
-  'INSERT INTO Tile (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId)'
+const upsertTile = db.prepare(
+  'INSERT INTO Tile (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId) ' +
+    'ON CONFLICT (quadkey, tilesetId) DO UPDATE SET tilehash = excluded.tileHash'
 )
 
 parentPort.on('message', handleMessage)
@@ -93,9 +103,11 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId }) {
   let bytesSoFar = 0
 
   /** @type {number} */
-  const approximateTotalBytes = mbTilesDb
+  const totalBytesToImport = mbTilesDb
     .prepare('SELECT SUM(LENGTH(tile_data)) AS total FROM tiles;')
     .get().total
+
+  const mbTilesMetadata = extractMBTilesMetadata(mbTilesDb)
 
   /** @type {IterableIterator<{ data: Buffer, x: number, y: number, z: number }>} */
   const iterableQuery = mbTilesDb
@@ -104,9 +116,24 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId }) {
     )
     .iterate()
 
-  // TODO: Create an offline area in the db here
+  // TODO: Okay to generate id for offline area like this?
+  const areaId = generateId()
 
-  // TODO: Create import in db here
+  upsertOfflineArea.run({
+    id: areadId,
+    boundingBox: JSON.stringify(mbTilesMetadata.bounds),
+    name: mbTilesMetadata.name,
+    zoomLevel: mbTilesMetadata.maxzoom,
+    // TODO: need to provide the style id to the worker too
+    // styleId:
+  })
+
+  insertImport.run({
+    id: importId,
+    totalResources: totalBytesToImport,
+    tilesetId,
+    areaId,
+  })
 
   for (const { data, x, y, z } of iterableQuery) {
     const quadKey = tileToQuadKey({ zoom: z, x, y })
@@ -114,13 +141,13 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId }) {
     const tileHash = hash(data).toString('hex')
 
     const tilesImportTransaction = db.transaction(() => {
-      insertTileData.run({
+      upsertTileData.run({
         tileHash,
         data,
         tilesetId,
       })
 
-      insertTile.run({
+      upsertTile.run({
         quadKey,
         tileHash,
         tilesetId,
@@ -128,7 +155,11 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId }) {
 
       bytesSoFar += data.byteLength
 
-      // TODO: Update import in db here
+      updateImport.run({
+        id: importId,
+        importedResources: bytesSoFar,
+        isComplete: bytesSoFar === totalBytesToImport,
+      })
     })
 
     tilesImportTransaction()
@@ -141,7 +172,7 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId }) {
       type: 'importProgress',
       importId,
       soFar: bytesSoFar,
-      total: approximateTotalBytes,
+      total: totalBytesToImport,
     })
   }
 }
