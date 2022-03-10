@@ -81,19 +81,19 @@ const styles: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  fastify.delete<{ Params: Static<typeof DeleteStyleParamsSchema> }>(
-    '/:styleId',
-    {
-      schema: {
-        response: {
-          // TODO: what should the response be here?
-          200: T.Boolean(),
-        },
-      },
-    },
-    async function (request) {
-      return request.api.deleteStyle(request.params.styleId)
-    }
-  )
+  // fastify.delete<{ Params: Static<typeof DeleteStyleParamsSchema> }>(
+  //   '/:styleId',
+  //   {
+  //     schema: {
+  //       response: {
+  //         // TODO: what should the response be here?
+  //         200: T.Boolean(),
+  //       },
+  //     },
+  //   },
+  //   async function (request) {
+  //     return request.api.deleteStyle(request.params.styleId)
+  //   }
+  // )
 }
 export default styles

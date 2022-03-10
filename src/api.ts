@@ -1,23 +1,26 @@
-import { promises as fsPromises } from 'fs'
 import path from 'path'
-
 import { Headers } from '@mapbox/mbtiles'
-import { AbstractLevelDOWN } from 'abstract-leveldown'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from 'fastify-error'
 import fp from 'fastify-plugin'
-import getStream from 'get-stream'
 import got from 'got'
-import Level from 'level'
-import { LevelUp } from 'levelup'
-import mkdirp from 'mkdirp'
-import SubLevel from 'subleveldown'
+import { headers } from '@mapbox/tiletype'
+import Database, { Database as DatabaseInstance } from 'better-sqlite3'
+import mem from 'mem'
+import QuickLRU from 'quick-lru'
 
-import SWRCache from './lib/swr_cache'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
-import Tilestore, { getTilesetId } from './lib/tilestore'
-import { encodeBase32, generateId, hash } from './lib/utils'
 import { StyleJSON, OfflineStyle } from './lib/stylejson'
+import {
+  encodeBase32,
+  generateId,
+  getInterpolatedUpstreamTileUrl,
+  getTilesetId,
+  tileToQuadKey,
+  hash,
+} from './lib/utils'
+import { migrate } from './lib/migrations'
+import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -43,25 +46,18 @@ const MismatchedIdError = createError(
   400
 )
 
+const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
 export interface PluginOptions {
-  dataDir?: string
+  dbPath: string
 }
 
 interface Context {
-  tilestores: Map<string, Tilestore>
-  stylesDb: LevelUp<AbstractLevelDOWN<string, OfflineStyle>>
-  swrCache: SWRCache
-  paths: {
-    tilesets: string
-    styles: string
-    fonts: string
-    sprites: string
-    db: string
-  }
+  db: DatabaseInstance
+  upstreamRequestsManager: UpstreamRequestsManager
 }
 
 // Any resource returned by the API will always have an `id` property
-interface IdResource {
+export interface IdResource {
   id: string
 }
 
@@ -76,10 +72,18 @@ export interface Api {
     x: number
     y: number
   }): Promise<{ data: Buffer; headers: Headers }>
+  putTile(opts: {
+    tilesetId: string
+    zoom: number
+    x: number
+    y: number
+    data: Buffer
+    etag?: string
+  }): Promise<void>
   createStyle(style: StyleJSON): Promise<OfflineStyle>
   putStyle(id: string, style: OfflineStyle): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
-  deleteStyle(id: string): Promise<void>
+  // deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<OfflineStyle>>
 }
 
@@ -93,7 +97,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { swrCache } = context
+  const { db, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -115,9 +119,15 @@ function createApi({
   function addOfflineUrls(style: OfflineStyle): OfflineStyle {
     const sources: OfflineStyle['sources'] = {}
     for (const sourceId of Object.keys(style.sources)) {
+      const includeUrlField = ['vector', 'raster', 'raster-dem'].includes(
+        style.sources[sourceId].type
+      )
+
       sources[sourceId] = {
         ...style.sources[sourceId],
-        url: getTilesetUrl(sources[sourceId].tilesetId),
+        ...(includeUrlField
+          ? { url: getTilesetUrl(sources[sourceId].tilesetId) }
+          : undefined),
       }
     }
     return {
@@ -126,6 +136,69 @@ function createApi({
       glyphs: style.glyphs && getGlyphsUrl(style.id),
       sprite: style.sprite && getSpriteUrl(style.id),
     }
+  }
+
+  function tilesetExists(tilesetId: string) {
+    return (
+      db
+        .prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?')
+        .get(tilesetId).count > 0
+    )
+  }
+
+  function getTilesetInfo(tilesetId: string) {
+    const tilesetRow:
+      | { tilejson: string; upstreamTileUrls?: string }
+      | undefined = db
+      .prepare('SELECT tilejson, upstreamTileUrls FROM Tileset where id = ?')
+      .get(tilesetId)
+
+    if (!tilesetRow) {
+      // TODO: Is this the appropriate error?
+      throw new NotFoundError(`Tileset id = ${tilesetId}`)
+    }
+
+    const upstreamTileUrls: TileJSON['tiles'] | undefined =
+      tilesetRow.upstreamTileUrls && JSON.parse(tilesetRow.upstreamTileUrls)
+
+    try {
+      return {
+        tilejson: JSON.parse(tilesetRow.tilejson) as TileJSON,
+        upstreamTileUrls,
+      }
+    } catch (err) {
+      throw new ParseError(err)
+    }
+  }
+
+  const memoizedGetTilesetInfo = mem(getTilesetInfo, {
+    cache: new QuickLRU({ maxSize: 10 }),
+  })
+
+  function getUpstreamTileUrl({
+    tilesetId,
+    zoom,
+    x,
+    y,
+  }: {
+    tilesetId: string
+    zoom: number
+    x: number
+    y: number
+  }) {
+    const { tilejson, upstreamTileUrls } = memoizedGetTilesetInfo(tilesetId)
+
+    if (!upstreamTileUrls) return
+
+    const upstreamTileUrl = getInterpolatedUpstreamTileUrl({
+      tiles: upstreamTileUrls,
+      scheme: tilejson.scheme,
+      zoom,
+      x,
+      y,
+    })
+
+    return upstreamTileUrl
   }
 
   /**
@@ -168,8 +241,8 @@ function createApi({
       // e.g. lots of styles created on Mapbox will use the
       // mapbox.mapbox-streets-v7 source
       const tilesetId = getTilesetId(tilejson)
-      const tilestore = context.tilestores.get(tilesetId)
-      if (!tilestore) {
+
+      if (!tilesetExists(tilesetId)) {
         await api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
@@ -182,69 +255,273 @@ function createApi({
   const api: Api = {
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
-      if (context.tilestores.has(id)) {
+
+      if (tilesetExists(id)) {
         throw new AlreadyExistsError(
           `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${id} to modify this tileset`
         )
       }
-      const tilestore = new Tilestore({
+
+      db.prepare<{
+        id: string
+        format: TileJSON['format']
+        tilejson: string
+        upstreamTileUrls: string
+      }>(
+        'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls) ' +
+          'VALUES (:id, :tilejson, :format, :upstreamTileUrls)'
+      ).run({
         id,
-        mode: 'rwc',
-        dir: context.paths.tilesets,
-        swrCache,
+        format: tilejson.format,
+        tilejson: JSON.stringify(tilejson),
+        upstreamTileUrls: JSON.stringify(tilejson.tiles),
       })
-      context.tilestores.set(id, tilestore)
-      await tilestore.putTileJSON(tilejson)
-      return { ...tilejson, id, tiles: [getTileUrl(id)] }
+
+      const result = {
+        ...tilejson,
+        tiles: [getTileUrl(id)],
+        id,
+      }
+
+      return result
     },
 
     async putTileset(id, tilejson) {
       if (id !== tilejson.id) {
         throw new MismatchedIdError(id, tilejson.id)
       }
-      const tilestore = context.tilestores.get(id)
-      if (!tilestore) {
+
+      if (!tilesetExists(id)) {
         throw new NotFoundError(id)
       }
-      await tilestore.putTileJSON(tilejson)
-      return { ...tilejson, id, tiles: [getTileUrl(id)] }
+
+      db.prepare<{
+        id: string
+        format: TileJSON['format']
+        tilejson: string
+        upstreamTileUrls: string
+      }>(
+        'UPDATE Tileset SET ' +
+          'tilejson = :tilejson, ' +
+          'format = :format, ' +
+          'upstreamTileUrls = :upstreamTileUrls ' +
+          'WHERE id = :id'
+      ).run({
+        id,
+        format: tilejson.format,
+        tilejson: JSON.stringify(tilejson),
+        upstreamTileUrls: JSON.stringify(tilejson.tiles),
+      })
+
+      mem.clear(memoizedGetTilesetInfo)
+
+      const result = {
+        ...tilejson,
+        tiles: [getTileUrl(id)],
+        id,
+      }
+
+      return result
     },
 
     async listTilesets() {
-      const tilesetIds = Array.from(context.tilestores.keys())
-      return Promise.all(tilesetIds.map((id) => api.getTileset(id)))
+      const tilesets: (TileJSON & IdResource)[] = []
+
+      db.prepare('SELECT id, tilejson FROM Tileset')
+        .all()
+        .forEach(({ id, tilejson }: { id: string; tilejson: string }) => {
+          try {
+            const tileset: TileJSON = JSON.parse(tilejson)
+
+            tilesets.push({
+              ...tileset,
+              tiles: [getTileUrl(id)],
+              id,
+            })
+          } catch (err) {
+            // TODO: What should we do here? e.g. omit or throw?
+          }
+        })
+
+      return tilesets
     },
 
     async getTileset(id) {
-      const tilestore = context.tilestores.get(id)
-      if (!tilestore) {
+      const row:
+        | { tilejson: string; etag?: string; upstreamUrl?: string }
+        | undefined = db
+        .prepare('SELECT tilejson, etag, upstreamUrl FROM Tileset WHERE id = ?')
+        .get(id)
+
+      if (!row) {
         throw new NotFoundError(id)
       }
-      return {
-        ...(await tilestore.getTileJSON()),
-        id,
+
+      let tileset: TileJSON
+
+      try {
+        tileset = JSON.parse(row.tilejson)
+      } catch (err) {
+        throw new ParseError(err)
       }
+
+      async function fetchOnlineResource(url: string, etag?: string) {
+        const { data } = await upstreamRequestsManager.getUpstream({
+          url,
+          etag,
+          responseType: 'json',
+        })
+
+        if (data) api.putTileset(id, data)
+      }
+
+      if (row.upstreamUrl) {
+        fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
+      }
+
+      return { ...tileset, tiles: [getTileUrl(id)], id }
     },
 
     async getTile({ tilesetId, zoom, x, y }) {
-      const tilestore = context.tilestores.get(tilesetId)
-      if (!tilestore) {
-        throw new NotFoundError(tilesetId)
+      const quadKey = tileToQuadKey({ x, y, zoom })
+
+      let tile:
+        | {
+            data: Buffer
+            etag?: string
+          }
+        | undefined = db
+        .prepare<{
+          tilesetId: string
+          quadKey: string
+        }>(
+          'SELECT TileData.data as data, Tile.etag as etag FROM TileData ' +
+            'JOIN Tile ON TileData.tileHash = Tile.tileHash ' +
+            'JOIN Tileset ON Tile.tilesetId = Tileset.id ' +
+            'WHERE Tileset.id = :tilesetId AND Tile.quadKey = :quadKey'
+        )
+        .get({ tilesetId, quadKey })
+
+      async function fetchOnlineResource(): Promise<
+        | {
+            data: Buffer
+            etag?: string
+          }
+        | undefined
+      > {
+        const upstreamTileUrl = getUpstreamTileUrl({
+          tilesetId,
+          zoom,
+          x,
+          y,
+        })
+
+        // TODO: Need to check if we can make online requests too
+        if (upstreamTileUrl) {
+          const response = await upstreamRequestsManager.getUpstream({
+            url: upstreamTileUrl,
+            etag: tile?.etag,
+            responseType: 'buffer',
+          })
+
+          if (response) {
+            api
+              .putTile({
+                tilesetId,
+                zoom,
+                x,
+                y,
+                data: response.data,
+                etag: response.etag,
+              })
+              .catch(noop)
+
+            return { data: response.data, etag: response.etag }
+          }
+        }
       }
-      return tilestore.getTile(zoom, x, y)
+
+      if (tile) {
+        fetchOnlineResource().catch(noop)
+      } else {
+        tile = await fetchOnlineResource()
+      }
+
+      if (!tile) {
+        // TODO: Improve error handling here?
+        throw new NotFoundError(
+          `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
+        )
+      }
+
+      return {
+        data: tile.data,
+        // TODO: This never returns a Last-Modified header but seems like the endpoint would want it to if possible?
+        // Would require changing the return type of UpstreamRequestsManager.getUpstream
+        headers: { ...headers(tile.data), Etag: tile.etag },
+      }
+    },
+
+    async putTile({ tilesetId, zoom, x, y, data, etag }) {
+      const upstreamTileUrl = getUpstreamTileUrl({
+        tilesetId,
+        zoom,
+        x,
+        y,
+      })
+
+      const quadKey = tileToQuadKey({ x, y, zoom })
+
+      const transaction = db.transaction(() => {
+        const tileHash = hash(data).toString('hex')
+
+        db.prepare<{
+          tileHash: string
+          tilesetId: string
+          data: Buffer
+        }>(
+          'INSERT INTO TileData (tileHash, tilesetId, data) VALUES (:tileHash, :tilesetId, :data)'
+        ).run({ tileHash, tilesetId, data })
+
+        // TODO: Is this still necessary?
+        db.prepare<{
+          etag?: string
+          tilesetId: string
+          upstreamUrl?: string
+        }>(
+          'UPDATE Tileset SET (upstreamUrl) = (:upstreamUrl) WHERE id = :tilesetId'
+        ).run({
+          tilesetId,
+          upstreamUrl: upstreamTileUrl,
+        })
+
+        db.prepare<{
+          etag?: string
+          quadKey: string
+          tileHash: string
+          tilesetId: string
+        }>(
+          'INSERT INTO Tile (etag, quadKey, tileHash, tilesetId) VALUES (:etag, :quadKey, :tileHash, :tilesetId)'
+        ).run({
+          etag,
+          quadKey,
+          tileHash,
+          tilesetId,
+        })
+      })
+
+      transaction()
     },
 
     async createStyle(style) {
       const styleId = getStyleId(style)
 
-      // Round-about, because level does not have a has() function
-      let existingStyle: OfflineStyle | void
-      try {
-        existingStyle = await context.stylesDb.get(styleId)
-      } catch (e) {
-        // Treat error as "not found"
-      }
-      if (existingStyle) {
+      const styleExists =
+        db
+          .prepare('SELECT COUNT(*) as count FROM Style WHERE id = ?')
+          .get(styleId).count > 0
+
+      if (styleExists) {
         throw new AlreadyExistsError(
           `Style already exists. PUT changes to ${fastify.prefix}/${styleId} to modify this style`
         )
@@ -256,30 +533,36 @@ function createApi({
         sources: await createOfflineSources(style.sources),
       }
 
-      await context.stylesDb.put(styleId, offlineStyle)
+      db.prepare(
+        'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
+      ).run({ id: styleId, stylejson: JSON.stringify(offlineStyle) })
+
       return addOfflineUrls(offlineStyle)
     },
 
-    async listStyles() {
-      // TODO: Limit number of returned entries with getStream options.maxBuffer
-      return await getStream.array<OfflineStyle>(
-        context.stylesDb.createValueStream()
-      )
-    },
-
-    async getStyle(id) {
-      return await context.stylesDb.get(id)
-    },
-
-    // TODO: validate style
     async putStyle(id, style) {
-      await context.stylesDb.put(id, style)
+      db.prepare(
+        'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
+      ).run({ id, stylejson: style })
       return { ...style, id }
     },
 
-    // TODO: delete associated sprite
-    async deleteStyle(id) {
-      await context.stylesDb.del(id)
+    async listStyles(limit?: number) {
+      const baseQuery = 'SELECT stylejson FROM Style'
+      const stmt =
+        limit !== undefined
+          ? db.prepare(`${baseQuery} LIMIT ?`).bind(limit)
+          : db.prepare(baseQuery)
+
+      return stmt
+        .all()
+        .map((row: { stylejson: string }) => JSON.parse(row.stylejson))
+    },
+
+    async getStyle(id) {
+      const row = db.prepare('SELECT stylejson FROM Style WHERE id = ?').get(id)
+
+      return JSON.parse(row.stylejson)
     },
   }
   return api
@@ -287,10 +570,10 @@ function createApi({
 
 const ApiPlugin: FastifyPluginAsync<PluginOptions> = async (
   fastify,
-  { dataDir = 'data' }
+  { dbPath }
 ) => {
   // Create context once for each fastify instance
-  const context = await init(dataDir)
+  const context = init(dbPath)
   fastify.decorateRequest('api', {
     getter(this: FastifyRequest) {
       return createApi({ context, request: this, fastify })
@@ -338,38 +621,15 @@ async function uncompositeStyle(style: StyleJSON): Promise<StyleJSON> {
   return style
 }
 
-/**
- * Setup data storage paths and create Tilestore instances for existing mbtiles.
- * TODO: Watch dirs for user-added files? Maybe separate user dir from these
- * data dirs, to avoid users moving mbtiles internally managed here.
- */
-async function init(dataDir: string): Promise<Context> {
-  const paths = { tilesets: '', styles: '', sprites: '', fonts: '', db: '' }
-  for (const pathName of Object.keys(paths) as Array<keyof typeof paths>) {
-    paths[pathName] = path.join(process.cwd(), dataDir, pathName)
-    await mkdirp(paths[pathName])
+function init(dbPath: string): Context {
+  const db = new Database(dbPath)
+
+  migrate(db, path.resolve(__dirname, '../prisma/migrations'))
+
+  return {
+    db,
+    upstreamRequestsManager: new UpstreamRequestsManager(),
   }
-
-  const db = Level(paths.db)
-  const stylesDb = SubLevel<string, OfflineStyle>(db, 'styles')
-  const etagDb = SubLevel<string, string>(db, 'etag', {
-    valueEncoding: 'string',
-  })
-  const cacheDb = SubLevel<string, Buffer>(db, 'urlCache', {
-    valueEncoding: 'binary',
-  })
-  const swrCache = new SWRCache({ etagDb, cacheDb })
-
-  const tilesetIds = (await fsPromises.readdir(paths.tilesets))
-    .filter((fname) => fname.endsWith('.mbtiles'))
-    .map((fname) => path.basename(fname, '.mbtiles'))
-
-  const tilestores = new Map(
-    tilesetIds.map((id) => [
-      id,
-      new Tilestore({ id, mode: 'rw', dir: paths.tilesets, swrCache }),
-    ])
-  )
-
-  return { tilestores, paths, stylesDb, swrCache }
 }
+
+function noop() {}

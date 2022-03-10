@@ -13,6 +13,10 @@ const GetTileParamsSchema = T.Object({
   y: T.Number(),
 })
 
+const PutTilesetParamsSchema = T.Object({
+  tilesetId: T.String(),
+})
+
 const tilesets: FastifyPluginAsync = async function (fastify) {
   fastify.get(
     '/',
@@ -78,6 +82,28 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       // These come from https://github.com/mapbox/tiletype
       reply.header('Content-Encoding', headers['Content-Encoding'])
       reply.send(data)
+    }
+  )
+
+  fastify.put<{
+    Body: TileJSON
+    Params: Static<typeof PutTilesetParamsSchema>
+  }>(
+    '/:tilesetId',
+    {
+      schema: {
+        description: 'Update a single tileset using a TileJSON',
+        body: TileJSONSchema,
+        params: PutTilesetParamsSchema,
+      },
+    },
+    async function (request, reply) {
+      const tilejson = await request.api.putTileset(
+        request.params.tilesetId,
+        request.body
+      )
+      reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
+      return tilejson
     }
   )
 }
