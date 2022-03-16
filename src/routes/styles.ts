@@ -71,6 +71,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     '/:styleId',
     {
       schema: {
+        params: PutStyleParamsSchema,
         response: {
           200: StyleJSONSchema,
         },
@@ -96,4 +97,5 @@ const styles: FastifyPluginAsync = async function (fastify) {
   //   }
   // )
 }
+
 export default styles

@@ -7,8 +7,96 @@ import {
   TSchema,
   Type as T,
 } from '@sinclair/typebox'
-import Ajv from 'ajv/dist/2019'
+import Ajv, { ValidateFunction, ErrorObject } from 'ajv/dist/2019'
 import isUrl from 'is-url'
+import { Scheme } from './tilejson'
+
+enum Visibility {
+  visible = 'visible',
+  none = 'none',
+}
+
+enum EntityAnchor {
+  viewport = 'viewport',
+  map = 'map',
+}
+
+enum Encoding {
+  terrarium = 'terrarium',
+  mapbox = 'mapbox',
+}
+
+enum Join {
+  bevel = 'bevel',
+  miter = 'miter',
+  round = 'round',
+}
+
+enum Cap {
+  butt = 'butt',
+  round = 'round',
+  square = 'square',
+}
+
+enum SymbolPlacement {
+  point = 'point',
+  line = 'line',
+  lineCenter = 'line-center',
+}
+
+enum SymbolZOrder {
+  auto = 'auto',
+  viewportY = 'viewport-y',
+  source = 'source',
+}
+
+enum Alignment {
+  auto = 'auto',
+  map = 'map',
+  viewport = 'viewport',
+}
+
+enum IconTextFit {
+  none = 'none',
+  width = 'width',
+  height = 'height',
+  both = 'both',
+}
+
+enum DirectionalAnchor {
+  center = 'center',
+  left = 'left',
+  right = 'right',
+  top = 'top',
+  bottom = 'bottom',
+  topLeft = 'top-left',
+  topRight = 'top-right',
+  bottomLeft = 'bottom-left',
+  bottomRight = 'bottom-right',
+}
+
+enum Justify {
+  auto = 'auto',
+  left = 'left',
+  right = 'right',
+  center = 'center',
+}
+
+enum WritingMode {
+  horizontal = 'horizontal',
+  vertical = 'vertical',
+}
+
+enum TextTransform {
+  none = 'none',
+  uppercase = 'uppercase',
+  lowercase = 'lowercase',
+}
+
+enum Resampling {
+  linear = 'linear',
+  nearest = 'nearest',
+}
 
 const ColorSpecificationSchema = (options?: StringOptions<string>) =>
   T.String(options)
@@ -139,64 +227,112 @@ const DataDrivenPropertyValueSpecificationSchema = <T extends TSchema>(
 const LightSpecificationSchema = T.Object({
   anchor: T.Optional(
     PropertyValueSpecificationSchema(
-      T.Union([T.Literal('map'), T.Literal('viewport')], {
-        default: 'viewport',
-      })
+      // TODO: Specify default: (EntityAnchor.viewport)
+      T.Union([T.Literal(EntityAnchor.map), T.Literal(EntityAnchor.viewport)])
     )
   ),
   position: T.Optional(
-    T.Tuple([T.Number(), T.Number(), T.Number()], { default: [1.15, 210, 30] })
+    T.Tuple([
+      T.Number({ default: 1.15 }),
+      T.Number({ default: 210 }),
+      T.Number({ default: 30 }),
+    ])
   ),
   color: T.Optional(
     PropertyValueSpecificationSchema(
-      ColorSpecificationSchema({ default: '#ffffff' })
+      // TODO: Specify default ('#ffffff')
+      ColorSpecificationSchema()
     )
   ),
   intesity: T.Optional(
     PropertyValueSpecificationSchema(
-      T.Number({ minimum: 0, maximum: 1, default: 0.5 })
+      // TODO: Specify default (0.5)
+      T.Number({ minimum: 0, maximum: 1 })
     )
   ),
 })
 type LightSpecification = Static<typeof LightSpecificationSchema>
 
-const FilterSpecificationSchema = T.Rec((Self) =>
-  T.Union([
-    T.Tuple([T.Literal('has'), T.String()]),
-    T.Tuple([T.Literal('!has'), T.String()]),
-    T.Tuple([
-      T.Literal('=='),
-      T.String(),
-      T.Union([T.String(), T.Number(), T.Boolean()]),
+/**
+// Issues with Rec https://github.com/sinclairzx81/typebox/issues/160
+const IdealFilterSpecificationSchema = T.Rec(
+  (Self) =>
+    T.Union([
+      T.Tuple([T.Literal('has'), T.String()]),
+      T.Tuple([T.Literal('!has'), T.String()]),
+      T.Tuple([
+        T.Literal('=='),
+        T.String(),
+        T.Union([T.String(), T.Number(), T.Boolean()]),
+      ]),
+      T.Tuple([
+        T.Literal('!='),
+        T.String(),
+        T.Union([T.String(), T.Number(), T.Boolean()]),
+      ]),
+      T.Tuple([
+        T.Literal('>'),
+        T.String(),
+        T.Union([T.String(), T.Number(), T.Boolean()]),
+      ]),
+      T.Tuple([
+        T.Literal('>='),
+        T.String(),
+        T.Union([T.String(), T.Number(), T.Boolean()]),
+      ]),
+      T.Tuple([
+        T.Literal('<'),
+        T.String(),
+        T.Union([T.String(), T.Number(), T.Boolean()]),
+      ]),
+      T.Tuple([
+        T.Literal('<='),
+        T.String(),
+        T.Union([T.String(), T.Number(), T.Boolean()]),
+      ]),
+      T.Array(T.Union([T.String(), Self])),
     ]),
-    T.Tuple([
-      T.Literal('!='),
-      T.String(),
-      T.Union([T.String(), T.Number(), T.Boolean()]),
-    ]),
-    T.Tuple([
-      T.Literal('>'),
-      T.String(),
-      T.Union([T.String(), T.Number(), T.Boolean()]),
-    ]),
-    T.Tuple([
-      T.Literal('>='),
-      T.String(),
-      T.Union([T.String(), T.Number(), T.Boolean()]),
-    ]),
-    T.Tuple([
-      T.Literal('<'),
-      T.String(),
-      T.Union([T.String(), T.Number(), T.Boolean()]),
-    ]),
-    T.Tuple([
-      T.Literal('<='),
-      T.String(),
-      T.Union([T.String(), T.Number(), T.Boolean()]),
-    ]),
-    T.Array(T.Union([T.String(), Self])),
-  ])
+  { $id: 'Filter' }
 )
+ */
+
+const FilterSpecificationSchema = T.Union([
+  T.Tuple([T.Literal('has'), T.String()]),
+  T.Tuple([T.Literal('!has'), T.String()]),
+  T.Tuple([
+    T.Literal('=='),
+    T.String(),
+    T.Union([T.String(), T.Number(), T.Boolean()]),
+  ]),
+  T.Tuple([
+    T.Literal('!='),
+    T.String(),
+    T.Union([T.String(), T.Number(), T.Boolean()]),
+  ]),
+  T.Tuple([
+    T.Literal('>'),
+    T.String(),
+    T.Union([T.String(), T.Number(), T.Boolean()]),
+  ]),
+  T.Tuple([
+    T.Literal('>='),
+    T.String(),
+    T.Union([T.String(), T.Number(), T.Boolean()]),
+  ]),
+  T.Tuple([
+    T.Literal('<'),
+    T.String(),
+    T.Union([T.String(), T.Number(), T.Boolean()]),
+  ]),
+  T.Tuple([
+    T.Literal('<='),
+    T.String(),
+    T.Union([T.String(), T.Number(), T.Boolean()]),
+  ]),
+  // The T.Any should really be a recursive type but typebox has issues with its Rec implementation
+  // see IdealFilterSpecificationSchema
+  T.Array(T.Union([T.String(), T.Any()])),
+])
 type FilterSpecification = Static<typeof FilterSpecificationSchema>
 
 /**
@@ -217,25 +353,27 @@ const FillLayerSpecificationSchema = T.Object({
         DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibility.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
   paint: T.Optional(
     T.Object({
       'fill-antialias': T.Optional(
-        PropertyValueSpecificationSchema(T.Boolean({ default: true }))
+        // TODO: Specify default value (true)
+        PropertyValueSpecificationSchema(T.Boolean())
       ),
       'fill-opacity': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'fill-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'fill-outline-color': T.Optional(
@@ -243,12 +381,17 @@ const FillLayerSpecificationSchema = T.Object({
       ),
       'fill-translate': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number()], { default: [0, 0] })
+          // TODO: Specify default value ([0, 0])
+          T.Tuple([T.Number(), T.Number()])
         )
       ),
       'fill-translate-anchor': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], { default: 'map' })
+          // TODO: Specify default value (EntityAnchor.map)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
       'fill-pattern': T.Optional(
@@ -274,33 +417,38 @@ const LineLayerSpecificationSchema = T.Object({
     T.Object({
       'line-cap': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union(
-            [T.Literal('butt'), T.Literal('round'), T.Literal('square')],
-            { default: 'butt' }
-          )
+          // TODO: Specify default value (Cap.butt)
+          T.Union([
+            T.Literal(Cap.butt),
+            T.Literal(Cap.round),
+            T.Literal(Cap.square),
+          ])
         )
       ),
       'line-join': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Union(
-            [T.Literal('bevel'), T.Literal('round'), T.Literal('miter')],
-            { default: 'miter' }
-          )
+          // TODO: Specify default value (Join.miter)
+          T.Union([
+            T.Literal(Join.bevel),
+            T.Literal(Join.round),
+            T.Literal(Join.miter),
+          ])
         )
       ),
       'line-miter-limit': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ default: 2 }))
+        // TODO: Specify default value (2)
+        PropertyValueSpecificationSchema(T.Number())
       ),
       'line-round-limit': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ default: 1.05 }))
+        // TODO: Specify default value (1.05)
+        PropertyValueSpecificationSchema(T.Number())
       ),
       'line-sort-key': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibility.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
@@ -308,38 +456,49 @@ const LineLayerSpecificationSchema = T.Object({
     T.Object({
       'line-opacity': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'line-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'line-translate': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number()], { default: [0, 0] })
+          // TODO: Specify default value ([0, 0])
+          T.Tuple([T.Number(), T.Number()])
         )
       ),
       'line-translate-anchor': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], { default: 'map' })
+          // TODO: Specify default value (EntityAnchor.map)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
       'line-width': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ minimum: 0, default: 1 }))
+        // TODO: Specify default value (1)
+        PropertyValueSpecificationSchema(T.Number({ minimum: 0 }))
       ),
       'line-gap-width': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'line-offset': T.Optional(
-        DataDrivenPropertyValueSpecificationSchema(T.Number({ default: 0 }))
+        // TODO: Specify default value (0)
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       'line-blur': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'line-dasharray': T.Optional(
@@ -370,64 +529,75 @@ const SymbolLayerSpecificationSchema = T.Object({
       'symbol-placement': T.Optional(
         PropertyValueSpecificationSchema(
           T.Union(
-            [T.Literal('point'), T.Literal('line'), T.Literal('line-center')],
-            { default: 'point' }
+            // TODO: Specify default value (SymbolPlacement.point)
+            [
+              T.Literal(SymbolPlacement.point),
+              T.Literal(SymbolPlacement.line),
+              T.Literal(SymbolPlacement.lineCenter),
+            ]
           )
         )
       ),
       'symbol-spacing': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ default: 250 }))
+        // TODO: Specify default value (250)
+        PropertyValueSpecificationSchema(T.Number())
       ),
       'symbol-avoid-edges': PropertyValueSpecificationSchema(
-        T.Boolean({ default: false })
+        // TODO: Specify default value (false)
+        T.Boolean()
       ),
       'symbol-sort-key': DataDrivenPropertyValueSpecificationSchema(T.Number()),
       'symbol-z-order': PropertyValueSpecificationSchema(
-        T.Union(
-          [T.Literal('auto'), T.Literal('viewport-y'), T.Literal('source')],
-          { default: 'auto' }
-        )
+        // TODO: Specify default value (SymbolZOrder.auto)
+        T.Union([
+          T.Literal(SymbolZOrder.auto),
+          T.Literal(SymbolZOrder.viewportY),
+          T.Literal(SymbolZOrder.source),
+        ])
       ),
       'icon-allow-overlap': T.Optional(
-        PropertyValueSpecificationSchema(T.Boolean({ default: false }))
+        // TODO: Specify default value (false)
+        PropertyValueSpecificationSchema(T.Boolean())
       ),
       'icon-ignore-placement': T.Optional(
-        PropertyValueSpecificationSchema(T.Boolean({ default: false }))
+        // TODO: Specify default value (false)
+        PropertyValueSpecificationSchema(T.Boolean())
       ),
       'icon-optional': T.Optional(
-        PropertyValueSpecificationSchema(T.Boolean({ default: false }))
+        // TODO: Specify default value (false)
+        PropertyValueSpecificationSchema(T.Boolean())
       ),
       'icon-rotation-alignment': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union(
-            [T.Literal('map'), T.Literal('viewport'), T.Literal('auto')],
-            { default: 'auto' }
-          )
+          // TODO: Specify default value (Alignment.auto)
+          T.Union([
+            T.Literal(Alignment.map),
+            T.Literal(Alignment.viewport),
+            T.Literal(Alignment.auto),
+          ])
         )
       ),
       'icon-size': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0 })
         )
       ),
       'icon-text-fit': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union(
-            [
-              T.Literal('none'),
-              T.Literal('width'),
-              T.Literal('height'),
-              T.Literal('both'),
-            ],
-            { default: 'none' }
-          )
+          // TODO: Specify default value (IconTextFit.none)
+          T.Union([
+            T.Literal(IconTextFit.none),
+            T.Literal(IconTextFit.width),
+            T.Literal(IconTextFit.height),
+            T.Literal(IconTextFit.both),
+          ])
         )
       ),
       'icon-text-fit-padding': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()], {
-            default: [0, 0, 0, 0],
-          })
+          // TODO: Specify default value ([0,0,0,0])
+          T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()])
         )
       ),
       'icon-image': T.Optional(
@@ -436,190 +606,214 @@ const SymbolLayerSpecificationSchema = T.Object({
         )
       ),
       'icon-rotate': T.Optional(
-        DataDrivenPropertyValueSpecificationSchema(T.Number({ default: 0 }))
+        // TODO: Specify default value (0)
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       'icon-padding': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ minimum: 0, default: 2 }))
+        // TODO: Specify default value (2)
+        PropertyValueSpecificationSchema(T.Number({ minimum: 0 }))
       ),
       'icon-keep-upright': T.Optional(
-        PropertyValueSpecificationSchema(T.Boolean({ default: false }))
+        // TODO: Specify default value (false)
+        PropertyValueSpecificationSchema(T.Boolean())
       ),
       'icon-offset': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number()], { default: [0, 0] })
+          // TODO: Specify default value ([0, 0])
+          T.Tuple([T.Number(), T.Number()])
         )
       ),
       'icon-anchor': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Union(
-            [
-              T.Literal('center'),
-              T.Literal('left'),
-              T.Literal('right'),
-              T.Literal('top'),
-              T.Literal('bottom'),
-              T.Literal('top-left'),
-              T.Literal('top-right'),
-              T.Literal('bottom-left'),
-              T.Literal('bottom-right'),
-            ],
-            { default: 'center' }
-          )
+          // TODO: Specify default value (DirectionalAnchor.center)
+          T.Union([
+            T.Literal(DirectionalAnchor.center),
+            T.Literal(DirectionalAnchor.left),
+            T.Literal(DirectionalAnchor.right),
+            T.Literal(DirectionalAnchor.top),
+            T.Literal(DirectionalAnchor.bottom),
+            T.Literal(DirectionalAnchor.topLeft),
+            T.Literal(DirectionalAnchor.topRight),
+            T.Literal(DirectionalAnchor.bottomLeft),
+            T.Literal(DirectionalAnchor.bottomRight),
+          ])
         )
       ),
       'icon-pitch-alignment': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union(
-            [T.Literal('map'), T.Literal('viewport'), T.Literal('auto')],
-            { default: 'auto' }
-          )
+          // TODO: Specify default value (Alignment.auto)
+          T.Union([
+            T.Literal(Alignment.map),
+            T.Literal(Alignment.viewport),
+            T.Literal(Alignment.auto),
+          ])
         )
       ),
       'text-pitch-alignment': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union(
-            [T.Literal('map'), T.Literal('viewport'), T.Literal('auto')],
-            { default: 'auto' }
-          )
+          // TODO: Specify default value (Alignment.auto)
+          T.Union([
+            T.Literal(Alignment.map),
+            T.Literal(Alignment.viewport),
+            T.Literal(Alignment.auto),
+          ])
         )
       ),
       'text-rotation-alignment': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union(
-            [T.Literal('map'), T.Literal('viewport'), T.Literal('auto')],
-            { default: 'auto' }
-          )
+          // TODO: Specify default value (Alignment.auto)
+          T.Union([
+            T.Literal(Alignment.map),
+            T.Literal(Alignment.viewport),
+            T.Literal(Alignment.auto),
+          ])
         )
       ),
       'text-field': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          FormattedSpecificationSchema({ default: '' })
+          // TODO: Specify default value ('')
+          FormattedSpecificationSchema()
         )
       ),
       'text-font': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Array(T.String(), {
-            default: ['Open Sans Regular', 'Arial Unicode MS Regular'],
-          })
+          // TODO: Specify default value (['Open Sans Regular', 'Arial Unicode MS Regular'])
+          T.Array(T.String())
         )
       ),
       'text-size': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
+          // TODO: Specify default value (16)
           T.Number({
             minimum: 0,
-            default: 16,
           })
         )
       ),
       'text-max-width': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 10 })
+          // TODO: Specify default value (10)
+          T.Number({ minimum: 0 })
         )
       ),
       'text-line-height': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ default: 1.2 }))
+        // TODO: Specify default value (1.2)
+        PropertyValueSpecificationSchema(T.Number())
       ),
       'text-letter-spacing': T.Optional(
-        DataDrivenPropertyValueSpecificationSchema(T.Number({ default: 0 }))
+        // TODO: Specify default value (0)
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       'text-justify': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Union(
-            [
-              T.Literal('auto'),
-              T.Literal('left'),
-              T.Literal('center'),
-              T.Literal('right'),
-            ],
-            { default: 'center' }
-          )
+          // TODO: Specify default value (Justify.center)
+          T.Union([
+            T.Literal(Justify.auto),
+            T.Literal(Justify.left),
+            T.Literal(Justify.center),
+            T.Literal(Justify.right),
+          ])
         )
       ),
       'text-radial-offset': T.Optional(
-        DataDrivenPropertyValueSpecificationSchema(T.Number({ default: 0 }))
+        // TODO: Specify default value (0)
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       'text-variable-anchor': T.Optional(
         PropertyValueSpecificationSchema(
           T.Array(
             T.Union([
-              T.Literal('center'),
-              T.Literal('left'),
-              T.Literal('right'),
-              T.Literal('top'),
-              T.Literal('bottom'),
-              T.Literal('top-left'),
-              T.Literal('top-right'),
-              T.Literal('bottom-left'),
-              T.Literal('bottom-right'),
+              T.Literal(DirectionalAnchor.center),
+              T.Literal(DirectionalAnchor.left),
+              T.Literal(DirectionalAnchor.right),
+              T.Literal(DirectionalAnchor.top),
+              T.Literal(DirectionalAnchor.bottom),
+              T.Literal(DirectionalAnchor.topLeft),
+              T.Literal(DirectionalAnchor.topRight),
+              T.Literal(DirectionalAnchor.bottomLeft),
+              T.Literal(DirectionalAnchor.bottomRight),
             ])
           )
         )
       ),
       'text-anchor': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Union(
-            [
-              T.Literal('center'),
-              T.Literal('left'),
-              T.Literal('right'),
-              T.Literal('top'),
-              T.Literal('bottom'),
-              T.Literal('top-left'),
-              T.Literal('top-right'),
-              T.Literal('bottom-left'),
-              T.Literal('bottom-right'),
-            ],
-            { default: 'center' }
-          )
+          // TODO: Specify default value (DirectionalAnchor.center)
+          T.Union([
+            T.Literal(DirectionalAnchor.center),
+            T.Literal(DirectionalAnchor.left),
+            T.Literal(DirectionalAnchor.right),
+            T.Literal(DirectionalAnchor.top),
+            T.Literal(DirectionalAnchor.bottom),
+            T.Literal(DirectionalAnchor.topLeft),
+            T.Literal(DirectionalAnchor.topRight),
+            T.Literal(DirectionalAnchor.bottomLeft),
+            T.Literal(DirectionalAnchor.bottomRight),
+          ])
         )
       ),
       'text-max-angle': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ default: 45 }))
+        // TODO: Specify default value (45)
+        PropertyValueSpecificationSchema(T.Number())
       ),
       'text-writing-mode': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Array(T.Union([T.Literal('horizontal'), T.Literal('vertical')]))
+          T.Array(
+            T.Union([
+              T.Literal(WritingMode.horizontal),
+              T.Literal(WritingMode.vertical),
+            ])
+          )
         )
       ),
       'text-rotate': T.Optional(
-        DataDrivenPropertyValueSpecificationSchema(T.Number({ default: 0 }))
+        // TODO: Specify default value (9)
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       'text-padding': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ minimum: 0, default: 2 }))
+        // TODO: Specify default value (2)
+        PropertyValueSpecificationSchema(T.Number({ minimum: 0 }))
       ),
       'text-keep-upright': T.Optional(
-        PropertyValueSpecificationSchema(T.Boolean({ default: true }))
+        // TODO: Specify default value (true)
+        PropertyValueSpecificationSchema(T.Boolean())
       ),
       'text-transform': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
           T.Union(
-            [T.Literal('none'), T.Literal('uppercase'), T.Literal('lowercase')],
-            { default: 'none' }
+            // TODO: Specify default value (TextTransform.none)
+            [
+              T.Literal(TextTransform.none),
+              T.Literal(TextTransform.uppercase),
+              T.Literal(TextTransform.lowercase),
+            ]
           )
         )
       ),
       'text-offset': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number()], { default: [0, 0] })
+          // TODO: Specify default value ([0, 0])
+          T.Tuple([T.Number(), T.Number()])
         )
       ),
       'text-allow-overlap': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Boolean({ default: false })
+          // TODO: Specify default value (false)
+          T.Boolean()
         )
       ),
       'text-ignore-placement': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Boolean({ default: false })
+          // TODO: Specify default value (false)
+          T.Boolean()
         )
       ),
       'text-optional': T.Optional(
-        PropertyValueSpecificationSchema(T.Boolean({ default: false }))
+        // TODO: Specify default value (false)
+        PropertyValueSpecificationSchema(T.Boolean())
       ),
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibility.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
@@ -627,72 +821,92 @@ const SymbolLayerSpecificationSchema = T.Object({
     T.Object({
       'icon-opacity': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'icon-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'icon-halo-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: 'rgba(0, 0, 0, 0)' })
+          // TODO: Specify default value ('rgba(0, 0, 0, 0)')
+          ColorSpecificationSchema()
         )
       ),
       'icon-halo-width': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'icon-halo-blur': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'icon-translate': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number()], { default: [0, 0] })
+          // TODO: Specify default value ([0, 0])
+          T.Tuple([T.Number(), T.Number()])
         )
       ),
       'icon-translate-anchor': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], { default: 'map' })
+          // TODO: Specify default value (EntityAnchor.map)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
       'text-opacity': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'text-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'text-halo-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: 'rgba(0, 0, 0, 0)' })
+          // TODO: Specify default value ('rgba(0, 0, 0, 0)')
+          ColorSpecificationSchema()
         )
       ),
       'text-halo-width': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'text-halo-blur': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'text-translate': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number()], { default: [0, 0] })
+          // TODO: Specify default value ([0, 0])
+          T.Tuple([T.Number(), T.Number()])
         )
       ),
       'text-translate-anchor': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], { default: 'map' })
+          // TODO: Specify default value (EntityAnchor.map)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
     })
@@ -715,9 +929,8 @@ const CircleLayerSpecificationSchema = T.Object({
         DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibility.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
@@ -725,57 +938,75 @@ const CircleLayerSpecificationSchema = T.Object({
     T.Object({
       'circle-radius': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 5 })
+          // TODO: Specify default value (5)
+          T.Number({ minimum: 0 })
         )
       ),
       'circle-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'circle-blur': T.Optional(
-        DataDrivenPropertyValueSpecificationSchema(T.Number({ default: 0 }))
+        // TODO: Specify default value (0)
+        DataDrivenPropertyValueSpecificationSchema(T.Number())
       ),
       'circle-opacity': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'circle-translate': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number()], { default: [0, 0] })
+          // TODO: Specify default value ([0, 0])
+          T.Tuple([T.Number(), T.Number()])
         )
       ),
       'circle-translate-anchor': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], { default: 'map' })
+          // TODO: Specify default value (EntityAnchor.map)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
       'circle-pitch-scale': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], { default: 'map' })
+          // TODO: Specify default value (EntityAnchor.map)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
       'circle-pitch-alignment': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], {
-            default: 'viewport',
-          })
+          // TODO: Specify default value (EntityAnchor.map)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
       'circle-stroke-width': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'circle-stroke-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'circle-stroke-opacity': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 0, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 0 })
         )
       ),
     })
@@ -795,9 +1026,8 @@ const HeatmapLayerSpecificationSchema = T.Object({
   layout: T.Optional(
     T.Object({
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibility.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
@@ -805,41 +1035,28 @@ const HeatmapLayerSpecificationSchema = T.Object({
     T.Object({
       'heatmap-radius': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 1, default: 30 })
+          // TODO: Specify default value (30)
+          T.Number({ minimum: 1 })
         )
       ),
       'heatmap-weight': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0 })
         )
       ),
       'heatmap-intensity': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ minimum: 0, default: 1 }))
+        // TODO: Specify default value (1)
+        PropertyValueSpecificationSchema(T.Number({ minimum: 0 }))
       ),
       'heatmap-color': T.Optional(
-        ExpressionSpecificationSchema({
-          default: [
-            'interpolate',
-            ['linear'],
-            ['heatmap-density'],
-            0,
-            'rgba(0, 0, 255, 0)',
-            0.1,
-            'royalblue',
-            0.3,
-            'cyan',
-            0.5,
-            'lime',
-            0.7,
-            'yellow',
-            1,
-            'red',
-          ],
-        })
+        // TODO: Specify default value (['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(0, 0, 255, 0)', 0.1, 'royalblue', 0.3, 'cyan', 0.5, 'lime', 0.7, 'yellow', 1, 'red' ])
+        ExpressionSpecificationSchema()
       ),
       'heatmap-opacity': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
     })
@@ -859,9 +1076,8 @@ const FillExtrusionLayerSpecificationSchema = T.Object({
   layout: T.Optional(
     T.Object({
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibility.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
@@ -869,22 +1085,29 @@ const FillExtrusionLayerSpecificationSchema = T.Object({
     T.Object({
       'fill-extrusion-opacity': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'fill-extrusion-color': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'fill-extrusion-translate': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Tuple([T.Number(), T.Number()], { default: [0, 0] })
+          // TODO: Specify default value ([0,0])
+          T.Tuple([T.Number(), T.Number()])
         )
       ),
       'fill-extrusion-translate-anchor': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], { default: 'map' })
+          // TODO: Specify default value (EntityAnchor.map)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
       'fill-extrusion-pattern': T.Optional(
@@ -894,16 +1117,19 @@ const FillExtrusionLayerSpecificationSchema = T.Object({
       ),
       'fill-extrusion-height': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'fill-extrusion-base': T.Optional(
         DataDrivenPropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0 })
         )
       ),
       'fill-extrusion-vertical-gradient': T.Optional(
-        PropertyValueSpecificationSchema(T.Boolean({ default: true }))
+        // TODO: Specify default value (true)
+        PropertyValueSpecificationSchema(T.Boolean())
       ),
     })
   ),
@@ -924,9 +1150,8 @@ const RasterLayerSpecificationSchema = T.Object({
   layout: T.Optional(
     T.Object({
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibilty.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
@@ -934,41 +1159,47 @@ const RasterLayerSpecificationSchema = T.Object({
     T.Object({
       'raster-opacity': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (1)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'raster-hue-rotate': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ default: 0 }))
+        // TODO: Specify default value (0)
+        PropertyValueSpecificationSchema(T.Number())
       ),
       'raster-brightness-min': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'raster-brightness-max': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 1, default: 1 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: 0, maximum: 1 })
         )
       ),
       'raster-saturation': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Number({ minimum: -1, maximum: 1, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: -1, maximum: 1 })
         )
       ),
       'raster-contrast': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Number({ minimum: -1, maximum: 1, default: 0 })
+          // TODO: Specify default value (0)
+          T.Number({ minimum: -1, maximum: 1 })
         )
       ),
       'raster-resampling': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('linear'), T.Literal('nearest')], {
-            default: 'linear',
-          })
+          // TODO: Specify default value (Resampling.linear)
+          T.Union([T.Literal(Resampling.linear), T.Literal(Resampling.nearest)])
         )
       ),
       'raster-fade-duration': T.Optional(
-        PropertyValueSpecificationSchema(T.Number({ minimum: 0, default: 300 }))
+        // TODO: Specify default value (300)
+        PropertyValueSpecificationSchema(T.Number({ minimum: 0 }))
       ),
     })
   ),
@@ -987,9 +1218,8 @@ const HillshadeLayerSpecificationSchema = T.Object({
   layout: T.Optional(
     T.Object({
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibility.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
@@ -997,38 +1227,44 @@ const HillshadeLayerSpecificationSchema = T.Object({
     T.Object({
       'hillshade-illumination-direction': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Number({ minimum: 0, maximum: 359, default: 335 })
+          // TODO: Specify default value (335)
+          T.Number({ minimum: 0, maximum: 359 })
         )
       ),
       'hillshade-illumination-anchor': T.Optional(
         PropertyValueSpecificationSchema(
-          T.Union([T.Literal('map'), T.Literal('viewport')], {
-            default: 'viewport',
-          })
+          // TODO: Specify default value (EntityAnchor.viewport)
+          T.Union([
+            T.Literal(EntityAnchor.map),
+            T.Literal(EntityAnchor.viewport),
+          ])
         )
       ),
       'hillshade-exaggeration': T.Optional(
         PropertyValueSpecificationSchema(
+          // TODO: Specify default value (0.5)
           T.Number({
             minimum: 0,
             maximum: 1,
-            default: 0.5,
           })
         )
       ),
       'hillshade-shadow-color': T.Optional(
         PropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'hillshade-highlight-color': T.Optional(
         PropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#ffffff' })
+          // TODO: Specify default value ('#ffffff')
+          ColorSpecificationSchema()
         )
       ),
       'hillshade-accent-color': T.Optional(
         PropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
     })
@@ -1050,9 +1286,8 @@ const BackgroundLayerSpecificationSchema = T.Object({
   layout: T.Optional(
     T.Object({
       visibility: T.Optional(
-        T.Union([T.Literal('visible'), T.Literal('none')], {
-          default: 'visible',
-        })
+        // TODO: Specify default value (Visibility.visible)
+        T.Union([T.Literal(Visibility.visible), T.Literal(Visibility.none)])
       ),
     })
   ),
@@ -1060,7 +1295,8 @@ const BackgroundLayerSpecificationSchema = T.Object({
     T.Object({
       'background-color': T.Optional(
         PropertyValueSpecificationSchema(
-          ColorSpecificationSchema({ default: '#000000' })
+          // TODO: Specify default value ('#000000')
+          ColorSpecificationSchema()
         )
       ),
       'background-pattern': T.Optional(
@@ -1068,10 +1304,10 @@ const BackgroundLayerSpecificationSchema = T.Object({
       ),
       'background-opacity': T.Optional(
         PropertyValueSpecificationSchema(
+          // TODO: Specify default value (1)
           T.Number({
             minimum: 0,
             maximum: 1,
-            default: 1,
           })
         )
       ),
@@ -1109,18 +1345,24 @@ const VectorSourceSpecificationSchema = T.Object({
   url: T.Optional(T.String({ format: 'uri' })),
   tiles: T.Optional(T.Array(T.String())),
   bounds: T.Optional(
-    T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()], {
-      default: [-180, -85.051129, 180, 85.051129],
-    })
+    T.Tuple([
+      T.Number(),
+      T.Number(),
+      T.Number(),
+      T.Number(),
+      // T.Number({ default: -180 }),
+      // T.Number({ default: -85.051129 }),
+      // T.Number({ default: 180 }),
+      // T.Number({ default: 85.051129 }),
+    ])
   ),
-  scheme: T.Optional(
-    T.Union([T.Literal('xyz'), T.Literal('tms')], { default: 'xyz' })
-  ),
-  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 0 })),
-  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 22 })),
+  // TODO: Ajv complains about using a default scheme here
+  scheme: T.Optional(T.Union([T.Literal(Scheme.xyz), T.Literal(Scheme.tms)])),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 30 /*default: 0*/ })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30 /* default: 22 */ })),
   attribution: T.Optional(T.String()),
   promoteId: T.Optional(PromoteIdSpecificationSchema),
-  volatile: T.Optional(T.Boolean({ default: false })),
+  volatile: T.Optional(T.Boolean()),
 })
 type VectorSourceSpecification = Static<typeof VectorSourceSpecificationSchema>
 
@@ -1129,18 +1371,24 @@ const RasterSourceSpecificationSchema = T.Object({
   url: T.Optional(T.String({ format: 'uri' })),
   tiles: T.Optional(T.Array(T.String())),
   bounds: T.Optional(
-    T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()], {
-      default: [-180, -85.051129, 180, 85.051129],
-    })
+    T.Tuple([
+      T.Number(),
+      T.Number(),
+      T.Number(),
+      T.Number(),
+      // T.Number({ default: -180 }),
+      // T.Number({ default: -85.051129 }),
+      // T.Number({ default: 180 }),
+      // T.Number({ default: 85.051129 }),
+    ])
   ),
-  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 0 })),
-  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 22 })),
-  tileSize: T.Optional(T.Number({ default: 512 })),
-  scheme: T.Optional(
-    T.Union([T.Literal('xyz'), T.Literal('tms')], { default: 'xyz' })
-  ),
+  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 30 })),
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30 })),
+  tileSize: T.Optional(T.Number()),
+  // TODO: Ajv complains about using a default scheme here
+  scheme: T.Optional(T.Union([T.Literal(Scheme.xyz), T.Literal(Scheme.tms)])),
   attribution: T.Optional(T.String()),
-  volatile: T.Optional(T.Boolean({ default: false })),
+  volatile: T.Optional(T.Boolean()),
 })
 type RasterSourceSpecification = Static<typeof RasterSourceSpecificationSchema>
 
@@ -1149,20 +1397,30 @@ const RasterDEMSourceSpecificationSchema = T.Object({
   url: T.Optional(T.String({ format: 'uri' })),
   tiles: T.Optional(T.Array(T.String())),
   bounds: T.Optional(
-    T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()], {
-      default: [-180, -85.051129, 180, 85.051129],
-    })
+    T.Tuple([
+      T.Number(),
+      T.Number(),
+      T.Number(),
+      T.Number(),
+      // T.Number({ default: -180 }),
+      // T.Number({ default: -85.051129 }),
+      // T.Number({ default: 180 }),
+      // T.Number({ default: 85.051129 }),
+    ])
   ),
-  minzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 0 })),
-  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 22 })),
-  tileSize: T.Optional(T.Number({ default: 512 })),
+  // TODO: Specify default (0)
+  minzoom: T.Optional(T.Number({ maximum: 30 })),
+  // TODO: Specify default (22)
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30 })),
+  // TODO: Specify default (512)
+  tileSize: T.Optional(T.Number()),
   attribution: T.Optional(T.String()),
+  // TODO: Specify default (Encoding.mapbox)
   encoding: T.Optional(
-    T.Union([T.Literal('terrarium'), T.Literal('mapbox')], {
-      default: 'mapbox',
-    })
+    T.Union([T.Literal(Encoding.terrarium), T.Literal(Encoding.mapbox)])
   ),
-  volatile: T.Optional(T.Boolean({ default: false })),
+  // TODO: Specify default (false)
+  volatile: T.Optional(T.Boolean()),
 })
 type RasterDEMSourceSpecification = Static<
   typeof RasterDEMSourceSpecificationSchema
@@ -1171,18 +1429,25 @@ type RasterDEMSourceSpecification = Static<
 const GeoJSONSourceSpecificationSchema = T.Object({
   type: T.Literal('geojson'),
   data: T.Optional(T.Unknown()),
-  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30, default: 18 })),
+  // TODO: Specify default (18)
+  maxzoom: T.Optional(T.Number({ minimum: 0, maximum: 30 })),
   attribution: T.Optional(T.String()),
-  buffer: T.Optional(T.Number({ minimum: 0, maximum: 512, default: 128 })),
+  // TODO: Specify default (128)
+  buffer: T.Optional(T.Number({ minimum: 0, maximum: 512 })),
   filter: T.Optional(T.Unknown()),
-  tolerance: T.Optional(T.Number({ default: 0.375 })),
-  cluster: T.Optional(T.Boolean({ default: false })),
-  clusterRadius: T.Optional(T.Number({ minimum: 0, default: 50 })),
+  // TODO: Specify default (0.375)
+  tolerance: T.Optional(T.Number()),
+  // TODO: Specify default (false)
+  cluster: T.Optional(T.Boolean()),
+  // TODO: Specify default (50)
+  clusterRadius: T.Optional(T.Number({ minimum: 0 })),
   clusterMaxZoom: T.Optional(T.Number()),
   clusterMinPoints: T.Optional(T.Number()),
   clusterProperties: T.Optional(T.Unknown()),
-  lineMetrics: T.Optional(T.Boolean({ default: false })),
-  generateId: T.Optional(T.Boolean({ default: false })),
+  // TODO: Specify default (false)
+  lineMetrics: T.Optional(T.Boolean()),
+  // TODO: Specify default (false)
+  generateId: T.Optional(T.Boolean()),
   promoteId: T.Optional(PromoteIdSpecificationSchema),
 })
 type GeoJSONSourceSpecification = Static<
@@ -1255,6 +1520,17 @@ const OfflineStyleSchema = T.Intersect([
 ])
 type OfflineStyle = Static<typeof OfflineStyleSchema>
 
+interface ValidateStyleJSON {
+  (data: unknown): data is StyleJSON
+  schema?: StyleJSON | boolean
+  errors?: null | Array<ErrorObject>
+  refs?: object
+  refVal?: Array<any>
+  root?: ValidateFunction | object
+  $async?: true
+  source?: object
+}
+
 const ajv = new Ajv({
   removeAdditional: false,
   useDefaults: true,
@@ -1267,10 +1543,23 @@ const ajv = new Ajv({
 
 ajv.addKeyword('kind').addKeyword('modifier')
 
-const validateStyleJSONSchema = ajv.compile<StyleJSON>(StyleJSONSchema)
+const validateStyleJSONSchema = ajv.compile(
+  StyleJSONSchema
+) as ValidateStyleJSON
 
-// TODO: Validation using mapbox-gl-style-spec validator
-const validateStyleJSON = (data: unknown) => {}
+// TODO: Validation using mapbox-gl-style-spec validator?
+const validateStyleJSON: ValidateStyleJSON = (
+  data: unknown
+): data is StyleJSON => {
+  if (!validateStyleJSONSchema(data)) {
+    validateStyleJSON.errors = validateStyleJSONSchema.errors
+    return false
+  }
+
+  validateStyleJSON.errors = validateStyleJSONSchema.errors
+
+  return true
+}
 
 export {
   // TypeBox Schema Objects
