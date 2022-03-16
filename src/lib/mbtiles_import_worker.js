@@ -169,7 +169,7 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId }) {
 
   if (subscriptions.has(importId)) {
     parentPort.postMessage({
-      type: 'importProgress',
+      type: 'progress',
       importId,
       soFar: bytesSoFar,
       total: totalBytesToImport,
