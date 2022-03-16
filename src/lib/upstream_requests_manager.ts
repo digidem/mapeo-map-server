@@ -1,4 +1,5 @@
 import got from 'got'
+import { StyleJSON } from './stylejson'
 import { TileJSON } from './tilejson'
 
 type ResponseType = 'buffer' | 'json' | 'text'
@@ -6,7 +7,8 @@ type ResponseType = 'buffer' | 'json' | 'text'
 type DataType<T extends ResponseType> = T extends 'buffer'
   ? Buffer
   : T extends 'json'
-  ? TileJSON
+  ? // TODO: Need to make this more generic to support other JSON schemas (e.g. style)
+    TileJSON
   : T extends 'text'
   ? string
   : never
@@ -44,7 +46,10 @@ export class UpstreamRequestsManager {
 
     const headers = etag ? { 'If-None-Match': etag } : {}
 
-    const request = got(url, { headers, responseType }).then((response) => {
+    const request = got(url, {
+      headers,
+      responseType,
+    }).then((response) => {
       if (response.statusCode === 304) throw new Error('Not Modified')
 
       const etag = response.headers.etag as string | undefined

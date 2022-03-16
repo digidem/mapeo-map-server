@@ -60,7 +60,6 @@ interface Context {
 export interface IdResource {
   id: string
 }
-
 export interface Api {
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
@@ -81,7 +80,7 @@ export interface Api {
     etag?: string
   }): Promise<void>
   createStyle(style: StyleJSON): Promise<OfflineStyle>
-  putStyle(id: string, style: OfflineStyle): Promise<OfflineStyle>
+  putStyle(id: string, style: StyleJSON): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
   // deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<OfflineStyle>>
@@ -141,8 +140,16 @@ function createApi({
   function tilesetExists(tilesetId: string) {
     return (
       db
-        .prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?')
+        .prepare('SELECT COUNT(*) AS count FROM Tileset WHERE id = ?')
         .get(tilesetId).count > 0
+    )
+  }
+
+  function styleExists(styleId: string) {
+    return (
+      db
+        .prepare('SELECT COUNT(*) AS count FROM Style WHERE id = ?')
+        .get(styleId).count > 0
     )
   }
 
@@ -516,12 +523,7 @@ function createApi({
     async createStyle(style) {
       const styleId = getStyleId(style)
 
-      const styleExists =
-        db
-          .prepare('SELECT COUNT(*) as count FROM Style WHERE id = ?')
-          .get(styleId).count > 0
-
-      if (styleExists) {
+      if (styleExists(styleId)) {
         throw new AlreadyExistsError(
           `Style already exists. PUT changes to ${fastify.prefix}/${styleId} to modify this style`
         )
@@ -541,10 +543,23 @@ function createApi({
     },
 
     async putStyle(id, style) {
-      db.prepare(
-        'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
-      ).run({ id, stylejson: style })
-      return { ...style, id }
+      if (!styleExists(id)) {
+        throw new NotFoundError(id)
+      }
+
+      const offlineStyle: OfflineStyle = {
+        ...(await uncompositeStyle(style)),
+        id,
+        // TODO: Is this the right thing to do? May need to update createOfflineSources to handle pre-existing tilesets for this style
+        sources: await createOfflineSources(style.sources),
+      }
+
+      db.prepare('UPDATE Style SET stylejson = :stylejson WHERE id = :id').run({
+        id,
+        stylejson: JSON.stringify(offlineStyle),
+      })
+
+      return addOfflineUrls(offlineStyle)
     },
 
     async listStyles(limit?: number) {
@@ -560,9 +575,38 @@ function createApi({
     },
 
     async getStyle(id) {
-      const row = db.prepare('SELECT stylejson FROM Style WHERE id = ?').get(id)
+      const row: { id: string; stylejson: string; etag?: string } | undefined =
+        db.prepare('SELECT id, stylejson, etag FROM Style WHERE id = ?').get(id)
 
-      return JSON.parse(row.stylejson)
+      if (!row) {
+        throw new NotFoundError(id)
+      }
+
+      let style: OfflineStyle
+
+      try {
+        style = JSON.parse(row.stylejson)
+      } catch (err) {
+        throw new ParseError(err)
+      }
+
+      async function fetchOnlineResource(url: string, etag?: string) {
+        // TODO: Need to update UpstreamRequestsManager to support other JSON schema types
+        const { data } = await upstreamRequestsManager.getUpstream({
+          url,
+          etag,
+          responseType: 'json',
+        })
+
+        if (data) api.putStyle(id, data)
+      }
+
+      if (style.upstreamUrl) {
+        // TODO: Save upstreamUrl in Style table, similar to Tileset?
+        fetchOnlineResource(style.upstreamUrl, row.etag).catch(noop)
+      }
+
+      return { ...style, id }
     },
   }
   return api

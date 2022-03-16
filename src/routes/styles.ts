@@ -13,7 +13,7 @@ const GetStyleParamsSchema = T.Object({
 
 const PutStyleParamsSchema = T.Object({
   styleId: T.String(),
-  style: OfflineStyleSchema,
+  style: StyleJSONSchema,
 })
 
 const DeleteStyleParamsSchema = T.Object({
@@ -26,7 +26,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     {
       schema: {
         response: {
-          200: T.Array(StyleJSONSchema),
+          200: T.Array(OfflineStyleSchema),
         },
       },
     },
@@ -41,7 +41,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       schema: {
         body: StyleJSONSchema,
         response: {
-          200: StyleJSONSchema,
+          200: OfflineStyleSchema,
         },
       },
     },
@@ -58,7 +58,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       schema: {
         params: GetStyleParamsSchema,
         response: {
-          200: StyleJSONSchema,
+          200: OfflineStyleSchema,
         },
       },
     },
@@ -73,7 +73,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       schema: {
         params: PutStyleParamsSchema,
         response: {
-          200: StyleJSONSchema,
+          200: OfflineStyleSchema,
         },
       },
     },
