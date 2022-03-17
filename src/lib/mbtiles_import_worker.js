@@ -116,7 +116,7 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId }) {
     )
     .iterate()
 
-  // TODO: Okay to generate id for offline area like this?
+  // TODO: Derive from mb tiles tileset id `area-${id}`
   const areaId = generateId()
 
   upsertOfflineArea.run({
