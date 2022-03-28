@@ -133,41 +133,41 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  fastify.get<{ Params: Static<typeof GetImportProgressParamsSchema> }>(
-    '/import/:tilesetId',
-    {
-      schema: {
-        params: GetImportProgressParamsSchema,
-      },
-    },
-    async function (request, reply) {
-      const emitter = await request.api.getImportProgress(
-        request.params.tilesetId
-      )
+  // fastify.get<{ Params: Static<typeof GetImportProgressParamsSchema> }>(
+  //   '/import/:tilesetId',
+  //   {
+  //     schema: {
+  //       params: GetImportProgressParamsSchema,
+  //     },
+  //   },
+  //   async function (request, reply) {
+  //     const emitter = await request.api.getImportProgress(
+  //       request.params.tilesetId
+  //     )
 
-      reply.raw.setHeader('Content-Type', 'text/event-stream')
-      reply.raw.setHeader('Connection', 'keep-alive')
-      reply.raw.setHeader('Cache-Control', 'no-cache,no-transform')
-      reply.raw.setHeader('x-no-compression', 1)
+  //     reply.raw.setHeader('Content-Type', 'text/event-stream')
+  //     reply.raw.setHeader('Connection', 'keep-alive')
+  //     reply.raw.setHeader('Cache-Control', 'no-cache,no-transform')
+  //     reply.raw.setHeader('x-no-compression', 1)
 
-      emitter.on('progress', ({ type, ...data }) => {
-        const finished = data.soFar === data.total
+  //     emitter.on('progress', ({ type, ...data }) => {
+  //       const finished = data.soFar === data.total
 
-        reply.raw.write(`event: ${finished ? 'finished' : type}\n`)
+  //       reply.raw.write(`event: ${finished ? 'finished' : type}\n`)
 
-        if (data) {
-          reply.raw.write(`data: ${JSON.stringify(data)}\n`)
-        }
+  //       if (data) {
+  //         reply.raw.write(`data: ${JSON.stringify(data)}\n`)
+  //       }
 
-        reply.raw.write('\n')
+  //       reply.raw.write('\n')
 
-        if (finished) {
-          reply.raw.end()
-          emitter.removeAllListeners('progress')
-        }
-      })
-    }
-  )
+  //       if (finished) {
+  //         reply.raw.end()
+  //         emitter.removeAllListeners('progress')
+  //       }
+  //     })
+  //   }
+  // )
 }
 
 export default tilesets

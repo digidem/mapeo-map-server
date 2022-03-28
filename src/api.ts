@@ -22,7 +22,7 @@ import {
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
-import { ImportProgressEmitter } from './lib/import_progress_emitter'
+// import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import {
   RasterSourceSpecification,
   StyleSpecification,
@@ -100,7 +100,7 @@ export interface IdResource {
 
 export interface Api {
   importMBTiles(filePath: string): Promise<TileJSON & IdResource>
-  getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
+  // getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
@@ -319,23 +319,43 @@ function createApi({
 
       const tileset = await api.createTileset(tilejson)
 
+      const importId = generateId()
+
       tilesetImportWorker.postMessage({
-        importId: generateId(),
+        type: 'importMbTiles',
+        importId,
         mbTilesDbPath: mbTilesDb.name,
         tilesetId,
       })
 
-      // TODO: Return url to the desired import resource?
-      return tileset
+      return new Promise((res) => {
+        tilesetImportWorker.addListener(
+          'message',
+          ({
+            soFar,
+            total,
+          }: {
+            type: 'progress'
+            importId: string
+            soFar: number
+            total: number
+          }) => {
+            if (soFar === total) {
+              tilesetImportWorker.postMessage({ type: 'importTerminate' })
+              res(tileset)
+            }
+          }
+        )
+      })
     },
-    async getImportProgress(offlineAreaId) {
-      const importIds: string[] = db
-        .prepare('SELECT id FROM Import WHERE areaId = ?')
-        .all(offlineAreaId)
-        .map((row: { id: string }) => row.id)
+    // async getImportProgress(offlineAreaId) {
+    //   const importIds: string[] = db
+    //     .prepare('SELECT id FROM Import WHERE areaId = ?')
+    //     .all(offlineAreaId)
+    //     .map((row: { id: string }) => row.id)
 
-      return new ImportProgressEmitter(tilesetImportWorker, importIds)
-    },
+    //   return new ImportProgressEmitter(tilesetImportWorker, importIds)
+    // },
     async createTileset(tilejson) {
       const id = getTilesetId(tilejson)
 
@@ -667,6 +687,11 @@ const ApiPlugin: FastifyPluginAsync<PluginOptions> = async (
 ) => {
   // Create context once for each fastify instance
   const context = init(dbPath)
+
+  fastify.addHook('onClose', async () => {
+    await context.tilesetImportWorker.terminate()
+  })
+
   fastify.decorateRequest('api', {
     getter(this: FastifyRequest) {
       return createApi({ context, request: this, fastify })

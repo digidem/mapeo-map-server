@@ -46,11 +46,10 @@ before(() => {
 beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
+  const dbPath = path.resolve(dataDir, 'test.db')
+
   t.context = {
-    server: app(
-      { logger: false },
-      { dbPath: path.resolve(dataDir, 'test.db') }
-    ),
+    server: app({ logger: false }, { dbPath }),
     sampleTileJSON: mapboxRasterTilejson,
   }
 })
@@ -231,6 +230,8 @@ test('GET /tile before tileset created', async (t) => {
     404,
     'Responds with Not Found error code (404) when requested before tileset creation'
   )
+
+  t.end()
 })
 
 test('GET /tile (png)', async (t) => {
