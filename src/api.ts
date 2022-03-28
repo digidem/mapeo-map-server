@@ -379,7 +379,7 @@ function createApi({
         const { data } = await upstreamRequestsManager.getUpstream({
           url,
           etag,
-          responseType: 'json',
+          responseType: 'tilejson',
         })
 
         if (data) api.putTileset(id, data)
@@ -598,7 +598,7 @@ function createApi({
         const { data } = await upstreamRequestsManager.getUpstream({
           url,
           etag,
-          responseType: 'json',
+          responseType: 'stylejson',
         })
 
         if (data) api.putStyle(id, data)

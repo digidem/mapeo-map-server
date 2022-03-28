@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/ban-types */
+// TODO: import causes issues since it's an ES module
 import {
   validate as validateStyleJSON,
   StyleSpecification as StyleJSON,

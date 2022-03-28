@@ -2,13 +2,14 @@ import got from 'got'
 import { StyleJSON } from './stylejson'
 import { TileJSON } from './tilejson'
 
-type ResponseType = 'buffer' | 'json' | 'text'
+type ResponseType = 'buffer' | 'stylejson' | 'text' | 'tilejson'
 
 type DataType<T extends ResponseType> = T extends 'buffer'
   ? Buffer
-  : T extends 'json'
-  ? // TODO: Need to make this more generic to support other JSON schemas (e.g. style)
-    TileJSON
+  : T extends 'stylejson'
+  ? StyleJSON
+  : T extends 'tilejson'
+  ? TileJSON
   : T extends 'text'
   ? string
   : never
@@ -48,7 +49,7 @@ export class UpstreamRequestsManager {
 
     const request = got(url, {
       headers,
-      responseType,
+      responseType: responseTypeIsJSON(responseType) ? 'json' : responseType,
     }).then((response) => {
       if (response.statusCode === 304) throw new Error('Not Modified')
 
@@ -77,4 +78,10 @@ export class UpstreamRequestsManager {
 
     return request
   }
+}
+
+function responseTypeIsJSON(
+  t: ResponseType
+): t is Extract<ResponseType, 'stylejson' | 'tilejson'> {
+  return t.endsWith('json')
 }

@@ -262,3 +262,13 @@ test('GET /tile (png)', async (t) => {
 
   t.end()
 })
+
+test('GET /styles (empty)', async (t) => {
+  const { server } = t.context as TestContext
+
+  const response = await server.inject({ method: 'GET', url: '/styles' })
+
+  t.equal(response.statusCode, 200, 'returns a status code of 200')
+
+  t.same(response.json(), [], 'returns empty array')
+})
