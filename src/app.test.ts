@@ -272,3 +272,9 @@ test('GET /styles (empty)', async (t) => {
 
   t.same(response.json(), [], 'returns empty array')
 })
+
+// TODO: Add styles tests for:
+// - GET /styles (not empty)
+// - PUT /styles
+// - POST /styles
+// - DELETE /styles
