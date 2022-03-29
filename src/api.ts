@@ -594,7 +594,6 @@ function createApi({
       }
 
       async function fetchOnlineResource(url: string, etag?: string) {
-        // TODO: Need to update UpstreamRequestsManager to support other JSON schema types
         const { data } = await upstreamRequestsManager.getUpstream({
           url,
           etag,
