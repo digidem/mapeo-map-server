@@ -85,8 +85,8 @@ export interface Api {
   createStyle(style: StyleJSON): Promise<OfflineStyle>
   putStyle(id: string, style: StyleJSON): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
-  // deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<OfflineStyle>>
+  deleteStyle(id: string): Promise<void>
+  listStyles(limit?: number): Promise<Array<OfflineStyle>>
 }
 
 function createApi({
@@ -609,6 +609,10 @@ function createApi({
       }
 
       return { ...style, id }
+    },
+    // TODO: Super rudimentary implementation that doesn't account for relations and other details
+    async deleteStyle(id: string) {
+      db.prepare('DELETE FROM Style WHERE id = ?').run(id)
     },
   }
   return api

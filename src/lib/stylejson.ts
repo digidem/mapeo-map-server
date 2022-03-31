@@ -54,10 +54,13 @@ async function uncompositeStyle(style: StyleJSON): Promise<StyleJSON> {
   return style
 }
 
-export {
-  OfflineStyle,
-  StyleJSON,
-  getStyleId,
-  uncompositeStyle,
-  validateStyleJSON,
+function validate(style: unknown): asserts style is StyleJSON {
+  const errors = validateStyleJSON(style)
+
+  if (errors.length > 0) {
+    // TODO: not sure what the best thing to throw here is
+    throw new Error(errors.map((err) => err.message).join('\n'))
+  }
 }
+
+export { OfflineStyle, StyleJSON, getStyleId, uncompositeStyle, validate }
