@@ -41,16 +41,15 @@ function getStyleId(style: StyleJSON | OfflineStyle): string {
  * extract them from the composite style and adjust the style layers to point to
  * the original source, not the composite. This will save downloading Mapbox
  * sources multiple times for each style they appear in.
+ *
+ * https://docs.mapbox.com/api/maps/styles/
  */
 async function uncompositeStyle(style: StyleJSON): Promise<StyleJSON> {
-  // TODO:
   // 1. Check if style.sources includes source named "composite"
-  // 2. Check in "composite" includes a source id that starts with 'mapbox.'
+  // 2. Check if "composite" includes a source id that starts with 'mapbox.'
   // 3. Download the composite source tilejson and check vector_layers for
-  //    source_layer ids that from from the 'mapbox.' source
   // 4. Add any 'mapbox.' sources from 'composite' as separate sources
   // 5. Re-write style.layers for layers to use 'mapbox.' sources rather than
-  //    the composite source
   // 6. Re-write the composite source to not include 'mapbox.' source ids
   return style
 }
