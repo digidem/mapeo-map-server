@@ -9,6 +9,10 @@ index 1c3f480..f628b0d 100644
      const styleIDs = [];
      const sourceIDs = [];
      const compositedSourceLayers = [];
+diff --git a/node_modules/@maplibre/maplibre-gl-style-spec/dist/index.js b/node_modules/@maplibre/maplibre-gl-style-spec/dist/index.cjs
+similarity index 100%
+rename from node_modules/@maplibre/maplibre-gl-style-spec/dist/index.js
+rename to node_modules/@maplibre/maplibre-gl-style-spec/dist/index.cjs
 diff --git a/node_modules/@maplibre/maplibre-gl-style-spec/expression/index.ts b/node_modules/@maplibre/maplibre-gl-style-spec/expression/index.ts
 index 0f98817..24c5601 100644
 --- a/node_modules/@maplibre/maplibre-gl-style-spec/expression/index.ts
@@ -167,3 +171,16 @@ index 5c7f452..c16ee43 100644
      let migrated = false;
  
      if (style.version === 7) {
+diff --git a/node_modules/@maplibre/maplibre-gl-style-spec/package.json b/node_modules/@maplibre/maplibre-gl-style-spec/package.json
+index 275f9a9..09bf12e 100644
+--- a/node_modules/@maplibre/maplibre-gl-style-spec/package.json
++++ b/node_modules/@maplibre/maplibre-gl-style-spec/package.json
+@@ -56,7 +60,7 @@
+     "maplibre-gl-js"
+   ],
+   "license": "ISC",
+-  "main": "./dist/index.js",
++  "main": "./dist/index.cjs",
+   "module": "./dist/index.es.js",
+   "name": "@maplibre/maplibre-gl-style-spec",
+   "repository": {
