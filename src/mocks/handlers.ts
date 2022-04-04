@@ -1,5 +1,6 @@
 import { rest } from 'msw'
 import { createHash } from 'crypto'
+import { TileJSON } from '../lib/tilejson'
 
 export const handlers = [
   rest.get(
@@ -8,7 +9,7 @@ export const handlers = [
     async (req, res, ctx) => {
       const { x, y: tempY, zoom } = req.params
 
-      const y = (tempY as string).replace('.png', '')
+      const y = (tempY as string).split('.')[0]
 
       // First 8 bytes identify a PNG datastream: https://www.w3.org/TR/PNG/#5PNG-file-signature
       const body = Buffer.from([
@@ -38,6 +39,49 @@ export const handlers = [
       )
     }
   ),
+  // TODO: Make this more flexible so it can handle other formats e.g. png, jpg, etc
+  rest.get('https://api.mapbox.com/v4/:tileset', async (req, res, ctx) => {
+    const { tileset } = req.params
+
+    const mbTilesetId = (tileset as string).replace('.json', '')
+
+    const tilejson: TileJSON = {
+      id: mbTilesetId,
+      tilejson: '2.2.0',
+      format: 'pbf',
+      tiles: [
+        `http://a.tiles.mapbox.com/v4/${mbTilesetId}/{z}/{x}/{y}.vector.png`,
+        `http://b.tiles.mapbox.com/v4/${mbTilesetId}/{z}/{x}/{y}.vector.png`,
+      ],
+      vector_layers: [
+        {
+          description: '',
+          fields: {
+            description: 'String',
+            id: 'String',
+            'marker-color': 'String',
+            'marker-size': 'String',
+            'marker-symbol': 'String',
+            title: 'String',
+          },
+          id: 'test-vector-layer',
+          maxzoom: 22,
+          minzoom: 0,
+          source: mbTilesetId,
+          source_name: 'test-vector-layer',
+        },
+      ],
+    }
+
+    console.log({ tilejson })
+
+    return res(
+      ctx.set({
+        'Content-Type': 'application/json',
+      }),
+      ctx.body(JSON.stringify(tilejson))
+    )
+  }),
 ]
 
 // An adjusted version of https://github.com/jshttp/etag/blob/4664b6e53c85a56521076f9c5004dd9626ae10c8/index.js#L39

@@ -21,6 +21,7 @@ import {
   getTilesetId,
   tileToQuadKey,
   hash,
+  getMapboxSourceUrl,
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
@@ -119,22 +120,25 @@ function createApi({
   }
 
   function addOfflineUrls(style: OfflineStyle): OfflineStyle {
-    const sources: OfflineStyle['sources'] = {}
+    const updatedOfflineSources: OfflineStyle['sources'] = {}
     for (const sourceId of Object.keys(style.sources)) {
+      const offlineSource = style.sources[sourceId]
+
       const includeUrlField = ['vector', 'raster', 'raster-dem'].includes(
-        style.sources[sourceId].type
+        offlineSource.type
       )
 
-      sources[sourceId] = {
-        ...style.sources[sourceId],
+      updatedOfflineSources[sourceId] = {
+        ...offlineSource,
         ...(includeUrlField
-          ? { url: getTilesetUrl(sources[sourceId].tilesetId) }
+          ? { url: getTilesetUrl(offlineSource.tilesetId) }
           : undefined),
       }
     }
+
     return {
       ...style,
-      sources,
+      sources: updatedOfflineSources,
       glyphs: style.glyphs && getGlyphsUrl(style.id),
       sprite: style.sprite && getSpriteUrl(style.id),
     }
@@ -234,7 +238,13 @@ function createApi({
         )
       }
 
-      const tilejson = await got(source.url).json()
+      // TODO: Need to properly handle Mapbox URLs e.g. mapbox://
+      const url = source.url.startsWith('mapbox://')
+        ? getMapboxSourceUrl(source.url)
+        : source.url
+
+      const tilejson = await got(url).json()
+
       if (!validateTileJSON(tilejson)) {
         // TODO: Write these errors to UnsupportedSourceError.message rather
         // than just log them
@@ -566,15 +576,25 @@ function createApi({
     },
 
     async listStyles(limit?: number) {
+      const styles: OfflineStyle[] = []
+
       const baseQuery = 'SELECT stylejson FROM Style'
+
       const stmt =
         limit !== undefined
           ? db.prepare(`${baseQuery} LIMIT ?`).bind(limit)
           : db.prepare(baseQuery)
 
-      return stmt
-        .all()
-        .map((row: { stylejson: string }) => JSON.parse(row.stylejson))
+      stmt.all().forEach(({ stylejson }: { stylejson: string }) => {
+        try {
+          const style: OfflineStyle = JSON.parse(stylejson)
+          styles.push(addOfflineUrls(style))
+        } catch (err) {
+          // TODO: What should we do here? e.g. omit or throw?
+        }
+      })
+
+      return styles
     },
 
     async getStyle(id) {

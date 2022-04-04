@@ -140,3 +140,9 @@ function convertTileFromScheme(
     fromScheme === 'tms' ? 'xyz' : 'tms',
   ]
 }
+
+// TODO: Needs to handle access token too?
+export function getMapboxSourceUrl(url: string) {
+  const mbTilesetId = url.replace('mapbox://', '')
+  return `https://api.mapbox.com/v4/${mbTilesetId}.json`
+}

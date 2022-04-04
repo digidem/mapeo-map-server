@@ -3,13 +3,16 @@ import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
 import { FastifyInstance } from 'fastify'
+import { VectorSourceSpecification } from '@maplibre/maplibre-gl-style-spec'
 
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
+import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 
 import { IdResource } from './api'
+import { OfflineStyle, StyleJSON } from './lib/stylejson'
 
 tmp.setGracefulCleanup()
 
@@ -273,8 +276,69 @@ test('GET /styles (empty)', async (t) => {
   t.same(response.json(), [], 'returns empty array')
 })
 
+test('GET /styles (not empty)', async (t) => {
+  const { server } = t.context as TestContext
+
+  // This will change if a style fixture other than good-stylejson/good-simple.json is used
+  const expectedTilesetId = 'yqtx3fxnp2vdyssc82ew4f377g4y0njk' // generated from getTilesetId in lib/utils.ts
+  const expectedTilesetUrl = `http://localhost:80/tilesets/${expectedTilesetId}`
+
+  const expectedSources = {
+    'mapbox-streets': {
+      ...(simpleStylejson.sources[
+        'mapbox-streets'
+      ] as VectorSourceSpecification),
+      url: expectedTilesetUrl,
+      tilesetId: expectedTilesetId,
+    },
+  }
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: simpleStylejson,
+  })
+
+  t.equal(responsePost.statusCode, 200, 'returns a status code of 200')
+
+  // Extracting the id field since it's randomly generated
+  // and shouldn't be used as an expected value when comparing with the fixture.
+  // See getStyleId in lib/stylejson.ts
+  const { id: createdId, ...createdStyleWithoutId } =
+    responsePost.json<OfflineStyle>()
+
+  t.ok(
+    createdId && typeof createdId === 'string',
+    'id generated for style resource'
+  )
+
+  t.same(
+    createdStyleWithoutId,
+    {
+      ...simpleStylejson,
+      sources: expectedSources,
+    },
+    'returns created stylejson'
+  )
+
+  const responseGet = await server.inject({ method: 'GET', url: '/styles' })
+
+  t.equal(responseGet.statusCode, 200, 'returns a status code of 200')
+
+  t.same(
+    responseGet.json(),
+    [
+      {
+        ...simpleStylejson,
+        id: createdId,
+        sources: expectedSources,
+      },
+    ],
+    'returns array with desired stylejson'
+  )
+})
+
 // TODO: Add styles tests for:
-// - GET /styles (not empty)
 // - PUT /styles
 // - POST /styles
 // - DELETE /styles

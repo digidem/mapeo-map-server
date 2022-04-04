@@ -2,17 +2,20 @@
 import {
   validate as validateStyleJSON,
   StyleSpecification as StyleJSON,
+  SourceSpecification,
 } from '@maplibre/maplibre-gl-style-spec'
 
 import { encodeBase32, generateId, hash } from './utils'
 
+type OfflineSource = SourceSpecification & {
+  tilesetId: string
+}
+
 type OfflineStyle = StyleJSON & {
   id: string
   upstreamUrl?: string
-  sources: StyleJSON['sources'] & {
-    [_: string]: {
-      tilesetId: string
-    }
+  sources: {
+    [_: string]: OfflineSource
   }
 }
 
@@ -63,4 +66,11 @@ function validate(style: unknown): asserts style is StyleJSON {
   }
 }
 
-export { OfflineStyle, StyleJSON, getStyleId, uncompositeStyle, validate }
+export {
+  OfflineSource,
+  OfflineStyle,
+  StyleJSON,
+  getStyleId,
+  uncompositeStyle,
+  validate,
+}
