@@ -73,8 +73,6 @@ export const handlers = [
       ],
     }
 
-    console.log({ tilejson })
-
     return res(
       ctx.set({
         'Content-Type': 'application/json',

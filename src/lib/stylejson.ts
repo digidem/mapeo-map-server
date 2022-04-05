@@ -19,8 +19,14 @@ type OfflineStyle = StyleJSON & {
   }
 }
 
-function isOfflineStyle(style: unknown): style is OfflineStyle {
+function isOfflineStyle(style: StyleJSON): style is OfflineStyle {
   return !!(style as OfflineStyle).id
+
+  // TODO: Should we also check that each source is an offline source? What if sources are updated via PUT where new ones are defined?
+}
+
+function isOfflineSource(source: unknown): source is OfflineSource {
+  return !!(source as OfflineSource).tilesetId
 }
 
 /**
@@ -71,6 +77,8 @@ export {
   OfflineStyle,
   StyleJSON,
   getStyleId,
+  isOfflineSource,
+  isOfflineStyle,
   uncompositeStyle,
   validate,
 }

@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
 import createError from 'fastify-error'
 import { Static, Type as T } from '@sinclair/typebox'
-import { StyleJSON, validate } from '../lib/stylejson'
+import { OfflineStyle, StyleJSON, validate } from '../lib/stylejson'
 
 const GetStylesQuerystringSchema = T.Object({
   limit: T.Optional(T.Number()),
@@ -13,6 +13,9 @@ const GetStyleParamsSchema = T.Object({
 
 const PutStyleParamsSchema = T.Object({
   styleId: T.String(),
+})
+
+const PutStyleBodySchema = T.Object({
   style: T.Unknown(),
 })
 
@@ -59,21 +62,18 @@ const styles: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  fastify.put<{ Params: Static<typeof PutStyleParamsSchema> }>(
-    '/:styleId',
-    async function (request) {
-      const { style } = request.params
+  fastify.put<{
+    Params: Static<typeof PutStyleParamsSchema>
+    Body: OfflineStyle | StyleJSON
+  }>('/:styleId', async function (request) {
+    const style = request.body
 
-      validateStyle(style)
+    validateStyle(style)
 
-      const stylejson = await request.api.putStyle(
-        request.params.styleId,
-        style
-      )
+    const stylejson = await request.api.putStyle(request.params.styleId, style)
 
-      return stylejson
-    }
-  )
+    return stylejson
+  })
 
   fastify.delete<{ Params: Static<typeof DeleteStyleParamsSchema> }>(
     '/:styleId',

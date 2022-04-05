@@ -338,7 +338,43 @@ test('GET /styles (not empty)', async (t) => {
   )
 })
 
+test('PUT /styles (style exists, simple root field change)', async (t) => {
+  const { server } = t.context as TestContext
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: simpleStylejson,
+  })
+
+  const createdStyle = responsePost.json<OfflineStyle>()
+
+  const updatedNameField = 'New name'
+
+  const responsePut = await server.inject({
+    method: 'PUT',
+    url: `/styles/${createdStyle.id}`,
+    payload: { ...createdStyle, name: updatedNameField },
+  })
+
+  const updatedStyle = responsePut.json<OfflineStyle>()
+
+  t.equal(responsePut.statusCode, 200, 'PUT responded with success code')
+
+  t.notSame(
+    createdStyle,
+    updatedStyle,
+    'Updated response is different from initially created resource'
+  )
+
+  t.same(updatedStyle.name, updatedNameField, 'Response has updated fields')
+})
+
 // TODO: Add styles tests for:
-// - PUT /styles
-// - POST /styles
-// - DELETE /styles
+// - PUT /styles (style exists, change to a source url)
+// - PUT /styles (style does not exist)
+// - PUT /styles (bad style id param)
+// - POST /styles (style exists)
+// - POST /styles (style does not exist)
+// - DELETE /styles (style exists)
+// - DELETE /styles (style does not exist)

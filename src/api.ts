@@ -1,4 +1,5 @@
 import path from 'path'
+import { URL } from 'url'
 import { Headers } from '@mapbox/mbtiles'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from 'fastify-error'
@@ -15,6 +16,7 @@ import {
   OfflineStyle,
   getStyleId,
   uncompositeStyle,
+  isOfflineSource,
 } from './lib/stylejson'
 import {
   getInterpolatedUpstreamTileUrl,
@@ -220,7 +222,7 @@ function createApi({
    * each source, and update the source to reference the offline tileset
    */
   async function createOfflineSources(
-    sources: StyleJSON['sources']
+    sources: StyleJSON['sources'] | OfflineStyle['sources']
   ): Promise<OfflineStyle['sources']> {
     const offlineSources: OfflineStyle['sources'] = {}
 
@@ -236,6 +238,11 @@ function createApi({
         throw new UnsupportedSourceError(
           `Currently only sources defined with \`source.url\` are supported (referencing a TileJSON), but this style.json has a source '${sourceId}' that does not have a \`url\` property`
         )
+      }
+
+      // TODO: For now, don't create new offline sources for pre-existing ones?
+      if (isOfflineSource(source)) {
+        continue
       }
 
       // TODO: Need to properly handle Mapbox URLs e.g. mapbox://
@@ -266,6 +273,7 @@ function createApi({
         await api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
+        // await api.putTileset(tilesetId, tilejson)
       }
       offlineSources[sourceId] = { ...source, tilesetId }
     }
