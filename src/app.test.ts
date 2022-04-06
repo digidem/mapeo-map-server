@@ -12,7 +12,8 @@ import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 
 import { IdResource } from './api'
-import { OfflineStyle, StyleJSON } from './lib/stylejson'
+import { OfflineSource, OfflineStyle, StyleJSON } from './lib/stylejson'
+import { setUncaughtExceptionCaptureCallback } from 'process'
 
 tmp.setGracefulCleanup()
 
@@ -67,6 +68,9 @@ teardown(() => {
   mockTileServer.close()
 })
 
+/**
+ * /tilesets tests
+ */
 test('GET /tilesets (empty)', async (t) => {
   const { server } = t.context as TestContext
 
@@ -221,6 +225,9 @@ test('PUT /tilesets (tileset does not exist)', async (t) => {
   t.end()
 })
 
+/**
+ * /tile tests
+ */
 test('GET /tile before tileset created', async (t) => {
   const { server } = t.context as TestContext
 
@@ -266,6 +273,73 @@ test('GET /tile (png)', async (t) => {
   t.end()
 })
 
+/**
+ * /styles tests
+ */
+test('POST /styles', async (t) => {
+  const { server } = t.context as TestContext
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: simpleStylejson,
+  })
+
+  t.equal(responsePost.statusCode, 200, 'returns a status code of 200')
+
+  const createdStyle = responsePost.json<OfflineStyle>()
+
+  // TODO: Need to deterministically generate an id for a style, so we should be expecting a known id here at some point
+  t.ok(createdStyle.id, 'created style possesses an id')
+
+  t.notSame(
+    createdStyle.sources,
+    simpleStylejson.sources,
+    'created style possesses sources that are altered from input'
+  )
+
+  const ignoredStyleFields = {
+    id: undefined,
+    sources: undefined,
+  }
+
+  t.same(
+    { ...createdStyle, ...ignoredStyleFields },
+    { ...simpleStylejson, ...ignoredStyleFields },
+    'besides id and sources fields, created style is the same as input'
+  )
+
+  Object.entries(createdStyle.sources).forEach(([name, source]) => {
+    t.ok(source.tilesetId, 'source has tileset id field attached to it')
+
+    if ('url' in source) {
+      const expectedSourceUrl = `http://localhost:80/tilesets/${source.tilesetId}`
+
+      t.equal(
+        source.url,
+        expectedSourceUrl,
+        'url field in source remapped to map server instance'
+      )
+    }
+
+    const ignoredSourceFields = {
+      tilesetId: undefined,
+      url: undefined,
+    }
+
+    t.same(
+      { ...source, ...ignoredSourceFields },
+      {
+        ...simpleStylejson.sources[
+          name as keyof typeof simpleStylejson.sources
+        ],
+        ...ignoredSourceFields,
+      },
+      'besides tilesetId and url fields, source from created style matches source from input'
+    )
+  })
+})
+
 test('GET /styles (empty)', async (t) => {
   const { server } = t.context as TestContext
 
@@ -299,18 +373,11 @@ test('GET /styles (not empty)', async (t) => {
     payload: simpleStylejson,
   })
 
-  t.equal(responsePost.statusCode, 200, 'returns a status code of 200')
-
   // Extracting the id field since it's randomly generated
   // and shouldn't be used as an expected value when comparing with the fixture.
   // See getStyleId in lib/stylejson.ts
   const { id: createdId, ...createdStyleWithoutId } =
     responsePost.json<OfflineStyle>()
-
-  t.ok(
-    createdId && typeof createdId === 'string',
-    'id generated for style resource'
-  )
 
   t.same(
     createdStyleWithoutId,
