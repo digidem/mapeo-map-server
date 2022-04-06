@@ -5,15 +5,13 @@ import fs from 'fs'
 import { FastifyInstance } from 'fastify'
 import { VectorSourceSpecification } from '@maplibre/maplibre-gl-style-spec'
 
+import { IdResource } from './api'
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
+import { OfflineStyle } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
-
-import { IdResource } from './api'
-import { OfflineSource, OfflineStyle, StyleJSON } from './lib/stylejson'
-import { setUncaughtExceptionCaptureCallback } from 'process'
 
 tmp.setGracefulCleanup()
 
