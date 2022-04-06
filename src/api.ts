@@ -86,7 +86,7 @@ export interface Api {
     etag?: string
   }): Promise<void>
   createStyle(style: StyleJSON): Promise<OfflineStyle>
-  putStyle(id: string, style: StyleJSON): Promise<OfflineStyle>
+  putStyle(id: string, style: StyleJSON | OfflineStyle): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
   deleteStyle(id: string): Promise<void>
   listStyles(limit?: number): Promise<Array<OfflineStyle>>
@@ -564,6 +564,10 @@ function createApi({
     },
 
     async putStyle(id, style) {
+      if ('id' in style && id !== style.id) {
+        throw new MismatchedIdError(id, style.id)
+      }
+
       if (!styleExists(id)) {
         throw new NotFoundError(id)
       }

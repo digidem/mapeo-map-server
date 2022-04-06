@@ -405,6 +405,36 @@ test('GET /styles (not empty)', async (t) => {
   )
 })
 
+test('PUT /styles (bad id param)', async (t) => {
+  const { server } = t.context as TestContext
+
+  const id = 'nonexistent-id'
+
+  const responsePut = await server.inject({
+    method: 'PUT',
+    url: `/styles/${id}`,
+    payload: { ...simpleStylejson, id },
+  })
+
+  t.equal(responsePut.statusCode, 404, 'returns 404 status code')
+})
+
+test('PUT /styles (style does not exist)', async (t) => {
+  const { server } = t.context as TestContext
+
+  const responsePut = await server.inject({
+    method: 'PUT',
+    url: `/styles/b`,
+    payload: { ...simpleStylejson, id: 'a' },
+  })
+
+  t.equal(
+    responsePut.statusCode,
+    400,
+    'returns 400 status code due to mismatched id param'
+  )
+})
+
 test('PUT /styles (style exists, simple root field change)', async (t) => {
   const { server } = t.context as TestContext
 
@@ -439,9 +469,6 @@ test('PUT /styles (style exists, simple root field change)', async (t) => {
 
 // TODO: Add styles tests for:
 // - PUT /styles (style exists, change to a source url)
-// - PUT /styles (style does not exist)
-// - PUT /styles (bad style id param)
 // - POST /styles (style exists)
-// - POST /styles (style does not exist)
 // - DELETE /styles (style exists)
 // - DELETE /styles (style does not exist)
