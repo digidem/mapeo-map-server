@@ -640,7 +640,7 @@ function createApi({
         fetchOnlineResource(style.upstreamUrl, row.etag).catch(noop)
       }
 
-      return { ...style, id }
+      return addOfflineUrls(style)
     },
     // TODO: Super rudimentary implementation that doesn't account for relations and other details
     async deleteStyle(id: string) {

@@ -338,18 +338,36 @@ test('POST /styles', async (t) => {
   })
 })
 
-test('GET /styles (empty)', async (t) => {
+test('GET /style (style does not exist)', async (t) => {
   const { server } = t.context as TestContext
 
-  const response = await server.inject({ method: 'GET', url: '/styles' })
+  const id = 'nonexistent-id'
 
-  t.equal(response.statusCode, 200, 'returns a status code of 200')
+  const responseGet = await server.inject({
+    method: 'GET',
+    url: `/styles/${id}`,
+  })
 
-  t.same(response.json(), [], 'returns empty array')
+  t.equal(responseGet.statusCode, 404, 'responds with 404 status code')
 })
 
-test('GET /styles (not empty)', async (t) => {
+test('GET /style (style exists)', async (t) => {
   const { server } = t.context as TestContext
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: simpleStylejson,
+  })
+
+  const { id: expectedId } = responsePost.json<OfflineStyle>()
+
+  const responseGet = await server.inject({
+    method: 'GET',
+    url: `/styles/${expectedId}`,
+  })
+
+  t.equal(responseGet.statusCode, 200, 'responds with 200 status code')
 
   // This will change if a style fixture other than good-stylejson/good-simple.json is used
   const expectedTilesetId = 'yqtx3fxnp2vdyssc82ew4f377g4y0njk' // generated from getTilesetId in lib/utils.ts
@@ -365,26 +383,57 @@ test('GET /styles (not empty)', async (t) => {
     },
   }
 
+  const expectedGetResponse = {
+    ...simpleStylejson,
+    id: expectedId,
+    sources: expectedSources,
+  }
+
+  t.same(responseGet.json(), expectedGetResponse, 'returns desired stylejson')
+})
+
+test('GET /styles (empty)', async (t) => {
+  const { server } = t.context as TestContext
+
+  const response = await server.inject({ method: 'GET', url: '/styles' })
+
+  t.equal(response.statusCode, 200, 'returns a status code of 200')
+
+  t.same(response.json(), [], 'returns empty array')
+})
+
+test('GET /styles (not empty)', async (t) => {
+  const { server } = t.context as TestContext
+
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
     payload: simpleStylejson,
   })
 
-  // Extracting the id field since it's randomly generated
-  // and shouldn't be used as an expected value when comparing with the fixture.
-  // See getStyleId in lib/stylejson.ts
-  const { id: createdId, ...createdStyleWithoutId } =
-    responsePost.json<OfflineStyle>()
+  const { id: expectedId } = responsePost.json<OfflineStyle>()
 
-  t.same(
-    createdStyleWithoutId,
+  // This will change if a style fixture other than good-stylejson/good-simple.json is used
+  const expectedTilesetId = 'yqtx3fxnp2vdyssc82ew4f377g4y0njk' // generated from getTilesetId in lib/utils.ts
+  const expectedTilesetUrl = `http://localhost:80/tilesets/${expectedTilesetId}`
+
+  const expectedSources = {
+    'mapbox-streets': {
+      ...(simpleStylejson.sources[
+        'mapbox-streets'
+      ] as VectorSourceSpecification),
+      url: expectedTilesetUrl,
+      tilesetId: expectedTilesetId,
+    },
+  }
+
+  const expectedGetResponse = [
     {
       ...simpleStylejson,
+      id: expectedId,
       sources: expectedSources,
     },
-    'returns created stylejson'
-  )
+  ]
 
   const responseGet = await server.inject({ method: 'GET', url: '/styles' })
 
@@ -392,13 +441,7 @@ test('GET /styles (not empty)', async (t) => {
 
   t.same(
     responseGet.json(),
-    [
-      {
-        ...simpleStylejson,
-        id: createdId,
-        sources: expectedSources,
-      },
-    ],
+    expectedGetResponse,
     'returns array with desired stylejson'
   )
 })
