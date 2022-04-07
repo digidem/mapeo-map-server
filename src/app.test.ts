@@ -9,7 +9,11 @@ import { IdResource } from './api'
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
-import { OfflineStyle } from './lib/stylejson'
+import {
+  OfflineStyle,
+  StyleJSON,
+  validate as validateStyleJSON,
+} from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 
@@ -18,6 +22,7 @@ tmp.setGracefulCleanup()
 type TestContext = {
   server: FastifyInstance
   sampleTileJSON: TileJSON
+  sampleStyleJSON: StyleJSON
 }
 
 function assertSampleTileJSONIsValid(data: unknown): asserts data is TileJSON {
@@ -41,6 +46,7 @@ before(() => {
   }
 
   assertSampleTileJSONIsValid(mapboxRasterTilejson)
+  validateStyleJSON(simpleStylejson)
 
   mockTileServer.listen()
 })
@@ -54,6 +60,7 @@ beforeEach((t) => {
       { dbPath: path.resolve(dataDir, 'test.db') }
     ),
     sampleTileJSON: mapboxRasterTilejson,
+    sampleStyleJSON: simpleStylejson,
   }
 })
 
@@ -275,12 +282,12 @@ test('GET /tile (png)', async (t) => {
  * /styles tests
  */
 test('POST /styles', async (t) => {
-  const { server } = t.context as TestContext
+  const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: simpleStylejson,
+    payload: sampleStyleJSON,
   })
 
   t.equal(responsePost.statusCode, 200, 'returns a status code of 200')
@@ -292,7 +299,7 @@ test('POST /styles', async (t) => {
 
   t.notSame(
     createdStyle.sources,
-    simpleStylejson.sources,
+    sampleStyleJSON.sources,
     'created style possesses sources that are altered from input'
   )
 
@@ -303,7 +310,7 @@ test('POST /styles', async (t) => {
 
   t.same(
     { ...createdStyle, ...ignoredStyleFields },
-    { ...simpleStylejson, ...ignoredStyleFields },
+    { ...sampleStyleJSON, ...ignoredStyleFields },
     'besides id and sources fields, created style is the same as input'
   )
 
@@ -328,8 +335,8 @@ test('POST /styles', async (t) => {
     t.same(
       { ...source, ...ignoredSourceFields },
       {
-        ...simpleStylejson.sources[
-          name as keyof typeof simpleStylejson.sources
+        ...sampleStyleJSON.sources[
+          name as keyof typeof sampleStyleJSON.sources
         ],
         ...ignoredSourceFields,
       },
@@ -352,12 +359,12 @@ test('GET /style (style does not exist)', async (t) => {
 })
 
 test('GET /style (style exists)', async (t) => {
-  const { server } = t.context as TestContext
+  const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: simpleStylejson,
+    payload: sampleStyleJSON,
   })
 
   const { id: expectedId } = responsePost.json<OfflineStyle>()
@@ -384,7 +391,7 @@ test('GET /style (style exists)', async (t) => {
   }
 
   const expectedGetResponse = {
-    ...simpleStylejson,
+    ...sampleStyleJSON,
     id: expectedId,
     sources: expectedSources,
   }
@@ -403,12 +410,12 @@ test('GET /styles (empty)', async (t) => {
 })
 
 test('GET /styles (not empty)', async (t) => {
-  const { server } = t.context as TestContext
+  const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: simpleStylejson,
+    payload: sampleStyleJSON,
   })
 
   const { id: expectedId } = responsePost.json<OfflineStyle>()
@@ -429,7 +436,7 @@ test('GET /styles (not empty)', async (t) => {
 
   const expectedGetResponse = [
     {
-      ...simpleStylejson,
+      ...sampleStyleJSON,
       id: expectedId,
       sources: expectedSources,
     },
@@ -447,26 +454,26 @@ test('GET /styles (not empty)', async (t) => {
 })
 
 test('PUT /styles (bad id param)', async (t) => {
-  const { server } = t.context as TestContext
+  const { server, sampleStyleJSON } = t.context as TestContext
 
   const id = 'nonexistent-id'
 
   const responsePut = await server.inject({
     method: 'PUT',
     url: `/styles/${id}`,
-    payload: { ...simpleStylejson, id },
+    payload: { ...sampleStyleJSON, id },
   })
 
   t.equal(responsePut.statusCode, 404, 'returns 404 status code')
 })
 
 test('PUT /styles (style does not exist)', async (t) => {
-  const { server } = t.context as TestContext
+  const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePut = await server.inject({
     method: 'PUT',
     url: `/styles/b`,
-    payload: { ...simpleStylejson, id: 'a' },
+    payload: { ...sampleStyleJSON, id: 'a' },
   })
 
   t.equal(
@@ -477,12 +484,12 @@ test('PUT /styles (style does not exist)', async (t) => {
 })
 
 test('PUT /styles (style exists, simple root field change)', async (t) => {
-  const { server } = t.context as TestContext
+  const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: simpleStylejson,
+    payload: sampleStyleJSON,
   })
 
   const createdStyle = responsePost.json<OfflineStyle>()
