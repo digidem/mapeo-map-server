@@ -550,9 +550,11 @@ test('DELETE /styles (style exists)', async (t) => {
 
   t.equal(
     responseDelete.statusCode,
-    200,
-    'DELETE responds with 200 status code'
+    204,
+    'DELETE responds with 204 status code'
   )
+
+  t.equal(responseDelete.body, '', 'DELETE responds with empty body')
 
   const responseGet = await server.inject({
     method: 'GET',

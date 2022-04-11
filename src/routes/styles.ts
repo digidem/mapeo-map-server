@@ -77,8 +77,14 @@ const styles: FastifyPluginAsync = async function (fastify) {
 
   fastify.delete<{ Params: Static<typeof DeleteStyleParamsSchema> }>(
     '/:styleId',
-    async function (request) {
-      return request.api.deleteStyle(request.params.styleId)
+    {
+      schema: {
+        response: 204,
+      },
+    },
+    async function (request, reply) {
+      await request.api.deleteStyle(request.params.styleId)
+      reply.code(204).send()
     }
   )
 }
