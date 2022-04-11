@@ -1,4 +1,4 @@
-import { afterEach, before, beforeEach, teardown, test, only } from 'tap'
+import { afterEach, before, beforeEach, teardown, test } from 'tap'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
