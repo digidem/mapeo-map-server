@@ -1,4 +1,4 @@
-import { afterEach, before, beforeEach, teardown, test } from 'tap'
+import { afterEach, before, beforeEach, teardown, test, only } from 'tap'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
@@ -515,8 +515,53 @@ test('PUT /styles (style exists, simple root field change)', async (t) => {
   t.same(updatedStyle.name, updatedNameField, 'Response has updated fields')
 })
 
+test('DELETE /styles (style does not exist)', async (t) => {
+  const { server } = t.context as TestContext
+
+  const id = 'nonexistent-id'
+
+  const responseDelete = await server.inject({
+    method: 'DELETE',
+    url: `/styles/${id}`,
+  })
+
+  t.equal(
+    responseDelete.statusCode,
+    404,
+    'DELETE responds with 404 status code'
+  )
+})
+
+test('DELETE /styles (style exists)', async (t) => {
+  const { server } = t.context as TestContext
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: simpleStylejson,
+  })
+
+  const { id } = responsePost.json<OfflineStyle>()
+
+  const responseDelete = await server.inject({
+    method: 'DELETE',
+    url: `/styles/${id}`,
+  })
+
+  t.equal(
+    responseDelete.statusCode,
+    200,
+    'DELETE responds with 200 status code'
+  )
+
+  const responseGet = await server.inject({
+    method: 'GET',
+    url: `/styles/${id}`,
+  })
+
+  t.equal(responseGet.statusCode, 404, 'GET responds with 404 status code')
+})
+
 // TODO: Add styles tests for:
 // - PUT /styles (style exists, change to a source url)
 // - POST /styles (style exists)
-// - DELETE /styles (style exists)
-// - DELETE /styles (style does not exist)

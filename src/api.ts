@@ -222,6 +222,7 @@ function createApi({
    * each source, and update the source to reference the offline tileset
    */
   async function createOfflineSources(
+    styleId: string,
     sources: StyleJSON['sources'] | OfflineStyle['sources']
   ): Promise<OfflineStyle['sources']> {
     const offlineSources: OfflineStyle['sources'] = {}
@@ -553,12 +554,20 @@ function createApi({
       const offlineStyle: OfflineStyle = {
         ...(await uncompositeStyle(style)),
         id: styleId,
-        sources: await createOfflineSources(style.sources),
+        sources: await createOfflineSources(styleId, style.sources),
       }
 
       db.prepare(
         'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
       ).run({ id: styleId, stylejson: JSON.stringify(offlineStyle) })
+
+      // Create the records in the joins table for TilesetsOnStyles
+      // TODO: How to insert multiple records at once?
+      Object.values(offlineStyle.sources).forEach((offlineSource) => {
+        db.prepare<{ tilesetId: string; styleId: string }>(
+          'INSERT INTO TilesetsOnStyles (tilesetId, styleId) VALUES (:tilesetId, :styleId)'
+        ).run({ tilesetId: offlineSource.tilesetId, styleId })
+      })
 
       return addOfflineUrls(offlineStyle)
     },
@@ -576,13 +585,15 @@ function createApi({
         ...(await uncompositeStyle(style)),
         id,
         // TODO: Is this the right thing to do? May need to update createOfflineSources to handle pre-existing tilesets for this style
-        sources: await createOfflineSources(style.sources),
+        sources: await createOfflineSources(id, style.sources),
       }
 
       db.prepare('UPDATE Style SET stylejson = :stylejson WHERE id = :id').run({
         id,
         stylejson: JSON.stringify(offlineStyle),
       })
+
+      // TODO: update TilesetsOnStyles table to reflect any changes in the sources field?
 
       return addOfflineUrls(offlineStyle)
     },
@@ -642,9 +653,20 @@ function createApi({
 
       return addOfflineUrls(style)
     },
-    // TODO: Super rudimentary implementation that doesn't account for relations and other details
     async deleteStyle(id: string) {
-      db.prepare('DELETE FROM Style WHERE id = ?').run(id)
+      if (!styleExists(id)) {
+        throw new NotFoundError(id)
+      }
+
+      // TODO
+      // - Do any updates to Tile table need to happen here?
+      // - Need to update/delete glyphs and sprites
+      const deleteStyleTransaction = db.transaction(() => {
+        db.prepare('DELETE FROM TilesetsOnStyles WHERE styleId = ?').run(id)
+        db.prepare('DELETE FROM Style WHERE id = ?').run(id)
+      })
+
+      deleteStyleTransaction()
     },
   }
   return api
