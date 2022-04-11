@@ -656,6 +656,11 @@ const ApiPlugin: FastifyPluginAsync<PluginOptions> = async (
 ) => {
   // Create context once for each fastify instance
   const context = init(dbPath)
+
+  fastify.addHook('onClose', () => {
+    context.db.close()
+  })
+
   fastify.decorateRequest('api', {
     getter(this: FastifyRequest) {
       return createApi({ context, request: this, fastify })
