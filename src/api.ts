@@ -659,7 +659,7 @@ function createApi({
       }
 
       // TODO
-      // - Do any updates to Tile table need to happen here?
+      // - Do any updates to Tileset table need to happen here?
       // - Need to update/delete glyphs and sprites
       const deleteStyleTransaction = db.transaction(() => {
         db.prepare('DELETE FROM TilesetsOnStyles WHERE styleId = ?').run(id)
