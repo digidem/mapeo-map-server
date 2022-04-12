@@ -33,11 +33,15 @@ function isOfflineSource(source: unknown): source is OfflineSource {
  * Try to get an idempotent ID for a given style.json, fallback to random ID
  */
 function getStyleId(style: StyleJSON | OfflineStyle): string {
-  // If the style has an `upstreamUrl` property, indicating where it was
-  // downloaded from, then use that as the id (this way two clients that
-  // download the same style do not result in duplicates)
-  if (isOfflineStyle(style) && style.upstreamUrl) {
-    return encodeBase32(hash(style.upstreamUrl))
+  if (isOfflineStyle(style)) {
+    // If the style has an `upstreamUrl` property, indicating where it was
+    // downloaded from, then use that as the id (this way two clients that
+    // download the same style do not result in duplicates)s
+    if (style.upstreamUrl) {
+      return encodeBase32(hash(style.upstreamUrl))
+    }
+
+    return style.id
   } else {
     return generateId()
   }
