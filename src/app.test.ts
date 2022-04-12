@@ -281,7 +281,7 @@ test('GET /tile (png)', async (t) => {
 /**
  * /styles tests
  */
-test('POST /styles', async (t) => {
+test('POST /styles (style does not exist)', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -343,6 +343,37 @@ test('POST /styles', async (t) => {
       'besides tilesetId and url fields, source from created style matches source from input'
     )
   })
+})
+
+// TODO: Style id creation is not deterministic so repeat requests will not detect a conflict right now
+test('POST /styles (styles exists)', async (t) => {
+  const { server, sampleStyleJSON } = t.context as TestContext
+
+  const expectedId = 'example-style-id'
+
+  // Reflects the case where a user is importing a local file
+  // We'd enforce at the application level that the file contains an `id` field
+  const input = { ...sampleStyleJSON, id: expectedId }
+
+  const responsePost1 = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: input,
+  })
+
+  t.equal(
+    responsePost1.json().id,
+    expectedId,
+    'id field preserved when providing style with pre-existing id'
+  )
+
+  const responsePost2 = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: input,
+  })
+
+  t.equal(responsePost2.statusCode, 409, 'repeated POST responds with 409')
 })
 
 test('GET /style (style does not exist)', async (t) => {
