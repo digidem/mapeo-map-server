@@ -281,13 +281,20 @@ test('GET /tile (png)', async (t) => {
 /**
  * /styles tests
  */
+
+// TODO: Add styles tests for:
+// - POST /styles (style via filepath)
+// - POST /styles (style via url)
+// - POST /styles (invalid body)
+// - PUT /styles (style exists, change to a source url)
+
 test('POST /styles (style does not exist)', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: sampleStyleJSON,
+    payload: { style: sampleStyleJSON },
   })
 
   t.equal(responsePost.statusCode, 200, 'returns a status code of 200')
@@ -345,20 +352,18 @@ test('POST /styles (style does not exist)', async (t) => {
   })
 })
 
-// TODO: Style id creation is not deterministic so repeat requests will not detect a conflict right now
 test('POST /styles (styles exists)', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
-  const expectedId = 'example-style-id'
-
   // Reflects the case where a user is importing a local file
   // We'd enforce at the application level that the file contains an `id` field
+  const expectedId = 'example-style-id'
   const input = { ...sampleStyleJSON, id: expectedId }
 
   const responsePost1 = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: input,
+    payload: { style: input },
   })
 
   t.equal(
@@ -370,7 +375,7 @@ test('POST /styles (styles exists)', async (t) => {
   const responsePost2 = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: input,
+    payload: { style: input },
   })
 
   t.equal(responsePost2.statusCode, 409, 'repeated POST responds with 409')
@@ -395,7 +400,7 @@ test('GET /style (style exists)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: sampleStyleJSON,
+    payload: { style: sampleStyleJSON },
   })
 
   const { id: expectedId } = responsePost.json<OfflineStyle>()
@@ -446,7 +451,7 @@ test('GET /styles (not empty)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: sampleStyleJSON,
+    payload: { style: sampleStyleJSON },
   })
 
   const { id: expectedId } = responsePost.json<OfflineStyle>()
@@ -520,7 +525,7 @@ test('PUT /styles (style exists, simple root field change)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: sampleStyleJSON,
+    payload: { style: sampleStyleJSON },
   })
 
   const createdStyle = responsePost.json<OfflineStyle>()
@@ -569,7 +574,7 @@ test('DELETE /styles (style exists)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: simpleStylejson,
+    payload: { style: simpleStylejson },
   })
 
   const { id } = responsePost.json<OfflineStyle>()
@@ -594,7 +599,3 @@ test('DELETE /styles (style exists)', async (t) => {
 
   t.equal(responseGet.statusCode, 404, 'GET responds with 404 status code')
 })
-
-// TODO: Add styles tests for:
-// - PUT /styles (style exists, change to a source url)
-// - POST /styles (style exists)

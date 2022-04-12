@@ -1,5 +1,4 @@
 import path from 'path'
-import { URL } from 'url'
 import { Headers } from '@mapbox/mbtiles'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from 'fastify-error'
@@ -85,7 +84,7 @@ export interface Api {
     data: Buffer
     etag?: string
   }): Promise<void>
-  createStyle(style: StyleJSON): Promise<OfflineStyle>
+  createStyle(style: StyleJSON, idToUse?: string): Promise<OfflineStyle>
   putStyle(id: string, style: StyleJSON | OfflineStyle): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
   deleteStyle(id: string): Promise<void>
@@ -542,8 +541,8 @@ function createApi({
       transaction()
     },
 
-    async createStyle(style) {
-      const styleId = getStyleId(style)
+    async createStyle(style, idToUse) {
+      const styleId = idToUse || getStyleId(style)
 
       if (styleExists(styleId)) {
         throw new AlreadyExistsError(

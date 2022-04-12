@@ -1,27 +1,37 @@
+import { promises as fs } from 'fs'
 import { FastifyPluginAsync } from 'fastify'
 import createError from 'fastify-error'
-import { Static, Type as T } from '@sinclair/typebox'
-import { OfflineStyle, StyleJSON, validate } from '../lib/stylejson'
+import got from 'got'
 
-const GetStylesQuerystringSchema = T.Object({
-  limit: T.Optional(T.Number()),
-})
+import {
+  OfflineStyle,
+  StyleJSON,
+  createIdFromStyleUrl,
+  validate,
+} from '../lib/stylejson'
 
-const GetStyleParamsSchema = T.Object({
-  styleId: T.String(),
-})
+interface GetStylesQuerystring {
+  limit?: number
+}
 
-const PutStyleParamsSchema = T.Object({
-  styleId: T.String(),
-})
+interface GetStyleParams {
+  styleId: string
+}
 
-const PutStyleBodySchema = T.Object({
-  style: T.Unknown(),
-})
+interface PutStyleParams {
+  styleId: string
+}
 
-const DeleteStyleParamsSchema = T.Object({
-  styleId: T.String(),
-})
+type PutStyleBody = OfflineStyle | StyleJSON
+
+interface DeleteStyleParams {
+  styleId: string
+}
+
+type PostStyleBody =
+  | { url: string }
+  | { filepath: string }
+  | { style: StyleJSON }
 
 const InvalidStyleError = createError(
   'FST_INVALID_STYLE',
@@ -29,33 +39,77 @@ const InvalidStyleError = createError(
   400
 )
 
+const InvalidRequestBodyError = createError(
+  'FST_INVALID_REQUEST_BODY',
+  'Invalid request body: %s',
+  400
+)
+
+function createInvalidStyleError(err: unknown) {
+  return new InvalidStyleError((err as Error).message)
+}
+
 function validateStyle(style: unknown): asserts style is StyleJSON {
   try {
     validate(style)
   } catch (err) {
-    throw new InvalidStyleError((err as Error).message)
+    throw createInvalidStyleError(err)
   }
 }
 
 const styles: FastifyPluginAsync = async function (fastify) {
-  fastify.get<{ Querystring: Static<typeof GetStylesQuerystringSchema> }>(
+  fastify.get<{ Querystring: GetStylesQuerystring }>(
     '/',
     async function (request) {
       return request.api.listStyles(request.query.limit)
     }
   )
 
-  fastify.post<{ Body: StyleJSON }>('/', async function (request, reply) {
-    validateStyle(request.body)
+  fastify.post<{ Body: PostStyleBody }>('/', async function (request, reply) {
+    let style: unknown
+    let id: string | undefined
 
-    const stylejson = await request.api.createStyle(request.body)
+    if ('filepath' in request.body) {
+      try {
+        const parsedStyle = JSON.parse(
+          await fs.readFile(request.body.filepath, 'utf-8')
+        )
+
+        if (!parsedStyle.id) {
+          throw new Error('Styles imported via file must have an id field')
+        }
+
+        id = parsedStyle.id
+      } catch (err) {
+        throw createInvalidStyleError(err)
+      }
+    } else if ('url' in request.body) {
+      try {
+        const { url } = request.body
+
+        style = (await got(url).json()) as any
+        id = createIdFromStyleUrl(url)
+      } catch (err) {
+        throw createInvalidStyleError(err)
+      }
+    } else if ('style' in request.body) {
+      style = request.body.style
+    } else {
+      throw new InvalidRequestBodyError(
+        'Body must have one of the following fields: style, filepath, url'
+      )
+    }
+
+    validateStyle(style)
+
+    const stylejson = await request.api.createStyle(style, id)
 
     reply.header('Location', `${fastify.prefix}/${stylejson.id}`)
 
     return stylejson
   })
 
-  fastify.get<{ Params: Static<typeof GetStyleParamsSchema> }>(
+  fastify.get<{ Params: GetStyleParams }>(
     '/:styleId',
     async function (request) {
       return request.api.getStyle(request.params.styleId)
@@ -63,8 +117,8 @@ const styles: FastifyPluginAsync = async function (fastify) {
   )
 
   fastify.put<{
-    Params: Static<typeof PutStyleParamsSchema>
-    Body: OfflineStyle | StyleJSON
+    Params: PutStyleParams
+    Body: PutStyleBody
   }>('/:styleId', async function (request) {
     const style = request.body
 
@@ -75,7 +129,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     return stylejson
   })
 
-  fastify.delete<{ Params: Static<typeof DeleteStyleParamsSchema> }>(
+  fastify.delete<{ Params: DeleteStyleParams }>(
     '/:styleId',
     {
       schema: {

@@ -19,14 +19,19 @@ type OfflineStyle = StyleJSON & {
   }
 }
 
-function isOfflineStyle(style: StyleJSON): style is OfflineStyle {
-  return !!(style as OfflineStyle).id
-
+function isOfflineStyle(
+  style: StyleJSON | OfflineStyle
+): style is OfflineStyle {
   // TODO: Should we also check that each source is an offline source? What if sources are updated via PUT where new ones are defined?
+  return !!(style as OfflineStyle).id
 }
 
 function isOfflineSource(source: unknown): source is OfflineSource {
   return !!(source as OfflineSource).tilesetId
+}
+
+function createIdFromStyleUrl(url: string) {
+  return encodeBase32(hash(url))
 }
 
 /**
@@ -38,7 +43,7 @@ function getStyleId(style: StyleJSON | OfflineStyle): string {
     // downloaded from, then use that as the id (this way two clients that
     // download the same style do not result in duplicates)s
     if (style.upstreamUrl) {
-      return encodeBase32(hash(style.upstreamUrl))
+      return createIdFromStyleUrl(style.upstreamUrl)
     }
 
     return style.id
@@ -80,6 +85,7 @@ export {
   OfflineSource,
   OfflineStyle,
   StyleJSON,
+  createIdFromStyleUrl,
   getStyleId,
   isOfflineSource,
   isOfflineStyle,
