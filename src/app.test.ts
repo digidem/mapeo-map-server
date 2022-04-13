@@ -288,6 +288,7 @@ test('GET /tile (png)', async (t) => {
 // - POST /styles (style via filepath)
 // - POST /styles (style via url)
 // - POST /styles (invalid body)
+// - POST /styles (missing MB access token when it's necessary)
 // - PUT /styles (style exists, change to a source url)
 
 test('POST /styles (style does not exist)', async (t) => {
@@ -381,6 +382,18 @@ test('POST /styles (styles exists)', async (t) => {
   })
 
   t.equal(responsePost2.statusCode, 409, 'repeated POST responds with 409')
+})
+
+test('POST /style (Mapbox access token is missing when necessary)', async (t) => {
+  const { server, sampleStyleJSON } = t.context as TestContext
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: { style: sampleStyleJSON, accessToken: undefined },
+  })
+
+  t.equal(responsePost.statusCode, 400, 'POST responds with 400')
 })
 
 test('GET /style (style does not exist)', async (t) => {

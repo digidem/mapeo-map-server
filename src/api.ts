@@ -26,7 +26,7 @@ import {
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
-import { normalizeSourceURL } from './lib/mapbox_urls'
+import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -52,7 +52,14 @@ const MismatchedIdError = createError(
   400
 )
 
+const MBAccessTokenRequiredError = createError(
+  'FST_ACCESS_TOKEN',
+  'A Mapbox API access token is required for styles that use Mapbox-hosted sources',
+  400
+)
+
 const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
+
 export interface PluginOptions {
   dbPath: string
 }
@@ -247,6 +254,9 @@ function createApi({
         throw new UnsupportedSourceError(
           `Currently only sources defined with \`source.url\` are supported (referencing a TileJSON), but this style.json has a source '${sourceId}' that does not have a \`url\` property`
         )
+      }
+      if (isMapboxURL(source.url) && !accessToken) {
+        throw new MBAccessTokenRequiredError()
       }
 
       // TODO: For now, don't create new offline sources for pre-existing ones?
