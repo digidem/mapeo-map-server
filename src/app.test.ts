@@ -288,10 +288,38 @@ test('GET /tile (png)', async (t) => {
 // - POST /styles (style via filepath)
 // - POST /styles (style via url)
 // - POST /styles (invalid body)
-// - POST /styles (missing MB access token when it's necessary)
 // - PUT /styles (style exists, change to a source url)
 
-test('POST /styles (style does not exist)', async (t) => {
+test('POST /styles (style exists)', async (t) => {
+  const { server, sampleStyleJSON } = t.context as TestContext
+
+  // Reflects the case where a user is importing a local file
+  // We'd enforce at the application level that the file contains an `id` field
+  const expectedId = 'example-style-id'
+  const input = { ...sampleStyleJSON, id: expectedId }
+
+  const responsePost1 = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: { style: input, accessToken: DUMMY_MB_ACCESS_TOKEN },
+  })
+
+  t.equal(
+    responsePost1.json().id,
+    expectedId,
+    'id field preserved when providing style with pre-existing id'
+  )
+
+  const responsePost2 = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: { style: input, accessToken: DUMMY_MB_ACCESS_TOKEN },
+  })
+
+  t.equal(responsePost2.statusCode, 409, 'repeated POST responds with 409')
+})
+
+test('POST /styles (via style field)', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -355,33 +383,35 @@ test('POST /styles (style does not exist)', async (t) => {
   })
 })
 
-test('POST /styles (styles exists)', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
+test('POST /styles (via filepath field, style missing id field)', async (t) => {
+  const { server } = t.context as TestContext
 
-  // Reflects the case where a user is importing a local file
-  // We'd enforce at the application level that the file contains an `id` field
-  const expectedId = 'example-style-id'
-  const input = { ...sampleStyleJSON, id: expectedId }
+  const expectedErrorMessage =
+    'Invalid style: Styles imported via file must have an id field'
+  const expectedErrorCode = 'FST_INVALID_STYLE'
 
-  const responsePost1 = await server.inject({
+  const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: input, accessToken: DUMMY_MB_ACCESS_TOKEN },
+    payload: {
+      // TODO: Create a separate fixture with naming specific to this test
+      filepath: path.resolve(
+        __dirname,
+        './fixtures/good-stylejson/good-simple.json'
+      ),
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
   })
 
+  const { code, message } = responsePost.json()
+
+  t.equal(responsePost.statusCode, 400, 'responds with 400 status code')
+  t.equal(code, expectedErrorCode, 'response has expected error code')
   t.equal(
-    responsePost1.json().id,
-    expectedId,
-    'id field preserved when providing style with pre-existing id'
+    message,
+    expectedErrorMessage,
+    'response has expected error message about missing `id` field'
   )
-
-  const responsePost2 = await server.inject({
-    method: 'POST',
-    url: '/styles',
-    payload: { style: input, accessToken: DUMMY_MB_ACCESS_TOKEN },
-  })
-
-  t.equal(responsePost2.statusCode, 409, 'repeated POST responds with 409')
 })
 
 test('POST /style (Mapbox access token is missing when necessary)', async (t) => {
