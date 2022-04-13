@@ -109,6 +109,8 @@ const styles: FastifyPluginAsync = async function (fastify) {
 
     validateStyle(style)
 
+    // TODO: Should we catch the missing access token issue before calling this? i.e. check if `url` or any of `style.sources` are Mapbox urls
+    // `createStyle` will catch these but may save resources in the db before that occurs
     const stylejson = await request.api.createStyle(style, { id, accessToken })
 
     reply.header('Location', `${fastify.prefix}/${stylejson.id}`)
