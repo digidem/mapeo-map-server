@@ -3,6 +3,7 @@ import { FastifyPluginAsync } from 'fastify'
 import createError from 'fastify-error'
 import got from 'got'
 
+import { normalizeStyleURL } from '../lib/mapbox_urls'
 import {
   OfflineStyle,
   StyleJSON,
@@ -28,10 +29,11 @@ interface DeleteStyleParams {
   styleId: string
 }
 
-type PostStyleBody =
+type PostStyleBody = { accessToken?: string } & (
   | { url: string }
   | { filepath: string }
   | { style: StyleJSON }
+)
 
 const InvalidStyleError = createError(
   'FST_INVALID_STYLE',
@@ -68,6 +70,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
   fastify.post<{ Body: PostStyleBody }>('/', async function (request, reply) {
     let style: unknown
     let id: string | undefined
+    const { accessToken } = request.body
 
     if ('filepath' in request.body) {
       try {
@@ -87,7 +90,11 @@ const styles: FastifyPluginAsync = async function (fastify) {
       try {
         const { url } = request.body
 
-        style = (await got(url).json()) as any
+        // This will throw if the url is a mapbox style url and an access token is not provided
+        // Ideally prevented via client-side code but just in case
+        const upstreamUrl = normalizeStyleURL(url, accessToken)
+
+        style = (await got(upstreamUrl).json()) as any
         id = createIdFromStyleUrl(url)
       } catch (err) {
         throw createInvalidStyleError(err)
@@ -102,7 +109,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
 
     validateStyle(style)
 
-    const stylejson = await request.api.createStyle(style, id)
+    const stylejson = await request.api.createStyle(style, { id, accessToken })
 
     reply.header('Location', `${fastify.prefix}/${stylejson.id}`)
 
@@ -116,6 +123,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     }
   )
 
+  // TODO: May need to accept an access token?
   fastify.put<{
     Params: PutStyleParams
     Body: PutStyleBody

@@ -19,6 +19,8 @@ import { server as mockTileServer } from './mocks/server'
 
 tmp.setGracefulCleanup()
 
+const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
+
 type TestContext = {
   server: FastifyInstance
   sampleTileJSON: TileJSON
@@ -294,7 +296,7 @@ test('POST /styles (style does not exist)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: sampleStyleJSON },
+    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
   t.equal(responsePost.statusCode, 200, 'returns a status code of 200')
@@ -363,7 +365,7 @@ test('POST /styles (styles exists)', async (t) => {
   const responsePost1 = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: input },
+    payload: { style: input, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
   t.equal(
@@ -375,7 +377,7 @@ test('POST /styles (styles exists)', async (t) => {
   const responsePost2 = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: input },
+    payload: { style: input, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
   t.equal(responsePost2.statusCode, 409, 'repeated POST responds with 409')
@@ -400,7 +402,7 @@ test('GET /style (style exists)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: sampleStyleJSON },
+    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
   const { id: expectedId } = responsePost.json<OfflineStyle>()
@@ -451,7 +453,7 @@ test('GET /styles (not empty)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: sampleStyleJSON },
+    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
   const { id: expectedId } = responsePost.json<OfflineStyle>()
@@ -525,7 +527,7 @@ test('PUT /styles (style exists, simple root field change)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: sampleStyleJSON },
+    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
   const createdStyle = responsePost.json<OfflineStyle>()
@@ -574,7 +576,7 @@ test('DELETE /styles (style exists)', async (t) => {
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: simpleStylejson },
+    payload: { style: simpleStylejson, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
   const { id } = responsePost.json<OfflineStyle>()

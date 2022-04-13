@@ -26,6 +26,7 @@ import {
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
+import { normalizeSourceURL } from './lib/mapbox_urls'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -84,7 +85,10 @@ export interface Api {
     data: Buffer
     etag?: string
   }): Promise<void>
-  createStyle(style: StyleJSON, idToUse?: string): Promise<OfflineStyle>
+  createStyle(
+    style: StyleJSON,
+    options?: { id?: string; accessToken?: string }
+  ): Promise<OfflineStyle>
   putStyle(id: string, style: StyleJSON | OfflineStyle): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
   deleteStyle(id: string): Promise<void>
@@ -220,10 +224,15 @@ function createApi({
    * Given a map of sources from a style, this will create offline tilesets for
    * each source, and update the source to reference the offline tileset
    */
-  async function createOfflineSources(
-    styleId: string,
+  async function createOfflineSources({
+    accessToken,
+    sources,
+    styleId,
+  }: {
+    accessToken?: string
+    styleId: string
     sources: StyleJSON['sources'] | OfflineStyle['sources']
-  ): Promise<OfflineStyle['sources']> {
+  }): Promise<OfflineStyle['sources']> {
     const offlineSources: OfflineStyle['sources'] = {}
 
     for (const sourceId of Object.keys(sources)) {
@@ -245,12 +254,9 @@ function createApi({
         continue
       }
 
-      // TODO: Need to properly handle Mapbox URLs e.g. mapbox://
-      const url = source.url.startsWith('mapbox://')
-        ? getMapboxSourceUrl(source.url)
-        : source.url
+      const upstreamUrl = normalizeSourceURL(source.url, accessToken)
 
-      const tilejson = await got(url).json()
+      const tilejson = await got(upstreamUrl).json()
 
       if (!validateTileJSON(tilejson)) {
         // TODO: Write these errors to UnsupportedSourceError.message rather
@@ -541,8 +547,8 @@ function createApi({
       transaction()
     },
 
-    async createStyle(style, idToUse) {
-      const styleId = idToUse || getStyleId(style)
+    async createStyle(style, { id, accessToken } = {}) {
+      const styleId = id || getStyleId(style)
 
       if (styleExists(styleId)) {
         throw new AlreadyExistsError(
@@ -553,7 +559,11 @@ function createApi({
       const offlineStyle: OfflineStyle = {
         ...(await uncompositeStyle(style)),
         id: styleId,
-        sources: await createOfflineSources(styleId, style.sources),
+        sources: await createOfflineSources({
+          accessToken,
+          styleId,
+          sources: style.sources,
+        }),
       }
 
       db.prepare(
@@ -571,6 +581,7 @@ function createApi({
       return addOfflineUrls(offlineStyle)
     },
 
+    // TODO: May need to accept an access token
     async putStyle(id, style) {
       if ('id' in style && id !== style.id) {
         throw new MismatchedIdError(id, style.id)
@@ -584,7 +595,10 @@ function createApi({
         ...(await uncompositeStyle(style)),
         id,
         // TODO: Is this the right thing to do? May need to update createOfflineSources to handle pre-existing tilesets for this style
-        sources: await createOfflineSources(id, style.sources),
+        sources: await createOfflineSources({
+          styleId: id,
+          sources: style.sources,
+        }),
       }
 
       db.prepare('UPDATE Style SET stylejson = :stylejson WHERE id = :id').run({
