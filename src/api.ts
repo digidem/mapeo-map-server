@@ -22,7 +22,6 @@ import {
   getTilesetId,
   tileToQuadKey,
   hash,
-  getMapboxSourceUrl,
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
