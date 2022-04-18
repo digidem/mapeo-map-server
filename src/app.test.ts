@@ -534,68 +534,6 @@ test('GET /styles (not empty)', async (t) => {
   )
 })
 
-test('PUT /styles (bad id param)', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
-
-  const id = 'nonexistent-id'
-
-  const responsePut = await server.inject({
-    method: 'PUT',
-    url: `/styles/${id}`,
-    payload: { ...sampleStyleJSON, id },
-  })
-
-  t.equal(responsePut.statusCode, 404, 'returns 404 status code')
-})
-
-test('PUT /styles (style does not exist)', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
-
-  const responsePut = await server.inject({
-    method: 'PUT',
-    url: `/styles/b`,
-    payload: { ...sampleStyleJSON, id: 'a' },
-  })
-
-  t.equal(
-    responsePut.statusCode,
-    400,
-    'returns 400 status code due to mismatched id param'
-  )
-})
-
-test('PUT /styles (style exists, simple root field change)', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
-
-  const responsePost = await server.inject({
-    method: 'POST',
-    url: '/styles',
-    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
-  })
-
-  const createdStyle = responsePost.json<OfflineStyle>()
-
-  const updatedNameField = 'New name'
-
-  const responsePut = await server.inject({
-    method: 'PUT',
-    url: `/styles/${createdStyle.id}`,
-    payload: { ...createdStyle, name: updatedNameField },
-  })
-
-  const updatedStyle = responsePut.json<OfflineStyle>()
-
-  t.equal(responsePut.statusCode, 200, 'PUT responded with success code')
-
-  t.notSame(
-    createdStyle,
-    updatedStyle,
-    'Updated response is different from initially created resource'
-  )
-
-  t.same(updatedStyle.name, updatedNameField, 'Response has updated fields')
-})
-
 test('DELETE /styles (style does not exist)', async (t) => {
   const { server } = t.context as TestContext
 

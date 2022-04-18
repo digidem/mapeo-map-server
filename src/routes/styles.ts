@@ -4,22 +4,11 @@ import createError from 'fastify-error'
 import got from 'got'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
-import {
-  OfflineStyle,
-  StyleJSON,
-  createIdFromStyleUrl,
-  validate,
-} from '../lib/stylejson'
+import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
 
 interface GetStyleParams {
   styleId: string
 }
-
-interface PutStyleParams {
-  styleId: string
-}
-
-type PutStyleBody = OfflineStyle | StyleJSON
 
 interface DeleteStyleParams {
   styleId: string
@@ -117,20 +106,6 @@ const styles: FastifyPluginAsync = async function (fastify) {
       return request.api.getStyle(request.params.styleId)
     }
   )
-
-  // TODO: May need to accept an access token?
-  fastify.put<{
-    Params: PutStyleParams
-    Body: PutStyleBody
-  }>('/:styleId', async function (request) {
-    const style = request.body
-
-    validateStyle(style)
-
-    const stylejson = await request.api.putStyle(request.params.styleId, style)
-
-    return stylejson
-  })
 
   fastify.delete<{ Params: DeleteStyleParams }>(
     '/:styleId',

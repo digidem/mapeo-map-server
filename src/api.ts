@@ -102,7 +102,10 @@ export interface Api {
     style: StyleJSON,
     options?: { id?: string; accessToken?: string }
   ): Promise<OfflineStyle>
-  putStyle(id: string, style: StyleJSON | OfflineStyle): Promise<OfflineStyle>
+  updateStyle(
+    id: string,
+    style: StyleJSON | OfflineStyle
+  ): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
   deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<OfflineStyle>>
@@ -603,7 +606,7 @@ function createApi({
     },
 
     // TODO: May need to accept an access token
-    async putStyle(id, style) {
+    async updateStyle(id, style) {
       if ('id' in style && id !== style.id) {
         throw new MismatchedIdError(id, style.id)
       }
@@ -679,7 +682,7 @@ function createApi({
           throw new UpstreamJsonValidationError(url, err)
         }
 
-        if (data) api.putStyle(id, data)
+        if (data) api.updateStyle(id, data)
       }
 
       if (style.upstreamUrl) {
