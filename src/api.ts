@@ -16,6 +16,7 @@ import {
   getStyleId,
   uncompositeStyle,
   isOfflineSource,
+  validate as validateStyleJSON,
 } from './lib/stylejson'
 import {
   getInterpolatedUpstreamTileUrl,
@@ -55,6 +56,12 @@ const MBAccessTokenRequiredError = createError(
   'FST_ACCESS_TOKEN',
   'A Mapbox API access token is required for styles that use Mapbox-hosted sources',
   400
+)
+
+const UpstreamJsonValidationError = createError(
+  'FST_UPSTREAM_VALIDATION',
+  'JSON validation failed for upstream resource from %s: %s',
+  500
 )
 
 const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
@@ -412,8 +419,13 @@ function createApi({
         const { data } = await upstreamRequestsManager.getUpstream({
           url,
           etag,
-          responseType: 'tilejson',
+          responseType: 'json',
         })
+
+        if (!validateTileJSON(data)) {
+          // TODO: Do we want to throw here?
+          throw new UpstreamJsonValidationError(url, validateTileJSON.errors)
+        }
 
         if (data) api.putTileset(id, data)
       }
@@ -662,8 +674,15 @@ function createApi({
         const { data } = await upstreamRequestsManager.getUpstream({
           url,
           etag,
-          responseType: 'stylejson',
+          responseType: 'json',
         })
+
+        try {
+          validateStyleJSON(data)
+        } catch (err) {
+          // TODO: Do we want to throw here?
+          throw new UpstreamJsonValidationError(url, err)
+        }
 
         if (data) api.putStyle(id, data)
       }

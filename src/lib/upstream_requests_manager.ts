@@ -1,15 +1,11 @@
 import got from 'got'
-import { StyleJSON } from './stylejson'
-import { TileJSON } from './tilejson'
 
-type ResponseType = 'buffer' | 'stylejson' | 'text' | 'tilejson'
+type ResponseType = 'buffer' | 'json' | 'text'
 
 type DataType<T extends ResponseType> = T extends 'buffer'
   ? Buffer
-  : T extends 'stylejson'
-  ? StyleJSON
-  : T extends 'tilejson'
-  ? TileJSON
+  : T extends 'json'
+  ? unknown
   : T extends 'text'
   ? string
   : never
@@ -49,7 +45,7 @@ export class UpstreamRequestsManager {
 
     const request = got(url, {
       headers,
-      responseType: responseTypeIsJSON(responseType) ? 'json' : responseType,
+      responseType,
     }).then((response) => {
       if (response.statusCode === 304) throw new Error('Not Modified')
 
@@ -78,10 +74,4 @@ export class UpstreamRequestsManager {
 
     return request
   }
-}
-
-function responseTypeIsJSON(
-  t: ResponseType
-): t is Extract<ResponseType, 'stylejson' | 'tilejson'> {
-  return t.endsWith('json')
 }
