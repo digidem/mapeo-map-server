@@ -11,10 +11,6 @@ import {
   validate,
 } from '../lib/stylejson'
 
-interface GetStylesQuerystring {
-  limit?: number
-}
-
 interface GetStyleParams {
   styleId: string
 }
@@ -60,12 +56,9 @@ function validateStyle(style: unknown): asserts style is StyleJSON {
 }
 
 const styles: FastifyPluginAsync = async function (fastify) {
-  fastify.get<{ Querystring: GetStylesQuerystring }>(
-    '/',
-    async function (request) {
-      return request.api.listStyles(request.query.limit)
-    }
-  )
+  fastify.get('/', async function (request) {
+    return request.api.listStyles()
+  })
 
   fastify.post<{ Body: PostStyleBody }>('/', async function (request, reply) {
     let style: unknown

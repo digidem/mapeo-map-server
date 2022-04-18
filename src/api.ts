@@ -105,7 +105,7 @@ export interface Api {
   putStyle(id: string, style: StyleJSON | OfflineStyle): Promise<OfflineStyle>
   getStyle(id: string): Promise<OfflineStyle>
   deleteStyle(id: string): Promise<void>
-  listStyles(limit?: number): Promise<Array<OfflineStyle>>
+  listStyles(): Promise<Array<OfflineStyle>>
 }
 
 function createApi({
@@ -632,24 +632,19 @@ function createApi({
       return addOfflineUrls(offlineStyle)
     },
 
-    async listStyles(limit?: number) {
+    async listStyles() {
       const styles: OfflineStyle[] = []
 
-      const baseQuery = 'SELECT stylejson FROM Style'
-
-      const stmt =
-        limit !== undefined
-          ? db.prepare(`${baseQuery} LIMIT ?`).bind(limit)
-          : db.prepare(baseQuery)
-
-      stmt.all().forEach(({ stylejson }: { stylejson: string }) => {
-        try {
-          const style: OfflineStyle = JSON.parse(stylejson)
-          styles.push(addOfflineUrls(style))
-        } catch (err) {
-          // TODO: What should we do here? e.g. omit or throw?
-        }
-      })
+      db.prepare('SELECT stylejson FROM Style')
+        .all()
+        .forEach(({ stylejson }: { stylejson: string }) => {
+          try {
+            const style: OfflineStyle = JSON.parse(stylejson)
+            styles.push(addOfflineUrls(style))
+          } catch (err) {
+            // TODO: What should we do here? e.g. omit or throw?
+          }
+        })
 
       return styles
     },
