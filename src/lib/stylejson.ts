@@ -2,34 +2,10 @@
 import {
   validate as validateStyleJSON,
   StyleSpecification as StyleJSON,
-  SourceSpecification,
 } from '@maplibre/maplibre-gl-style-spec'
 import { URL } from 'url'
 
 import { encodeBase32, generateId, hash } from './utils'
-
-type OfflineSource = SourceSpecification & {
-  tilesetId: string
-}
-
-type OfflineStyle = StyleJSON & {
-  id: string
-  upstreamUrl?: string
-  sources: {
-    [_: string]: OfflineSource
-  }
-}
-
-function isOfflineStyle(
-  style: StyleJSON | OfflineStyle
-): style is OfflineStyle {
-  // TODO: Should we also check that each source is an offline source? What if sources are updated via PUT where new ones are defined?
-  return !!(style as OfflineStyle).id
-}
-
-function isOfflineSource(source: unknown): source is OfflineSource {
-  return !!(source as OfflineSource).tilesetId
-}
 
 function createIdFromStyleUrl(url: string) {
   const u = new URL(url)
@@ -81,13 +57,9 @@ function validate(style: unknown): asserts style is StyleJSON {
 }
 
 export {
-  OfflineSource,
-  OfflineStyle,
   StyleJSON,
   createIdFromStyleUrl,
   getStyleId,
-  isOfflineSource,
-  isOfflineStyle,
   uncompositeStyle,
   validate,
 }

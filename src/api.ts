@@ -12,10 +12,8 @@ import QuickLRU from 'quick-lru'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import {
   StyleJSON,
-  OfflineStyle,
   getStyleId,
   uncompositeStyle,
-  isOfflineSource,
   validate as validateStyleJSON,
 } from './lib/stylejson'
 import {
@@ -278,11 +276,6 @@ function createApi({
       }
       if (isMapboxURL(source.url) && !accessToken) {
         throw new MBAccessTokenRequiredError()
-      }
-
-      // TODO: For now, don't create new offline sources for pre-existing ones?
-      if (isOfflineSource(source)) {
-        continue
       }
 
       const upstreamUrl = normalizeSourceURL(source.url, accessToken)
