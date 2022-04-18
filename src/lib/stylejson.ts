@@ -4,6 +4,7 @@ import {
   StyleSpecification as StyleJSON,
   SourceSpecification,
 } from '@maplibre/maplibre-gl-style-spec'
+import { URL } from 'url'
 
 import { encodeBase32, generateId, hash } from './utils'
 
@@ -31,7 +32,9 @@ function isOfflineSource(source: unknown): source is OfflineSource {
 }
 
 function createIdFromStyleUrl(url: string) {
-  return encodeBase32(hash(url))
+  const u = new URL(url)
+  u.searchParams.delete('access_token')
+  return encodeBase32(hash(u.toString()))
 }
 
 /**
