@@ -281,23 +281,26 @@ test('GET /tile (png)', async (t) => {
  */
 
 // TODO: Add styles tests for:
-// - POST /styles (style via filepath)
 // - POST /styles (style via url)
 // - POST /styles (invalid body)
-// - PUT /styles (style exists, change to a source url)
 
 test('POST /styles (style exists)', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
-  // Reflects the case where a user is importing a local file
-  // We'd enforce at the application level that the file contains an `id` field
+  // Reflects the case where a user is providing the style directly
+  // We'd enforce at the application level that they provide an `id` field in their body
   const expectedId = 'example-style-id'
-  const input = { ...sampleStyleJSON, id: expectedId }
+
+  const payload = {
+    style: sampleStyleJSON,
+    id: expectedId,
+    accessToken: DUMMY_MB_ACCESS_TOKEN,
+  }
 
   const responsePost1 = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: input, accessToken: DUMMY_MB_ACCESS_TOKEN },
+    payload,
   })
 
   t.equal(
@@ -309,7 +312,7 @@ test('POST /styles (style exists)', async (t) => {
   const responsePost2 = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: input, accessToken: DUMMY_MB_ACCESS_TOKEN },
+    payload,
   })
 
   t.equal(responsePost2.statusCode, 409, 'repeated POST responds with 409')
@@ -375,37 +378,6 @@ test('POST /styles (via style field)', async (t) => {
       'with exception of `url` field, source from created style matches source from input'
     )
   })
-})
-
-test('POST /styles (via filepath field, style missing id field)', async (t) => {
-  const { server } = t.context as TestContext
-
-  const expectedErrorMessage =
-    'Invalid style: Styles imported via file must have an id field'
-  const expectedErrorCode = 'FST_INVALID_STYLE'
-
-  const responsePost = await server.inject({
-    method: 'POST',
-    url: '/styles',
-    payload: {
-      // TODO: Create a separate fixture with naming specific to this test
-      filepath: path.resolve(
-        __dirname,
-        './fixtures/good-stylejson/good-simple.json'
-      ),
-      accessToken: DUMMY_MB_ACCESS_TOKEN,
-    },
-  })
-
-  const { code, message } = responsePost.json()
-
-  t.equal(responsePost.statusCode, 400, 'responds with 400 status code')
-  t.equal(code, expectedErrorCode, 'response has expected error code')
-  t.equal(
-    message,
-    expectedErrorMessage,
-    'response has expected error message about missing `id` field'
-  )
 })
 
 test('POST /styles (Mapbox access token is missing when necessary)', async (t) => {

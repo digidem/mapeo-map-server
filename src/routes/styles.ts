@@ -1,4 +1,3 @@
-import { promises as fs } from 'fs'
 import { FastifyPluginAsync } from 'fastify'
 import createError from 'fastify-error'
 import got from 'got'
@@ -16,7 +15,7 @@ interface DeleteStyleParams {
 
 type PostStyleBody = { accessToken?: string } & (
   | { url: string }
-  | { style: StyleJSON }
+  | { id?: string; style: StyleJSON }
 )
 
 const InvalidStyleError = createError(
@@ -53,7 +52,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     let id: string | undefined
     const { accessToken } = request.body
 
-    if ('url' in request.body) {
+    if ('url' in request.body && request.body.url) {
       try {
         const { url } = request.body
 
@@ -66,11 +65,13 @@ const styles: FastifyPluginAsync = async function (fastify) {
       } catch (err) {
         throw createInvalidStyleError(err)
       }
-    } else if ('style' in request.body) {
+    } else if ('style' in request.body && request.body.style) {
+      // Client can provide id to use for style since there's no good way of deterministically generating one in this case
+      id = request.body.id
       style = request.body.style
     } else {
       throw new InvalidRequestBodyError(
-        'Body must have one of the following fields: style, filepath, url'
+        'Body must have one of the following fields: style, url'
       )
     }
 

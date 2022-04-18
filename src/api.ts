@@ -585,7 +585,7 @@ function createApi({
     },
 
     async createStyle(style, { id, accessToken } = {}) {
-      const styleId = id || getStyleId(style)
+      const styleId = id || getStyleId()
 
       if (styleExists(styleId)) {
         throw new AlreadyExistsError(

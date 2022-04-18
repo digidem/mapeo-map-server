@@ -40,16 +40,12 @@ function createIdFromStyleUrl(url: string) {
 /**
  * Try to get an idempotent ID for a given style.json, fallback to random ID
  */
-function getStyleId(style: StyleJSON | OfflineStyle): string {
-  if (isOfflineStyle(style)) {
-    // If the style has an `upstreamUrl` property, indicating where it was
-    // downloaded from, then use that as the id (this way two clients that
-    // download the same style do not result in duplicates)s
-    if (style.upstreamUrl) {
-      return createIdFromStyleUrl(style.upstreamUrl)
-    }
-
-    return style.id
+function getStyleId(upstreamUrl?: string): string {
+  // If the style has an `upstreamUrl` property, indicating where it was
+  // downloaded from, then use that as the id (this way two clients that
+  // download the same style do not result in duplicates)s
+  if (upstreamUrl) {
+    return createIdFromStyleUrl(upstreamUrl)
   } else {
     return generateId()
   }
