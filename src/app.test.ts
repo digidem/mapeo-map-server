@@ -9,11 +9,7 @@ import { IdResource } from './api'
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
-import {
-  OfflineStyle,
-  StyleJSON,
-  validate as validateStyleJSON,
-} from './lib/stylejson'
+import { StyleJSON, validate as validateStyleJSON } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 
@@ -330,10 +326,12 @@ test('POST /styles (via style field)', async (t) => {
 
   t.equal(responsePost.statusCode, 200, 'returns a status code of 200')
 
-  const createdStyle = responsePost.json<OfflineStyle>()
+  const { id: createdStyleId, ...createdStyle } = responsePost.json<
+    StyleJSON & IdResource
+  >()
 
   // TODO: Need to deterministically generate an id for a style, so we should be expecting a known id here at some point
-  t.ok(createdStyle.id, 'created style possesses an id')
+  t.ok(createdStyleId, 'created style possesses an id')
 
   t.notSame(
     createdStyle.sources,
@@ -341,32 +339,28 @@ test('POST /styles (via style field)', async (t) => {
     'created style possesses sources that are altered from input'
   )
 
+  // The map server updates the sources so that each source's `url` field points to the map server
   const ignoredStyleFields = {
-    id: undefined,
     sources: undefined,
   }
 
   t.same(
     { ...createdStyle, ...ignoredStyleFields },
     { ...sampleStyleJSON, ...ignoredStyleFields },
-    'besides id and sources fields, created style is the same as input'
+    'with exception of `sources` field, created style is the same as input'
   )
 
+  const tilesetEndpointPrefix = `http://localhost:80/tilesets/`
+
   Object.entries(createdStyle.sources).forEach(([name, source]) => {
-    t.ok(source.tilesetId, 'source has tileset id field attached to it')
-
     if ('url' in source) {
-      const expectedSourceUrl = `http://localhost:80/tilesets/${source.tilesetId}`
-
-      t.equal(
-        source.url,
-        expectedSourceUrl,
+      t.ok(
+        source.url?.startsWith(tilesetEndpointPrefix),
         'url field in source remapped to map server instance'
       )
     }
 
     const ignoredSourceFields = {
-      tilesetId: undefined,
       url: undefined,
     }
 
@@ -378,7 +372,7 @@ test('POST /styles (via style field)', async (t) => {
         ],
         ...ignoredSourceFields,
       },
-      'besides tilesetId and url fields, source from created style matches source from input'
+      'with exception of `url` field, source from created style matches source from input'
     )
   })
 })
@@ -414,7 +408,7 @@ test('POST /styles (via filepath field, style missing id field)', async (t) => {
   )
 })
 
-test('POST /style (Mapbox access token is missing when necessary)', async (t) => {
+test('POST /styles (Mapbox access token is missing when necessary)', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -426,7 +420,7 @@ test('POST /style (Mapbox access token is missing when necessary)', async (t) =>
   t.equal(responsePost.statusCode, 400, 'POST responds with 400')
 })
 
-test('GET /style (style does not exist)', async (t) => {
+test('GET /styles/:styleId (style does not exist)', async (t) => {
   const { server } = t.context as TestContext
 
   const id = 'nonexistent-id'
@@ -439,7 +433,7 @@ test('GET /style (style does not exist)', async (t) => {
   t.equal(responseGet.statusCode, 404, 'responds with 404 status code')
 })
 
-test('GET /style (style exists)', async (t) => {
+test('GET /styles/:styleId (style exists)', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -448,7 +442,7 @@ test('GET /style (style exists)', async (t) => {
     payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
-  const { id: expectedId } = responsePost.json<OfflineStyle>()
+  const { id: expectedId } = responsePost.json<StyleJSON & IdResource>()
 
   const responseGet = await server.inject({
     method: 'GET',
@@ -467,13 +461,11 @@ test('GET /style (style exists)', async (t) => {
         'mapbox-streets'
       ] as VectorSourceSpecification),
       url: expectedTilesetUrl,
-      tilesetId: expectedTilesetId,
     },
   }
 
   const expectedGetResponse = {
     ...sampleStyleJSON,
-    id: expectedId,
     sources: expectedSources,
   }
 
@@ -499,27 +491,11 @@ test('GET /styles (not empty)', async (t) => {
     payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
-  const { id: expectedId } = responsePost.json<OfflineStyle>()
-
-  // This will change if a style fixture other than good-stylejson/good-simple.json is used
-  const expectedTilesetId = 'yqtx3fxnp2vdyssc82ew4f377g4y0njk' // generated from getTilesetId in lib/utils.ts
-  const expectedTilesetUrl = `http://localhost:80/tilesets/${expectedTilesetId}`
-
-  const expectedSources = {
-    'mapbox-streets': {
-      ...(simpleStylejson.sources[
-        'mapbox-streets'
-      ] as VectorSourceSpecification),
-      url: expectedTilesetUrl,
-      tilesetId: expectedTilesetId,
-    },
-  }
+  const { id: expectedId } = responsePost.json()
 
   const expectedGetResponse = [
     {
-      ...sampleStyleJSON,
       id: expectedId,
-      sources: expectedSources,
     },
   ]
 
@@ -530,7 +506,7 @@ test('GET /styles (not empty)', async (t) => {
   t.same(
     responseGet.json(),
     expectedGetResponse,
-    'returns array with desired stylejson'
+    'returns array with desired style ids'
   )
 })
 
@@ -560,7 +536,7 @@ test('DELETE /styles (style exists)', async (t) => {
     payload: { style: simpleStylejson, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
-  const { id } = responsePost.json<OfflineStyle>()
+  const { id } = responsePost.json<StyleJSON & IdResource>()
 
   const responseDelete = await server.inject({
     method: 'DELETE',

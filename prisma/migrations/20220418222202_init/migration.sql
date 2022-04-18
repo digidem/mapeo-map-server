@@ -44,6 +44,7 @@ CREATE TABLE "Style" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "stylejson" TEXT NOT NULL,
     "etag" TEXT,
+    "upstreamUrl" TEXT,
     "spriteId" TEXT
 );
 

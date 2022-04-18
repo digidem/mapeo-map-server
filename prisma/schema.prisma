@@ -61,6 +61,7 @@ model Style {
   // JSON string that adheres to style specification v8
   stylejson    String
   etag         String?
+  upstreamUrl  String?
   spriteId     String?
   offlineAreas OfflineArea[]
   tilesets     TilesetsOnStyles[]

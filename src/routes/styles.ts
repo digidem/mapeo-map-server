@@ -95,7 +95,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     // `createStyle` will catch these but may save resources in the db before that occurs
     const stylejson = await request.api.createStyle(style, { id, accessToken })
 
-    reply.header('Location', `${fastify.prefix}/${stylejson.id}`)
+    reply.header('Location', `${fastify.prefix}/${id}`)
 
     return stylejson
   })

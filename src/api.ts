@@ -70,6 +70,10 @@ export interface PluginOptions {
   dbPath: string
 }
 
+interface SourceIdToTilesetId {
+  [sourceId: keyof StyleJSON['sources']]: string
+}
+
 interface Context {
   db: DatabaseInstance
   upstreamRequestsManager: UpstreamRequestsManager
@@ -101,14 +105,11 @@ export interface Api {
   createStyle(
     style: StyleJSON,
     options?: { id?: string; accessToken?: string }
-  ): Promise<OfflineStyle>
-  updateStyle(
-    id: string,
-    style: StyleJSON | OfflineStyle
-  ): Promise<OfflineStyle>
-  getStyle(id: string): Promise<OfflineStyle>
+  ): Promise<StyleJSON & IdResource>
+  updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
+  getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<OfflineStyle>>
+  listStyles(): Promise<Array<{ name?: string } & IdResource>>
 }
 
 function createApi({
@@ -140,28 +141,35 @@ function createApi({
     return `${apiUrl}/fonts/${styleId}/{fontstack}/{range}`
   }
 
-  function addOfflineUrls(style: OfflineStyle): OfflineStyle {
-    const updatedOfflineSources: OfflineStyle['sources'] = {}
+  function addOfflineUrls({
+    style,
+    styleId,
+    sourceIdToTilesetId,
+  }: {
+    style: StyleJSON
+    styleId: string
+    sourceIdToTilesetId: SourceIdToTilesetId
+  }): StyleJSON {
+    const updatedSources: StyleJSON['sources'] = {}
+
     for (const sourceId of Object.keys(style.sources)) {
-      const offlineSource = style.sources[sourceId]
+      const source = style.sources[sourceId]
+      const tilesetId = sourceIdToTilesetId[sourceId]
 
-      const includeUrlField = ['vector', 'raster', 'raster-dem'].includes(
-        offlineSource.type
-      )
+      const includeUrlField =
+        tilesetId && ['vector', 'raster', 'raster-dem'].includes(source.type)
 
-      updatedOfflineSources[sourceId] = {
-        ...offlineSource,
-        ...(includeUrlField
-          ? { url: getTilesetUrl(offlineSource.tilesetId) }
-          : undefined),
+      updatedSources[sourceId] = {
+        ...source,
+        ...(includeUrlField ? { url: getTilesetUrl(tilesetId) } : undefined),
       }
     }
 
     return {
       ...style,
-      sources: updatedOfflineSources,
-      glyphs: style.glyphs && getGlyphsUrl(style.id),
-      sprite: style.sprite && getSpriteUrl(style.id),
+      sources: updatedSources,
+      glyphs: style.glyphs && getGlyphsUrl(styleId),
+      sprite: style.sprite && getSpriteUrl(styleId),
     }
   }
 
@@ -247,9 +255,13 @@ function createApi({
   }: {
     accessToken?: string
     styleId: string
-    sources: StyleJSON['sources'] | OfflineStyle['sources']
-  }): Promise<OfflineStyle['sources']> {
-    const offlineSources: OfflineStyle['sources'] = {}
+    sources: StyleJSON['sources']
+  }): Promise<{
+    sources: StyleJSON['sources']
+    sourceIdToTilesetId: SourceIdToTilesetId
+  }> {
+    const offlineSources: StyleJSON['sources'] = {}
+    const sourceIdToTilesetId: SourceIdToTilesetId = {}
 
     for (const sourceId of Object.keys(sources)) {
       const source = sources[sourceId]
@@ -300,9 +312,10 @@ function createApi({
         // TODO: Should we update an existing tileset here?
         // await api.putTileset(tilesetId, tilejson)
       }
-      offlineSources[sourceId] = { ...source, tilesetId }
+      offlineSources[sourceId] = source
+      sourceIdToTilesetId[sourceId] = tilesetId
     }
-    return offlineSources
+    return { sources: offlineSources, sourceIdToTilesetId }
   }
 
   const api: Api = {
@@ -580,70 +593,86 @@ function createApi({
         )
       }
 
-      const offlineStyle: OfflineStyle = {
-        ...(await uncompositeStyle(style)),
-        id: styleId,
-        sources: await createOfflineSources({
-          accessToken,
-          styleId,
-          sources: style.sources,
-        }),
+      const { sources, sourceIdToTilesetId } = await createOfflineSources({
+        accessToken,
+        styleId,
+        sources: style.sources,
+      })
+
+      const styleToSave: StyleJSON = {
+        ...(await uncompositeStyle({
+          ...style,
+          sources,
+        })),
       }
 
       db.prepare(
         'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
-      ).run({ id: styleId, stylejson: JSON.stringify(offlineStyle) })
+      ).run({ id: styleId, stylejson: JSON.stringify(styleToSave) })
 
       // Create the records in the joins table for TilesetsOnStyles
       // TODO: How to insert multiple records at once?
-      Object.values(offlineStyle.sources).forEach((offlineSource) => {
+      Object.keys(styleToSave.sources).forEach((sourceId) => {
+        const tilesetId = sourceIdToTilesetId[sourceId]
+
         db.prepare<{ tilesetId: string; styleId: string }>(
           'INSERT INTO TilesetsOnStyles (tilesetId, styleId) VALUES (:tilesetId, :styleId)'
-        ).run({ tilesetId: offlineSource.tilesetId, styleId })
+        ).run({ tilesetId, styleId })
       })
 
-      return addOfflineUrls(offlineStyle)
+      return {
+        ...addOfflineUrls({
+          style: styleToSave,
+          styleId,
+          sourceIdToTilesetId,
+        }),
+        id: styleId,
+      }
     },
 
     // TODO: May need to accept an access token
     async updateStyle(id, style) {
-      if ('id' in style && id !== style.id) {
-        throw new MismatchedIdError(id, style.id)
-      }
-
       if (!styleExists(id)) {
         throw new NotFoundError(id)
       }
 
-      const offlineStyle: OfflineStyle = {
-        ...(await uncompositeStyle(style)),
-        id,
-        // TODO: Is this the right thing to do? May need to update createOfflineSources to handle pre-existing tilesets for this style
-        sources: await createOfflineSources({
-          styleId: id,
-          sources: style.sources,
-        }),
+      // TODO: Is this the right thing to do? May need to update createOfflineSources to handle pre-existing tilesets for this style
+      const { sources, sourceIdToTilesetId } = await createOfflineSources({
+        styleId: id,
+        sources: style.sources,
+      })
+
+      const styleToSave: StyleJSON = {
+        ...(await uncompositeStyle({
+          ...style,
+          sources,
+        })),
       }
 
       db.prepare('UPDATE Style SET stylejson = :stylejson WHERE id = :id').run({
         id,
-        stylejson: JSON.stringify(offlineStyle),
+        stylejson: JSON.stringify(styleToSave),
       })
 
       // TODO: update TilesetsOnStyles table to reflect any changes in the sources field?
 
-      return addOfflineUrls(offlineStyle)
+      return addOfflineUrls({
+        style: styleToSave,
+        styleId: id,
+        sourceIdToTilesetId,
+      })
     },
 
     async listStyles() {
-      const styles: OfflineStyle[] = []
+      const styles: ({ name?: string } & IdResource)[] = []
 
-      db.prepare('SELECT stylejson FROM Style')
+      db.prepare('SELECT id, stylejson FROM Style')
         .all()
-        .forEach(({ stylejson }: { stylejson: string }) => {
+        .forEach(({ id, stylejson }: { id: string; stylejson: string }) => {
           try {
-            const style: OfflineStyle = JSON.parse(stylejson)
-            styles.push(addOfflineUrls(style))
+            const style: StyleJSON = JSON.parse(stylejson)
+            // TODO: Should we have a fallback name here or let client handle?
+            styles.push({ id, name: style.name })
           } catch (err) {
             // TODO: What should we do here? e.g. omit or throw?
           }
@@ -653,14 +682,19 @@ function createApi({
     },
 
     async getStyle(id) {
-      const row: { id: string; stylejson: string; etag?: string } | undefined =
-        db.prepare('SELECT id, stylejson, etag FROM Style WHERE id = ?').get(id)
+      const row:
+        | { id: string; stylejson: string; etag?: string; upstreamUrl?: string }
+        | undefined = db
+        .prepare(
+          'SELECT id, stylejson, etag, upstreamUrl FROM Style WHERE id = ?'
+        )
+        .get(id)
 
       if (!row) {
         throw new NotFoundError(id)
       }
 
-      let style: OfflineStyle
+      let style: StyleJSON
 
       try {
         style = JSON.parse(row.stylejson)
@@ -685,12 +719,13 @@ function createApi({
         if (data) api.updateStyle(id, data)
       }
 
-      if (style.upstreamUrl) {
+      if (row.upstreamUrl) {
         // TODO: Save upstreamUrl in Style table, similar to Tileset?
-        fetchOnlineResource(style.upstreamUrl, row.etag).catch(noop)
+        fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
       }
 
-      return addOfflineUrls(style)
+      // TODO: Need to retrieve something for `sourceIdToTilesetId` from the db
+      return addOfflineUrls({ style, styleId: id, sourceIdToTilesetId: {} })
     },
     async deleteStyle(id: string) {
       if (!styleExists(id)) {
