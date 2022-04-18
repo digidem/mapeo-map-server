@@ -16,7 +16,6 @@ interface DeleteStyleParams {
 
 type PostStyleBody = { accessToken?: string } & (
   | { url: string }
-  | { filepath: string }
   | { style: StyleJSON }
 )
 
@@ -54,21 +53,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     let id: string | undefined
     const { accessToken } = request.body
 
-    if ('filepath' in request.body) {
-      try {
-        const parsedStyle = JSON.parse(
-          await fs.readFile(request.body.filepath, 'utf-8')
-        )
-
-        if (!parsedStyle.id) {
-          throw new Error('Styles imported via file must have an id field')
-        }
-
-        id = parsedStyle.id
-      } catch (err) {
-        throw createInvalidStyleError(err)
-      }
-    } else if ('url' in request.body) {
+    if ('url' in request.body) {
       try {
         const { url } = request.body
 
