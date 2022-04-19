@@ -333,7 +333,6 @@ test('POST /styles (via style field)', async (t) => {
     StyleJSON & IdResource
   >()
 
-  // TODO: Need to deterministically generate an id for a style, so we should be expecting a known id here at some point
   t.ok(createdStyleId, 'created style possesses an id')
 
   t.notSame(
@@ -342,9 +341,16 @@ test('POST /styles (via style field)', async (t) => {
     'created style possesses sources that are altered from input'
   )
 
+  t.notSame(
+    createdStyle.layers,
+    sampleStyleJSON.layers,
+    'created style possesses layers that are altered from input'
+  )
+
   // The map server updates the sources so that each source's `url` field points to the map server
   const ignoredStyleFields = {
     sources: undefined,
+    layers: undefined,
   }
 
   t.same(
@@ -355,10 +361,11 @@ test('POST /styles (via style field)', async (t) => {
 
   const tilesetEndpointPrefix = `http://localhost:80/tilesets/`
 
-  Object.entries(createdStyle.sources).forEach(([name, source]) => {
+  Object.entries(createdStyle.sources).forEach(([tilesetId, source]) => {
     if ('url' in source) {
-      t.ok(
-        source.url?.startsWith(tilesetEndpointPrefix),
+      t.equal(
+        source.url,
+        tilesetEndpointPrefix + tilesetId,
         'url field in source remapped to map server instance'
       )
     }
@@ -370,9 +377,7 @@ test('POST /styles (via style field)', async (t) => {
     t.same(
       { ...source, ...ignoredSourceFields },
       {
-        ...sampleStyleJSON.sources[
-          name as keyof typeof sampleStyleJSON.sources
-        ],
+        ...sampleStyleJSON.sources['mapbox-streets'],
         ...ignoredSourceFields,
       },
       'with exception of `url` field, source from created style matches source from input'
@@ -427,8 +432,9 @@ test('GET /styles/:styleId (style exists)', async (t) => {
   const expectedTilesetId = 'yqtx3fxnp2vdyssc82ew4f377g4y0njk' // generated from getTilesetId in lib/utils.ts
   const expectedTilesetUrl = `http://localhost:80/tilesets/${expectedTilesetId}`
 
+  // Each source id should be replaced with the id of the tileset used for it
   const expectedSources = {
-    'mapbox-streets': {
+    [expectedTilesetId]: {
       ...(simpleStylejson.sources[
         'mapbox-streets'
       ] as VectorSourceSpecification),
@@ -436,9 +442,23 @@ test('GET /styles/:styleId (style exists)', async (t) => {
     },
   }
 
+  // Each layer's source should be replaced with the corresponding tileset id used for the referenced source
+  const expectedLayers = [
+    {
+      id: 'water',
+      source: expectedTilesetId,
+      'source-layer': 'water',
+      type: 'fill',
+      paint: {
+        'fill-color': '#00ffff',
+      },
+    },
+  ]
+
   const expectedGetResponse = {
     ...sampleStyleJSON,
     sources: expectedSources,
+    layers: expectedLayers,
   }
 
   t.same(responseGet.json(), expectedGetResponse, 'returns desired stylejson')
