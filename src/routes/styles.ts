@@ -48,20 +48,34 @@ const styles: FastifyPluginAsync = async function (fastify) {
   })
 
   fastify.post<{ Body: PostStyleBody }>('/', async function (request, reply) {
-    let style: unknown
+    let etag: string | undefined
     let id: string | undefined
+    let style: unknown
+    let upstreamUrl: string | undefined
+
     const { accessToken } = request.body
 
     if ('url' in request.body && request.body.url) {
       try {
-        const { url } = request.body
+        upstreamUrl = request.body.url
+
+        id = createIdFromStyleUrl(upstreamUrl)
 
         // This will throw if the url is a mapbox style url and an access token is not provided
         // Ideally prevented via client-side code but just in case
-        const upstreamUrl = normalizeStyleURL(url, accessToken)
+        const normalizedUpstreamUrl = normalizeStyleURL(
+          upstreamUrl,
+          accessToken
+        )
 
-        style = (await got(upstreamUrl).json()) as any
-        id = createIdFromStyleUrl(url)
+        const { body: fetchedStyle, headers } = await got(
+          normalizedUpstreamUrl,
+          { responseType: 'json' }
+        )
+
+        etag = headers.etag as string | undefined
+
+        style = fetchedStyle
       } catch (err) {
         throw createInvalidStyleError(err)
       }
@@ -79,7 +93,12 @@ const styles: FastifyPluginAsync = async function (fastify) {
 
     // TODO: Should we catch the missing access token issue before calling this? i.e. check if `url` or any of `style.sources` are Mapbox urls
     // `createStyle` will catch these but may save resources in the db before that occurs
-    const stylejson = await request.api.createStyle(style, { id, accessToken })
+    const stylejson = await request.api.createStyle(style, {
+      accessToken,
+      etag,
+      id,
+      upstreamUrl,
+    })
 
     reply.header('Location', `${fastify.prefix}/${id}`)
 

@@ -102,7 +102,12 @@ export interface Api {
   }): Promise<void>
   createStyle(
     style: StyleJSON,
-    options?: { id?: string; accessToken?: string }
+    options?: {
+      accessToken?: string
+      etag?: string
+      id?: string
+      upstreamUrl?: string
+    }
   ): Promise<StyleJSON & IdResource>
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
@@ -593,7 +598,7 @@ function createApi({
       transaction()
     },
 
-    async createStyle(style, { id, accessToken } = {}) {
+    async createStyle(style, { accessToken, etag, id, upstreamUrl } = {}) {
       const styleId = id || getStyleId()
 
       if (styleExists(styleId)) {
@@ -618,11 +623,18 @@ function createApi({
         })),
       }
 
-      db.prepare<{ id: string; stylejson: string }>(
-        'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
+      db.prepare<{
+        id: string
+        stylejson: string
+        etag?: string
+        upstreamUrl?: string
+      }>(
+        'INSERT INTO Style (id, stylejson, etag, upstreamUrl) VALUES (:id, :stylejson, :etag, :upstreamUrl)'
       ).run({
         id: styleId,
         stylejson: JSON.stringify(styleToSave),
+        etag,
+        upstreamUrl,
       })
 
       // Create the records in the joins table for TilesetsOnStyles
