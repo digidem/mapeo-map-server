@@ -733,28 +733,6 @@ function createApi({
         throw new ParseError(err)
       }
 
-      async function fetchOnlineResource(url: string, etag?: string) {
-        const { data } = await upstreamRequestsManager.getUpstream({
-          url,
-          etag,
-          responseType: 'json',
-        })
-
-        try {
-          validateStyleJSON(data)
-        } catch (err) {
-          // TODO: Do we want to throw here?
-          throw new UpstreamJsonValidationError(url, err)
-        }
-
-        if (data) api.updateStyle(id, data)
-      }
-
-      if (row.upstreamUrl) {
-        // TODO: Save upstreamUrl in Style table, similar to Tileset?
-        fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
-      }
-
       return addOfflineUrls({ style, styleId: id })
     },
     async deleteStyle(id: string) {
