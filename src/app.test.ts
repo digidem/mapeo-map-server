@@ -282,7 +282,18 @@ test('GET /tile (png)', async (t) => {
 
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
-// - POST /styles (invalid body)
+
+test('POST /styles (invalid body)', async (t) => {
+  const { server, sampleStyleJSON } = t.context as TestContext
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: { style: { ...sampleStyleJSON, sources: undefined } },
+  })
+
+  t.equal(responsePost.statusCode, 400, 'responds with 400 status code')
+})
 
 test('POST /styles (style exists)', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
