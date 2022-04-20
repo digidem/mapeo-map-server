@@ -295,16 +295,34 @@ test('POST /styles (invalid body)', async (t) => {
   t.equal(responsePost.statusCode, 400, 'responds with 400 status code')
 })
 
-test('POST /styles (style exists)', async (t) => {
+// Reflects the case where a user is providing the style directly
+// We'd enforce at the application level that they provide an `id` field in their body
+test('POST /styles when providing an id returns resource with the same id', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
-  // Reflects the case where a user is providing the style directly
-  // We'd enforce at the application level that they provide an `id` field in their body
   const expectedId = 'example-style-id'
 
   const payload = {
     style: sampleStyleJSON,
     id: expectedId,
+    accessToken: DUMMY_MB_ACCESS_TOKEN,
+  }
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload,
+  })
+
+  t.equal(responsePost.json().id, expectedId)
+})
+
+test('POST /styles when style exists returns 409', async (t) => {
+  const { server, sampleStyleJSON } = t.context as TestContext
+
+  const payload = {
+    style: sampleStyleJSON,
+    id: 'example-style-id',
     accessToken: DUMMY_MB_ACCESS_TOKEN,
   }
 
@@ -314,11 +332,7 @@ test('POST /styles (style exists)', async (t) => {
     payload,
   })
 
-  t.equal(
-    responsePost1.json().id,
-    expectedId,
-    'id field preserved when providing style with pre-existing id'
-  )
+  t.equal(responsePost1.statusCode, 200)
 
   const responsePost2 = await server.inject({
     method: 'POST',
@@ -326,7 +340,7 @@ test('POST /styles (style exists)', async (t) => {
     payload,
   })
 
-  t.equal(responsePost2.statusCode, 409, 'repeated POST responds with 409')
+  t.equal(responsePost2.statusCode, 409)
 })
 
 test('POST /styles (via style field)', async (t) => {
