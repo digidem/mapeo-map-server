@@ -626,14 +626,22 @@ function createApi({
       })
 
       // Create the records in the joins table for TilesetsOnStyles
-      // TODO: How to insert multiple records at once?
-      Object.keys(styleToSave.sources).forEach((tilesetId) => {
-        // TODO: Wondering if it would make sense to add a `sourceName` field to this table so that we can remap
+      const insertTilesetsOnStylesStmt = db.prepare<{
+        tilesetId: string
+        styleId: string
+      }>(
+        // TODO: Would it make sense to add a `sourceName` field to this table so that we can remap
         // the retrieved style's sources and layers to the (presumably) more human-readable source name/id before sending to client.
-        db.prepare<{ tilesetId: string; styleId: string }>(
-          'INSERT INTO TilesetsOnStyles (tilesetId, styleId) VALUES (:tilesetId, :styleId)'
-        ).run({ tilesetId, styleId })
+        'INSERT INTO TilesetsOnStyles (tilesetId, styleId) VALUES (:tilesetId, :styleId)'
+      )
+
+      const insertTilesetsOnStylesTransaction = db.transaction(() => {
+        Object.keys(styleToSave.sources).forEach((tilesetId) => {
+          insertTilesetsOnStylesStmt.run({ tilesetId, styleId })
+        })
       })
+
+      insertTilesetsOnStylesTransaction()
 
       return {
         ...addOfflineUrls({
