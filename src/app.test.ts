@@ -338,19 +338,12 @@ test('POST /styles (via style field)', async (t) => {
   t.notSame(
     createdStyle.sources,
     sampleStyleJSON.sources,
-    'created style possesses sources that are altered from input'
-  )
-
-  t.notSame(
-    createdStyle.layers,
-    sampleStyleJSON.layers,
-    'created style possesses layers that are altered from input'
+    'created style possesses sources that are different from input'
   )
 
   // The map server updates the sources so that each source's `url` field points to the map server
   const ignoredStyleFields = {
     sources: undefined,
-    layers: undefined,
   }
 
   t.same(
@@ -361,11 +354,11 @@ test('POST /styles (via style field)', async (t) => {
 
   const tilesetEndpointPrefix = `http://localhost:80/tilesets/`
 
-  Object.entries(createdStyle.sources).forEach(([tilesetId, source]) => {
+  Object.entries(createdStyle.sources).forEach(([sourceId, source]) => {
     if ('url' in source) {
-      t.equal(
-        source.url,
-        tilesetEndpointPrefix + tilesetId,
+      // TODO: Ideally verify that each url ends with the corresponding tileset id
+      t.ok(
+        source.url?.startsWith(tilesetEndpointPrefix),
         'url field in source remapped to map server instance'
       )
     }
@@ -377,7 +370,7 @@ test('POST /styles (via style field)', async (t) => {
     t.same(
       { ...source, ...ignoredSourceFields },
       {
-        ...sampleStyleJSON.sources['mapbox-streets'],
+        ...sampleStyleJSON.sources[sourceId],
         ...ignoredSourceFields,
       },
       'with exception of `url` field, source from created style matches source from input'
@@ -434,7 +427,7 @@ test('GET /styles/:styleId (style exists)', async (t) => {
 
   // Each source id should be replaced with the id of the tileset used for it
   const expectedSources = {
-    [expectedTilesetId]: {
+    'mapbox-streets': {
       ...(simpleStylejson.sources[
         'mapbox-streets'
       ] as VectorSourceSpecification),
@@ -442,23 +435,9 @@ test('GET /styles/:styleId (style exists)', async (t) => {
     },
   }
 
-  // Each layer's source should be replaced with the corresponding tileset id used for the referenced source
-  const expectedLayers = [
-    {
-      id: 'water',
-      source: expectedTilesetId,
-      'source-layer': 'water',
-      type: 'fill',
-      paint: {
-        'fill-color': '#00ffff',
-      },
-    },
-  ]
-
   const expectedGetResponse = {
     ...sampleStyleJSON,
     sources: expectedSources,
-    layers: expectedLayers,
   }
 
   t.same(responseGet.json(), expectedGetResponse, 'returns desired stylejson')
