@@ -283,7 +283,7 @@ test('GET /tile (png)', async (t) => {
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
 
-test('POST /styles (invalid body)', async (t) => {
+test('POST /styles with invalid style returns 400 status code', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -292,7 +292,7 @@ test('POST /styles (invalid body)', async (t) => {
     payload: { style: { ...sampleStyleJSON, sources: undefined } },
   })
 
-  t.equal(responsePost.statusCode, 400, 'responds with 400 status code')
+  t.equal(responsePost.statusCode, 400)
 })
 
 // Reflects the case where a user is providing the style directly
@@ -343,7 +343,7 @@ test('POST /styles when style exists returns 409', async (t) => {
   t.equal(responsePost2.statusCode, 409)
 })
 
-test('POST /styles (via style field)', async (t) => {
+test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -352,7 +352,7 @@ test('POST /styles (via style field)', async (t) => {
     payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
-  t.equal(responsePost.statusCode, 200, 'returns a status code of 200')
+  t.equal(responsePost.statusCode, 200)
 
   const { id: createdStyleId, ...createdStyle } = responsePost.json<
     StyleJSON & IdResource
@@ -384,7 +384,7 @@ test('POST /styles (via style field)', async (t) => {
       // TODO: Ideally verify that each url ends with the corresponding tileset id
       t.ok(
         source.url?.startsWith(tilesetEndpointPrefix),
-        'url field in source remapped to map server instance'
+        'url field in source remapped to point to map server api endpoint'
       )
     }
 
@@ -403,19 +403,20 @@ test('POST /styles (via style field)', async (t) => {
   })
 })
 
-test('POST /styles (Mapbox access token is missing when necessary)', async (t) => {
+test('POST /styles when required Mapbox access token is missing returns 400 status code', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
+    // Make sure that the style used here has URLs that reference Mapbox APIs
     payload: { style: sampleStyleJSON, accessToken: undefined },
   })
 
-  t.equal(responsePost.statusCode, 400, 'POST responds with 400')
+  t.equal(responsePost.statusCode, 400)
 })
 
-test('GET /styles/:styleId (style does not exist)', async (t) => {
+test('GET /styles/:styleId when  style does not exist return 404 status code', async (t) => {
   const { server } = t.context as TestContext
 
   const id = 'nonexistent-id'
@@ -425,10 +426,10 @@ test('GET /styles/:styleId (style does not exist)', async (t) => {
     url: `/styles/${id}`,
   })
 
-  t.equal(responseGet.statusCode, 404, 'responds with 404 status code')
+  t.equal(responseGet.statusCode, 404)
 })
 
-test('GET /styles/:styleId (style exists)', async (t) => {
+test('GET /styles/:styleId when style exists returns altered style', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -444,7 +445,7 @@ test('GET /styles/:styleId (style exists)', async (t) => {
     url: `/styles/${expectedId}`,
   })
 
-  t.equal(responseGet.statusCode, 200, 'responds with 200 status code')
+  t.equal(responseGet.statusCode, 200)
 
   // This will change if a style fixture other than good-stylejson/good-simple.json is used
   const expectedTilesetId = 'yqtx3fxnp2vdyssc82ew4f377g4y0njk' // generated from getTilesetId in lib/utils.ts
@@ -465,26 +466,30 @@ test('GET /styles/:styleId (style exists)', async (t) => {
     sources: expectedSources,
   }
 
-  t.same(responseGet.json(), expectedGetResponse, 'returns desired stylejson')
+  t.same(responseGet.json(), expectedGetResponse)
 })
 
-test('GET /styles (empty)', async (t) => {
+test('GET /styles when no styles exist returns body with an empty array', async (t) => {
   const { server } = t.context as TestContext
 
   const response = await server.inject({ method: 'GET', url: '/styles' })
 
-  t.equal(response.statusCode, 200, 'returns a status code of 200')
+  t.equal(response.statusCode, 200)
 
-  t.same(response.json(), [], 'returns empty array')
+  t.same(response.json(), [])
 })
 
-test('GET /styles (not empty)', async (t) => {
+test('GET /styles when styles exist returns array of metadata for each', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
+  const expectedName = 'Test'
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
+    payload: {
+      style: { ...sampleStyleJSON, name: expectedName },
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
   })
 
   const { id: expectedId } = responsePost.json()
@@ -492,21 +497,18 @@ test('GET /styles (not empty)', async (t) => {
   const expectedGetResponse = [
     {
       id: expectedId,
+      name: expectedName,
     },
   ]
 
   const responseGet = await server.inject({ method: 'GET', url: '/styles' })
 
-  t.equal(responseGet.statusCode, 200, 'returns a status code of 200')
+  t.equal(responseGet.statusCode, 200)
 
-  t.same(
-    responseGet.json(),
-    expectedGetResponse,
-    'returns array with desired style ids'
-  )
+  t.same(responseGet.json(), expectedGetResponse)
 })
 
-test('DELETE /styles (style does not exist)', async (t) => {
+test('DELETE /styles/:styleId when style does not exist returns 404 status code', async (t) => {
   const { server } = t.context as TestContext
 
   const id = 'nonexistent-id'
@@ -516,14 +518,10 @@ test('DELETE /styles (style does not exist)', async (t) => {
     url: `/styles/${id}`,
   })
 
-  t.equal(
-    responseDelete.statusCode,
-    404,
-    'DELETE responds with 404 status code'
-  )
+  t.equal(responseDelete.statusCode, 404)
 })
 
-test('DELETE /styles (style exists)', async (t) => {
+test('DELETE /styles/:styleId when style exists returns 204 status code and empty body', async (t) => {
   const { server } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -539,18 +537,14 @@ test('DELETE /styles (style exists)', async (t) => {
     url: `/styles/${id}`,
   })
 
-  t.equal(
-    responseDelete.statusCode,
-    204,
-    'DELETE responds with 204 status code'
-  )
+  t.equal(responseDelete.statusCode, 204)
 
-  t.equal(responseDelete.body, '', 'DELETE responds with empty body')
+  t.equal(responseDelete.body, '')
 
   const responseGet = await server.inject({
     method: 'GET',
     url: `/styles/${id}`,
   })
 
-  t.equal(responseGet.statusCode, 404, 'GET responds with 404 status code')
+  t.equal(responseGet.statusCode, 404, 'style is properly deleted')
 })
