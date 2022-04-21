@@ -5,19 +5,6 @@ import got from 'got'
 import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
 
-interface GetStyleParams {
-  id: string
-}
-
-interface DeleteStyleParams {
-  id: string
-}
-
-type PostStyleBody = { accessToken?: string } & (
-  | { url: string }
-  | { id?: string; style: StyleJSON }
-)
-
 const InvalidStyleError = createError(
   'FST_INVALID_STYLE',
   'Invalid style: %s',
@@ -43,11 +30,20 @@ function validateStyle(style: unknown): asserts style is StyleJSON {
 }
 
 const styles: FastifyPluginAsync = async function (fastify) {
-  fastify.get('/', async function (request) {
-    return request.api.listStyles()
-  })
+  fastify.get<{ Reply: { id: string; style: StyleJSON }[] }>(
+    '/',
+    async function (request) {
+      return request.api.listStyles()
+    }
+  )
 
-  fastify.post<{ Body: PostStyleBody }>('/', async function (request, reply) {
+  fastify.post<{
+    Body: { accessToken?: string } & (
+      | { url: string }
+      | { id?: string; style: StyleJSON }
+    )
+    Reply: { id: string; style: StyleJSON }
+  }>('/', async function (request, reply) {
     let etag: string | undefined
     let id: string | undefined
     let style: unknown
@@ -105,11 +101,20 @@ const styles: FastifyPluginAsync = async function (fastify) {
     return result
   })
 
-  fastify.get<{ Params: GetStyleParams }>('/:id', async function (request) {
+  fastify.get<{
+    Params: {
+      id: string
+    }
+    Reply: StyleJSON
+  }>('/:id', async function (request) {
     return request.api.getStyle(request.params.id)
   })
 
-  fastify.delete<{ Params: DeleteStyleParams }>(
+  fastify.delete<{
+    Params: {
+      id: string
+    }
+  }>(
     '/:id',
     {
       schema: {
