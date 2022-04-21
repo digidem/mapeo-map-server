@@ -107,7 +107,7 @@ export interface Api {
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<{ name?: string } & IdResource>>
+  listStyles(): Promise<Array<{ style: StyleJSON } & IdResource>>
 }
 
 function createApi({
@@ -661,19 +661,38 @@ function createApi({
     },
 
     async listStyles() {
-      const styles: ({ name?: string } & IdResource)[] = []
+      const styles: ({ style: StyleJSON } & IdResource)[] = []
 
-      db.prepare('SELECT id, stylejson FROM Style')
+      db.prepare('SELECT id, stylejson, sourceIdToTilesetId FROM Style')
         .all()
-        .forEach(({ id, stylejson }: { id: string; stylejson: string }) => {
-          try {
-            const style: StyleJSON = JSON.parse(stylejson)
-            // TODO: Should we have a fallback name here or let client handle?
-            styles.push({ id, name: style.name })
-          } catch (err) {
-            throw new ParseError(err)
+        .forEach(
+          (row: {
+            id: string
+            stylejson: string
+            sourceIdToTilesetId: string
+          }) => {
+            let style: StyleJSON
+            let sourceIdToTilesetId: SourceIdToTilesetId
+
+            try {
+              style = JSON.parse(row.stylejson)
+              sourceIdToTilesetId = JSON.parse(row.sourceIdToTilesetId)
+            } catch (err) {
+              throw new ParseError(err)
+            }
+            // TODO:
+            // - Should we have a fallback name here or let client handle?
+            // - Providing the whole stylejson is temporary and won't be needed once static map generation is implemented
+            styles.push({
+              id: row.id,
+              style: addOfflineUrls({
+                style,
+                styleId: row.id,
+                sourceIdToTilesetId,
+              }),
+            })
           }
-        })
+        )
 
       return styles
     },

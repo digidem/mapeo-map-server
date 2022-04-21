@@ -482,22 +482,30 @@ test('GET /styles when no styles exist returns body with an empty array', async 
 test('GET /styles when styles exist returns array of metadata for each', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
-  const expectedName = 'Test'
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
     payload: {
-      style: { ...sampleStyleJSON, name: expectedName },
+      style: sampleStyleJSON,
       accessToken: DUMMY_MB_ACCESS_TOKEN,
     },
   })
 
   const { id: expectedId } = responsePost.json()
 
+  const expectedSources = {
+    'mapbox-streets': {
+      ...(sampleStyleJSON.sources[
+        'mapbox-streets'
+      ] as VectorSourceSpecification),
+      url: 'http://localhost:80/tilesets/yqtx3fxnp2vdyssc82ew4f377g4y0njk',
+    },
+  }
+
   const expectedGetResponse = [
     {
       id: expectedId,
-      name: expectedName,
+      style: { ...sampleStyleJSON, sources: expectedSources },
     },
   ]
 
