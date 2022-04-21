@@ -641,10 +641,15 @@ function createApi({
         })),
       }
 
-      db.prepare<{ id: string; stylejson: string }>(
-        'UPDATE Style SET stylejson = :stylejson WHERE id = :id'
+      db.prepare<{
+        id: string
+        sourceIdToTilesetId: string
+        stylejson: string
+      }>(
+        'UPDATE Style SET stylejson = :stylejson, sourceIdToTilesetId = :sourceIdToTilesetId WHERE id = :id'
       ).run({
         id,
+        sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
         stylejson: JSON.stringify(styleToSave),
       })
 
