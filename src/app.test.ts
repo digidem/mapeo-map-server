@@ -74,12 +74,12 @@ teardown(() => {
 /**
  * /tilesets tests
  */
-test('GET /tilesets (empty)', async (t) => {
+test('GET /tilesets when no tilesets exist returns an empty array', async (t) => {
   const { server } = t.context as TestContext
 
   const response = await server.inject({ method: 'GET', url: '/tilesets' })
 
-  t.equal(response.statusCode, 200, 'returns a status code of 200')
+  t.equal(response.statusCode, 200)
 
   t.equal(
     response.headers['content-type'],
@@ -87,12 +87,12 @@ test('GET /tilesets (empty)', async (t) => {
     'returns correct content-type header'
   )
 
-  t.same(response.json(), [], 'returns empty array')
+  t.same(response.json(), [])
 
   t.end()
 })
 
-test('GET /tilesets (not empty)', async (t) => {
+test('GET /tilesets when tilesets exist returns an array of the tilesets', async (t) => {
   const { sampleTileJSON, server } = t.context as TestContext
 
   await server.inject({
@@ -114,11 +114,9 @@ test('GET /tilesets (not empty)', async (t) => {
   const response = await server.inject({ method: 'GET', url: '/tilesets' })
 
   t.same(response.json(), expectedResponse)
-
-  t.end()
 })
 
-test('POST /tilesets', async (t) => {
+test('POST /tilesets when tileset does not exist creates a tileset and returns it', async (t) => {
   const { sampleTileJSON, server } = t.context as TestContext
 
   const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
@@ -135,11 +133,7 @@ test('POST /tilesets', async (t) => {
     payload: sampleTileJSON,
   })
 
-  t.same(
-    responsePost.json(),
-    expectedResponse,
-    'TileJSON POST response matches expected response'
-  )
+  t.same(responsePost.json(), expectedResponse)
 
   const responseGet = await server.inject({
     method: 'GET',
@@ -147,16 +141,10 @@ test('POST /tilesets', async (t) => {
     payload: { tilesetId: expectedId },
   })
 
-  t.equal(
-    responseGet.statusCode,
-    200,
-    'Can GET the specific tileset after creation'
-  )
-
-  t.end()
+  t.equal(responseGet.statusCode, 200)
 })
 
-test('PUT /tilesets (tileset exists)', async (t) => {
+test('PUT /tilesets when tileset exists returns the updated tileset', async (t) => {
   const { sampleTileJSON, server } = t.context as TestContext
 
   const initialResponse = await server.inject({
@@ -175,24 +163,14 @@ test('PUT /tilesets (tileset exists)', async (t) => {
     payload: { ...initialResponse.json<TileJSON>(), ...updatedFields },
   })
 
-  t.equal(updatedResponse.statusCode, 200, 'PUT responded with 200')
+  t.equal(updatedResponse.statusCode, 200)
 
-  t.notSame(
-    initialResponse.json(),
-    updatedResponse.json(),
-    'Updated response is different from initial creation'
-  )
+  t.notSame(initialResponse.json(), updatedResponse.json())
 
-  t.equal(
-    updatedResponse.json<TileJSON>().name,
-    updatedFields.name,
-    'Response has updated fields'
-  )
-
-  t.end()
+  t.equal(updatedResponse.json<TileJSON>().name, updatedFields.name)
 })
 
-test('PUT /tilesets (bad param)', async (t) => {
+test('PUT /tilesets when providing an incorrect id returns 400 status code', async (t) => {
   const { sampleTileJSON, server } = t.context as TestContext
 
   const response = await server.inject({
@@ -201,16 +179,10 @@ test('PUT /tilesets (bad param)', async (t) => {
     payload: { ...sampleTileJSON, name: 'Map Server Test' },
   })
 
-  t.equal(
-    response.statusCode,
-    400,
-    'Mismatched id param and body id returns Bad Request error code (400)'
-  )
-
-  t.end()
+  t.equal(response.statusCode, 400)
 })
 
-test('PUT /tilesets (tileset does not exist)', async (t) => {
+test('PUT /tilesets when tileset does not exist returns 404 status code', async (t) => {
   const { sampleTileJSON, server } = t.context as TestContext
 
   const response = await server.inject({
@@ -219,19 +191,13 @@ test('PUT /tilesets (tileset does not exist)', async (t) => {
     payload: { ...sampleTileJSON, name: 'Map Server Test' },
   })
 
-  t.equal(
-    response.statusCode,
-    404,
-    'Attempt to update non-existent tileset returns Not Found status code (404)'
-  )
-
-  t.end()
+  t.equal(response.statusCode, 404)
 })
 
 /**
  * /tile tests
  */
-test('GET /tile before tileset created', async (t) => {
+test('GET /tile before tileset is created returns 404 status code', async (t) => {
   const { server } = t.context as TestContext
 
   const response = await server.inject({
@@ -239,14 +205,10 @@ test('GET /tile before tileset created', async (t) => {
     url: `/tilesets/foobar/1/2/3`,
   })
 
-  t.equal(
-    response.statusCode,
-    404,
-    'Responds with Not Found error code (404) when requested before tileset creation'
-  )
+  t.equal(response.statusCode, 404)
 })
 
-test('GET /tile (png)', async (t) => {
+test('GET /tile of png format returns a tile image', async (t) => {
   const { sampleTileJSON, server } = t.context as TestContext
 
   // Create initial tileset
@@ -256,14 +218,14 @@ test('GET /tile (png)', async (t) => {
     payload: sampleTileJSON,
   })
 
-  const tilesetId = initialResponse.json<TileJSON & IdResource>().id
+  const { id: tilesetId } = initialResponse.json<TileJSON & IdResource>()
 
   const response = await server.inject({
     method: 'GET',
     url: `/tilesets/${tilesetId}/1/2/3`,
   })
 
-  t.equal(response.statusCode, 200, 'Responds with 200 status code')
+  t.equal(response.statusCode, 200)
 
   t.equal(
     response.headers['content-type'],
@@ -271,9 +233,7 @@ test('GET /tile (png)', async (t) => {
     'Response content type matches desired resource type'
   )
 
-  t.equal(typeof response.body, 'string', 'Response body type is a string')
-
-  t.end()
+  t.equal(typeof response.body, 'string')
 })
 
 /**
