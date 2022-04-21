@@ -107,7 +107,7 @@ export interface Api {
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<{ style: StyleJSON } & IdResource>>
+  listStyles(): Promise<Array<{ name?: string; style: StyleJSON } & IdResource>>
 }
 
 function createApi({
@@ -661,7 +661,7 @@ function createApi({
     },
 
     async listStyles() {
-      const styles: ({ style: StyleJSON } & IdResource)[] = []
+      const styles: ({ name?: string; style: StyleJSON } & IdResource)[] = []
 
       db.prepare('SELECT id, stylejson, sourceIdToTilesetId FROM Style')
         .all()
@@ -680,16 +680,20 @@ function createApi({
             } catch (err) {
               throw new ParseError(err)
             }
+
+            const adjustedStyle = addOfflineUrls({
+              style,
+              styleId: row.id,
+              sourceIdToTilesetId,
+            })
+
             // TODO:
             // - Should we have a fallback name here or let client handle?
             // - Providing the whole stylejson is temporary and won't be needed once static map generation is implemented
             styles.push({
               id: row.id,
-              style: addOfflineUrls({
-                style,
-                styleId: row.id,
-                sourceIdToTilesetId,
-              }),
+              name: adjustedStyle.name,
+              style: adjustedStyle,
             })
           }
         )

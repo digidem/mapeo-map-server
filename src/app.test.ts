@@ -482,11 +482,16 @@ test('GET /styles when no styles exist returns body with an empty array', async 
 test('GET /styles when styles exist returns array of metadata for each', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
+  const expectedName = 'My Style'
+
+  // Only necessary because the fixture doesn't have a `name` property
+  const sampleStyleWithName = { ...sampleStyleJSON, name: expectedName }
+
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
     payload: {
-      style: sampleStyleJSON,
+      style: sampleStyleWithName,
       accessToken: DUMMY_MB_ACCESS_TOKEN,
     },
   })
@@ -495,17 +500,19 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 
   const expectedSources = {
     'mapbox-streets': {
-      ...(sampleStyleJSON.sources[
+      ...(sampleStyleWithName.sources[
         'mapbox-streets'
       ] as VectorSourceSpecification),
       url: 'http://localhost:80/tilesets/yqtx3fxnp2vdyssc82ew4f377g4y0njk',
     },
   }
 
+  // TODO: `style` is a temporary field that the API will no longer return once thumbnail generation is implemented
   const expectedGetResponse = [
     {
       id: expectedId,
-      style: { ...sampleStyleJSON, sources: expectedSources },
+      name: expectedName,
+      style: { ...sampleStyleWithName, sources: expectedSources },
     },
   ]
 
