@@ -144,6 +144,59 @@ test('POST /tilesets when tileset does not exist creates a tileset and returns i
   t.equal(responseGet.statusCode, 200)
 })
 
+test('POST /tilesets creates a style for the raster tileset', async (t) => {
+  const { sampleTileJSON, server } = t.context as TestContext
+
+  const responseTilesetsPost = await server.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: sampleTileJSON,
+  })
+
+  const { id: tilesetId, name: expectedName } = responseTilesetsPost.json<
+    TileJSON & IdResource
+  >()
+
+  const responseStylesListGet = await server.inject({
+    method: 'GET',
+    url: '/styles',
+  })
+
+  const stylesList =
+    responseStylesListGet.json<{ id: string; name?: string; url: string }[]>()
+
+  t.equal(stylesList.length, 1)
+
+  const responseStyleGet = await server.inject({
+    method: 'GET',
+    url: stylesList[0].url,
+  })
+
+  t.equal(responseStyleGet.statusCode, 200)
+
+  const expectedStyle = {
+    version: 8,
+    name: expectedName,
+    sources: {
+      [tilesetId]: {
+        type: 'raster',
+        tiles: [`http://localhost:80/tilesets/${tilesetId}/{z}/{x}/{y}`],
+        url: `http://localhost:80/tilesets/${tilesetId}`,
+        tileSize: 256,
+      },
+    },
+    layers: [
+      {
+        id: `layer-${tilesetId}`,
+        type: 'raster',
+        source: tilesetId,
+      },
+    ],
+  }
+
+  t.same(responseStyleGet.json(), expectedStyle)
+})
+
 test('PUT /tilesets when tileset exists returns the updated tileset', async (t) => {
   const { sampleTileJSON, server } = t.context as TestContext
 

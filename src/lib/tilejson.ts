@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/ban-types */
 import { Static, Type as T } from '@sinclair/typebox'
-import { JSONSchema7 } from 'json-schema'
 import Ajv, { ValidateFunction, ErrorObject } from 'ajv/dist/2019'
 import isUrl from 'is-url'
+
+import { StyleJSON } from './stylejson'
 
 export enum Scheme {
   xyz = 'xyz',
@@ -118,4 +119,29 @@ export const validateTileJSON: ValidateTileJSON = (
   // already have been validated by ajv if it exists)
   if (data.format === 'pbf' && !data.vector_layers) return false
   return true
+}
+
+export function createRasterStyleFromTileset(
+  tileset: TileJSON & { id: string }
+): StyleJSON {
+  const { name, tiles, id } = tileset
+
+  return {
+    version: 8,
+    name,
+    sources: {
+      [id]: {
+        type: 'raster',
+        tiles,
+        tileSize: 256,
+      },
+    },
+    layers: [
+      {
+        id: `layer-${id}`,
+        type: 'raster',
+        source: id,
+      },
+    ],
+  }
 }

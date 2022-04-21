@@ -9,7 +9,11 @@ import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
-import { TileJSON, validateTileJSON } from './lib/tilejson'
+import {
+  TileJSON,
+  createRasterStyleFromTileset,
+  validateTileJSON,
+} from './lib/tilejson'
 import { StyleJSON, getStyleId, uncompositeStyle } from './lib/stylejson'
 import {
   getInterpolatedUpstreamTileUrl,
@@ -310,11 +314,11 @@ function createApi({
 
   const api: Api = {
     async createTileset(tilejson) {
-      const id = getTilesetId(tilejson)
+      const tilesetId = getTilesetId(tilejson)
 
-      if (tilesetExists(id)) {
+      if (tilesetExists(tilesetId)) {
         throw new AlreadyExistsError(
-          `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${id} to modify this tileset`
+          `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${tilesetId} to modify this tileset`
         )
       }
 
@@ -327,7 +331,7 @@ function createApi({
         'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls) ' +
           'VALUES (:id, :tilejson, :format, :upstreamTileUrls)'
       ).run({
-        id,
+        id: tilesetId,
         format: tilejson.format,
         tilejson: JSON.stringify(tilejson),
         upstreamTileUrls: JSON.stringify(tilejson.tiles),
@@ -335,8 +339,26 @@ function createApi({
 
       const result = {
         ...tilejson,
-        tiles: [getTileUrl(id)],
-        id,
+        id: tilesetId,
+        tiles: [getTileUrl(tilesetId)],
+      }
+
+      // Create raster style if tileset format is a raster format
+      if (tilejson.format !== 'pbf') {
+        const rasterStyle = createRasterStyleFromTileset(result)
+
+        // TODO: Ideally could reuse createStyle here
+        db.prepare<{
+          id: string
+          sourceIdToTilesetId: string
+          stylejson: string
+        }>(
+          'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
+        ).run({
+          id: getStyleId(),
+          sourceIdToTilesetId: JSON.stringify({ [tilesetId]: tilesetId }),
+          stylejson: JSON.stringify(rasterStyle),
+        })
       }
 
       return result
