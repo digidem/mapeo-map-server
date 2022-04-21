@@ -6,11 +6,11 @@ import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
 
 interface GetStyleParams {
-  styleId: string
+  id: string
 }
 
 interface DeleteStyleParams {
-  styleId: string
+  id: string
 }
 
 type PostStyleBody = { accessToken?: string } & (
@@ -105,22 +105,19 @@ const styles: FastifyPluginAsync = async function (fastify) {
     return stylejson
   })
 
-  fastify.get<{ Params: GetStyleParams }>(
-    '/:styleId',
-    async function (request) {
-      return request.api.getStyle(request.params.styleId)
-    }
-  )
+  fastify.get<{ Params: GetStyleParams }>('/:id', async function (request) {
+    return request.api.getStyle(request.params.id)
+  })
 
   fastify.delete<{ Params: DeleteStyleParams }>(
-    '/:styleId',
+    '/:id',
     {
       schema: {
         response: 204,
       },
     },
     async function (request, reply) {
-      await request.api.deleteStyle(request.params.styleId)
+      await request.api.deleteStyle(request.params.id)
       reply.code(204).send()
     }
   )
