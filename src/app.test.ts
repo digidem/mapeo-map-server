@@ -5,7 +5,7 @@ import fs from 'fs'
 import { FastifyInstance } from 'fastify'
 import { VectorSourceSpecification } from '@maplibre/maplibre-gl-style-spec'
 
-import { IdResource } from './api'
+import { IdResource, Api } from './api'
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
@@ -354,14 +354,13 @@ test('POST /styles when providing valid style returns resource with id and alter
 
   t.equal(responsePost.statusCode, 200)
 
-  const { id: createdStyleId, ...createdStyle } = responsePost.json<
-    StyleJSON & IdResource
-  >()
+  const { id, style } =
+    responsePost.json<Awaited<ReturnType<Api['createStyle']>>>()
 
-  t.ok(createdStyleId, 'created style possesses an id')
+  t.ok(id, 'created style possesses an id')
 
   t.notSame(
-    createdStyle.sources,
+    style.sources,
     sampleStyleJSON.sources,
     'created style possesses sources that are different from input'
   )
@@ -372,14 +371,14 @@ test('POST /styles when providing valid style returns resource with id and alter
   }
 
   t.same(
-    { ...createdStyle, ...ignoredStyleFields },
+    { ...style, ...ignoredStyleFields },
     { ...sampleStyleJSON, ...ignoredStyleFields },
     'with exception of `sources` field, created style is the same as input'
   )
 
   const tilesetEndpointPrefix = `http://localhost:80/tilesets/`
 
-  Object.entries(createdStyle.sources).forEach(([sourceId, source]) => {
+  Object.entries(style.sources).forEach(([sourceId, source]) => {
     if ('url' in source) {
       // TODO: Ideally verify that each url ends with the corresponding tileset id
       t.ok(
@@ -438,7 +437,8 @@ test('GET /styles/:styleId when style exists returns altered style', async (t) =
     payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
-  const { id: expectedId } = responsePost.json<StyleJSON & IdResource>()
+  const { id: expectedId } =
+    responsePost.json<{ id: string; style: StyleJSON }>()
 
   const responseGet = await server.inject({
     method: 'GET',
@@ -538,7 +538,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
     payload: { style: simpleStylejson, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
-  const { id } = responsePost.json<StyleJSON & IdResource>()
+  const { id } = responsePost.json<{ id: string; style: StyleJSON }>()
 
   const responseDelete = await server.inject({
     method: 'DELETE',

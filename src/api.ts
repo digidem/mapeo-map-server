@@ -103,7 +103,7 @@ export interface Api {
       id?: string
       upstreamUrl?: string
     }
-  ): Promise<StyleJSON & IdResource>
+  ): Promise<{ style: StyleJSON } & IdResource>
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
@@ -615,7 +615,7 @@ function createApi({
       })
 
       return {
-        ...addOfflineUrls({
+        style: addOfflineUrls({
           sourceIdToTilesetId,
           style: styleToSave,
           styleId,
