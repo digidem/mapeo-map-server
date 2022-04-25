@@ -14,20 +14,21 @@
     "test": "TS_NODE_FILES=true tap --ts --no-check-coverage --test-ignore='^(dist|scripts)'",
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate-dev": "prisma migrate dev"
+    "prisma:migrate-dev": "prisma migrate dev",
+    "postinstall": "patch-package"
   },
   "author": "Digital Democracy",
   "license": "MIT",
   "dependencies": {
-    "@mapbox/mapbox-gl-style-spec": "^13.23.0",
     "@mapbox/mbtiles": "^0.12.1",
     "@mapbox/sphericalmercator": "^1.2.0",
     "@mapbox/tiletype": "^0.3.1",
     "@mapbox/whoots-js": "^3.1.0",
-    "@sinclair/typebox": "^0.20.6",
+    "@maplibre/maplibre-gl-style-spec": "^15.0.0",
+    "@sinclair/typebox": "^0.23.4",
     "ajv": "^8.8.1",
     "base32.js": "^0.1.0",
-    "better-sqlite3": "^7.5.0",
+    "better-sqlite3": "^7.5.1",
     "fastify": "^3.24.0",
     "fastify-error": "^0.2.0",
     "fastify-oas": "^3.0.8",
@@ -42,11 +43,13 @@
     "tiny-typed-emitter": "^2.1.0"
   },
   "devDependencies": {
+    "@mapbox/point-geometry": "^0.1.0",
     "@tsconfig/node12": "^1.0.9",
-    "@types/better-sqlite3": "^7.4.2",
+    "@types/better-sqlite3": "^7.5.0",
     "@types/is-url": "^1.2.30",
     "@types/json-schema": "^7.0.9",
     "@types/mapbox__sphericalmercator": "^1.1.5",
+    "@types/mapbox__point-geometry": "^0.1.2",
     "@types/node": "^14.14.5",
     "@types/tap": "^15.0.5",
     "@types/tilebelt": "^1.0.3",
@@ -60,6 +63,7 @@
     "husky": "^4.3.0",
     "lint-staged": "^10.5.0",
     "msw": "^0.36.8",
+    "patch-package": "^6.4.7",
     "pino-pretty": "^4.3.0",
     "prettier": "^2.4.1",
     "prisma": "^3.8.1",
@@ -69,7 +73,7 @@
     "tmp": "^0.2.1",
     "ts-node": "^9.0.0",
     "ts-node-dev": "^1.1.8",
-    "typescript": "^4.4.4"
+    "typescript": "^4.6.3"
   },
   "husky": {
     "hooks": {

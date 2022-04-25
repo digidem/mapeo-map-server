@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/ban-types */
 import { Static, Type as T } from '@sinclair/typebox'
-import { JSONSchema7 } from 'json-schema'
 import Ajv, { ValidateFunction, ErrorObject } from 'ajv/dist/2019'
 import isUrl from 'is-url'
 
@@ -92,6 +91,12 @@ export const TileJSONSchema = T.Object(
 )
 
 export type TileJSON = Static<typeof TileJSONSchema> & { [key: string]: any }
+
+export const RASTER_FORMATS: readonly TileJSON['format'][] = [
+  'jpg',
+  'png',
+  'webp',
+] as const
 
 interface ValidateTileJSON {
   (data: unknown): data is TileJSON
