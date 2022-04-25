@@ -253,11 +253,8 @@ function createApi({
   }: {
     accessToken?: string
     sources: StyleJSON['sources']
-  }): Promise<{
-    sources: StyleJSON['sources']
-    sourceIdToTilesetId: SourceIdToTilesetId
-  }> {
-    const offlineSources: StyleJSON['sources'] = {}
+  }): Promise<SourceIdToTilesetId> {
+    // const offlineSources: StyleJSON['sources'] = {}
     const sourceIdToTilesetId: SourceIdToTilesetId = {}
 
     for (const sourceId of Object.keys(sources)) {
@@ -304,11 +301,10 @@ function createApi({
         // TODO: Should we update an existing tileset here?
         // await api.putTileset(tilesetId, tilejson)
       }
-      offlineSources[sourceId] = source
       sourceIdToTilesetId[sourceId] = tilesetId
     }
 
-    return { sources: offlineSources, sourceIdToTilesetId }
+    return sourceIdToTilesetId
   }
 
   const api: Api = {
@@ -586,17 +582,12 @@ function createApi({
         )
       }
 
-      const { sources, sourceIdToTilesetId } = await createOfflineSources({
+      const sourceIdToTilesetId = await createOfflineSources({
         accessToken,
         sources: style.sources,
       })
 
-      const styleToSave: StyleJSON = {
-        ...(await uncompositeStyle({
-          ...style,
-          sources,
-        })),
-      }
+      const styleToSave: StyleJSON = await uncompositeStyle(style)
 
       db.prepare<{
         id: string
@@ -630,16 +621,11 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      const { sources, sourceIdToTilesetId } = await createOfflineSources({
+      const sourceIdToTilesetId = await createOfflineSources({
         sources: style.sources,
       })
 
-      const styleToSave: StyleJSON = {
-        ...(await uncompositeStyle({
-          ...style,
-          sources,
-        })),
-      }
+      const styleToSave: StyleJSON = await uncompositeStyle(style)
 
       db.prepare<{
         id: string
