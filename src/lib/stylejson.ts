@@ -5,26 +5,15 @@ import {
 } from '@maplibre/maplibre-gl-style-spec'
 import { URL } from 'url'
 
-import { encodeBase32, generateId, hash } from './utils'
+import { encodeBase32, hash } from './utils'
 
+// If the style has an `upstreamUrl` property, indicating where it was
+// downloaded from, then use that as the id (this way two clients that
+// download the same style do not result in duplicates)s
 function createIdFromStyleUrl(url: string) {
   const u = new URL(url)
   u.searchParams.delete('access_token')
   return encodeBase32(hash(u.toString()))
-}
-
-/**
- * Try to get an idempotent ID for a given style.json, fallback to random ID
- */
-function getStyleId(upstreamUrl?: string): string {
-  // If the style has an `upstreamUrl` property, indicating where it was
-  // downloaded from, then use that as the id (this way two clients that
-  // download the same style do not result in duplicates)s
-  if (upstreamUrl) {
-    return createIdFromStyleUrl(upstreamUrl)
-  } else {
-    return generateId()
-  }
 }
 
 /**
@@ -56,10 +45,4 @@ function validate(style: unknown): asserts style is StyleJSON {
   }
 }
 
-export {
-  StyleJSON,
-  createIdFromStyleUrl,
-  getStyleId,
-  uncompositeStyle,
-  validate,
-}
+export { StyleJSON, createIdFromStyleUrl, uncompositeStyle, validate }

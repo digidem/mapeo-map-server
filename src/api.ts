@@ -10,13 +10,18 @@ import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
 import { TileJSON, createRasterStyle, validateTileJSON } from './lib/tilejson'
-import { StyleJSON, getStyleId, uncompositeStyle } from './lib/stylejson'
+import {
+  StyleJSON,
+  createIdFromStyleUrl,
+  uncompositeStyle,
+} from './lib/stylejson'
 import {
   getInterpolatedUpstreamTileUrl,
   getTilesetId,
   tileToQuadKey,
   hash,
   encodeBase32,
+  generateId,
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
@@ -597,7 +602,8 @@ function createApi({
     },
 
     async createStyle(style, { accessToken, etag, id, upstreamUrl } = {}) {
-      const styleId = id || getStyleId()
+      const styleId =
+        id || (upstreamUrl ? createIdFromStyleUrl(upstreamUrl) : generateId())
 
       if (styleExists(styleId)) {
         throw new AlreadyExistsError(
