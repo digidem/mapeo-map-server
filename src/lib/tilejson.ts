@@ -121,26 +121,30 @@ export const validateTileJSON: ValidateTileJSON = (
   return true
 }
 
-export function createRasterStyleFromTileset(
-  tileset: TileJSON & { id: string }
-): StyleJSON {
-  const { name, tiles, id } = tileset
-
+export function createRasterStyle({
+  name,
+  url,
+  tileSize = 256,
+}: {
+  name: string
+  url: string
+  tileSize?: 256 | 512
+}): StyleJSON {
   return {
     version: 8,
     name,
     sources: {
-      [id]: {
+      'raster-source': {
         type: 'raster',
-        tiles,
-        tileSize: 256,
+        url,
+        tileSize,
       },
     },
     layers: [
       {
-        id: `layer-${id}`,
+        id: `raster-layer`,
         type: 'raster',
-        source: id,
+        source: 'raster-source',
       },
     ],
   }

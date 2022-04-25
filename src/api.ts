@@ -9,11 +9,7 @@ import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
-import {
-  TileJSON,
-  createRasterStyleFromTileset,
-  validateTileJSON,
-} from './lib/tilejson'
+import { TileJSON, createRasterStyle, validateTileJSON } from './lib/tilejson'
 import { StyleJSON, getStyleId, uncompositeStyle } from './lib/stylejson'
 import {
   getInterpolatedUpstreamTileUrl,
@@ -345,7 +341,10 @@ function createApi({
 
       // Create raster style if tileset format is a raster format
       if (tilejson.format !== 'pbf') {
-        const rasterStyle = createRasterStyleFromTileset(result)
+        const rasterStyle = createRasterStyle({
+          name: tilejson.name || 'TBD',
+          url: `mapeo://tilesets/${tilesetId}`,
+        })
 
         // TODO: Ideally could reuse createStyle here
         db.prepare<{
@@ -356,7 +355,7 @@ function createApi({
           'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
         ).run({
           id: getStyleId(),
-          sourceIdToTilesetId: JSON.stringify({ [tilesetId]: tilesetId }),
+          sourceIdToTilesetId: JSON.stringify({ ['raster-source']: tilesetId }),
           stylejson: JSON.stringify(rasterStyle),
         })
       }
