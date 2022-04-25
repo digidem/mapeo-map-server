@@ -3,8 +3,6 @@ import { Static, Type as T } from '@sinclair/typebox'
 import Ajv, { ValidateFunction, ErrorObject } from 'ajv/dist/2019'
 import isUrl from 'is-url'
 
-import { StyleJSON } from './stylejson'
-
 export enum Scheme {
   xyz = 'xyz',
   tms = 'tms',
@@ -119,33 +117,4 @@ export const validateTileJSON: ValidateTileJSON = (
   // already have been validated by ajv if it exists)
   if (data.format === 'pbf' && !data.vector_layers) return false
   return true
-}
-
-export function createRasterStyle({
-  name,
-  url,
-  tileSize = 256,
-}: {
-  name: string
-  url: string
-  tileSize?: 256 | 512
-}): StyleJSON {
-  return {
-    version: 8,
-    name,
-    sources: {
-      'raster-source': {
-        type: 'raster',
-        url,
-        tileSize,
-      },
-    },
-    layers: [
-      {
-        id: `raster-layer`,
-        type: 'raster',
-        source: 'raster-source',
-      },
-    ],
-  }
 }

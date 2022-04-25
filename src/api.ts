@@ -9,10 +9,11 @@ import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
-import { TileJSON, createRasterStyle, validateTileJSON } from './lib/tilejson'
+import { TileJSON, validateTileJSON } from './lib/tilejson'
 import {
   StyleJSON,
   createIdFromStyleUrl,
+  createRasterStyle,
   uncompositeStyle,
 } from './lib/stylejson'
 import {

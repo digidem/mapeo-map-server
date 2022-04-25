@@ -9,7 +9,12 @@ import { IdResource, Api } from './api'
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
-import { StyleJSON, validate as validateStyleJSON } from './lib/stylejson'
+import {
+  DEFAULT_RASTER_SOURCE_ID,
+  DEFAULT_RASTER_LAYER_ID,
+  StyleJSON,
+  validate as validateStyleJSON,
+} from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 
@@ -178,18 +183,17 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
     version: 8,
     name: expectedName,
     sources: {
-      [tilesetId]: {
+      [DEFAULT_RASTER_SOURCE_ID]: {
         type: 'raster',
-        tiles: [`http://localhost:80/tilesets/${tilesetId}/{z}/{x}/{y}`],
         url: `http://localhost:80/tilesets/${tilesetId}`,
         tileSize: 256,
       },
     },
     layers: [
       {
-        id: `layer-${tilesetId}`,
+        id: DEFAULT_RASTER_LAYER_ID,
         type: 'raster',
-        source: tilesetId,
+        source: DEFAULT_RASTER_SOURCE_ID,
       },
     ],
   }

@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/ban-types */
+import { URL } from 'url'
 import {
   validate as validateStyleJSON,
   StyleSpecification as StyleJSON,
 } from '@maplibre/maplibre-gl-style-spec'
-import { URL } from 'url'
 
 import { encodeBase32, hash } from './utils'
 
@@ -45,4 +45,44 @@ function validate(style: unknown): asserts style is StyleJSON {
   }
 }
 
-export { StyleJSON, createIdFromStyleUrl, uncompositeStyle, validate }
+const DEFAULT_RASTER_SOURCE_ID = 'raster-source'
+const DEFAULT_RASTER_LAYER_ID = 'raster-layer'
+
+function createRasterStyle({
+  name,
+  url,
+  tileSize = 256,
+}: {
+  name: string
+  url: string
+  tileSize?: 256 | 512
+}): StyleJSON {
+  return {
+    version: 8,
+    name,
+    sources: {
+      [DEFAULT_RASTER_SOURCE_ID]: {
+        type: 'raster',
+        url,
+        tileSize,
+      },
+    },
+    layers: [
+      {
+        id: DEFAULT_RASTER_LAYER_ID,
+        type: 'raster',
+        source: DEFAULT_RASTER_SOURCE_ID,
+      },
+    ],
+  }
+}
+
+export {
+  DEFAULT_RASTER_SOURCE_ID,
+  DEFAULT_RASTER_LAYER_ID,
+  StyleJSON,
+  createIdFromStyleUrl,
+  createRasterStyle,
+  uncompositeStyle,
+  validate,
+}
