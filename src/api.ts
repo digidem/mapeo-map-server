@@ -9,13 +9,20 @@ import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
-import { TileJSON, validateTileJSON } from './lib/tilejson'
-import { StyleJSON, getStyleId, uncompositeStyle } from './lib/stylejson'
+import { RASTER_FORMATS, TileJSON, validateTileJSON } from './lib/tilejson'
+import {
+  StyleJSON,
+  createIdFromStyleUrl,
+  createRasterStyle,
+  uncompositeStyle,
+} from './lib/stylejson'
 import {
   getInterpolatedUpstreamTileUrl,
   getTilesetId,
   tileToQuadKey,
   hash,
+  encodeBase32,
+  generateId,
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
@@ -310,11 +317,11 @@ function createApi({
 
   const api: Api = {
     async createTileset(tilejson) {
-      const id = getTilesetId(tilejson)
+      const tilesetId = getTilesetId(tilejson)
 
-      if (tilesetExists(id)) {
+      if (tilesetExists(tilesetId)) {
         throw new AlreadyExistsError(
-          `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${id} to modify this tileset`
+          `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${tilesetId} to modify this tileset`
         )
       }
 
@@ -327,7 +334,7 @@ function createApi({
         'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls) ' +
           'VALUES (:id, :tilejson, :format, :upstreamTileUrls)'
       ).run({
-        id,
+        id: tilesetId,
         format: tilejson.format,
         tilejson: JSON.stringify(tilejson),
         upstreamTileUrls: JSON.stringify(tilejson.tiles),
@@ -335,8 +342,29 @@ function createApi({
 
       const result = {
         ...tilejson,
-        tiles: [getTileUrl(id)],
-        id,
+        id: tilesetId,
+        tiles: [getTileUrl(tilesetId)],
+      }
+
+      if (RASTER_FORMATS.includes(tilejson.format)) {
+        const rasterStyle = createRasterStyle({
+          // TODO: Come up with a better default name
+          name: tilejson.name || `Style ${tilesetId.slice(-4)}`,
+          url: `mapeo://tilesets/${tilesetId}`,
+        })
+
+        // TODO: Ideally could reuse createStyle here
+        db.prepare<{
+          id: string
+          sourceIdToTilesetId: string
+          stylejson: string
+        }>(
+          'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
+        ).run({
+          id: encodeBase32(hash(`style:${tilesetId}`)),
+          sourceIdToTilesetId: JSON.stringify({ ['raster-source']: tilesetId }),
+          stylejson: JSON.stringify(rasterStyle),
+        })
       }
 
       return result
@@ -575,7 +603,8 @@ function createApi({
     },
 
     async createStyle(style, { accessToken, etag, id, upstreamUrl } = {}) {
-      const styleId = id || getStyleId()
+      const styleId =
+        id || (upstreamUrl ? createIdFromStyleUrl(upstreamUrl) : generateId())
 
       if (styleExists(styleId)) {
         throw new AlreadyExistsError(

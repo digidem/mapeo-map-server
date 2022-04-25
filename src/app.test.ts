@@ -9,7 +9,12 @@ import { IdResource, Api } from './api'
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
-import { StyleJSON, validate as validateStyleJSON } from './lib/stylejson'
+import {
+  DEFAULT_RASTER_SOURCE_ID,
+  DEFAULT_RASTER_LAYER_ID,
+  StyleJSON,
+  validate as validateStyleJSON,
+} from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 
@@ -142,6 +147,58 @@ test('POST /tilesets when tileset does not exist creates a tileset and returns i
   })
 
   t.equal(responseGet.statusCode, 200)
+})
+
+test('POST /tilesets creates a style for the raster tileset', async (t) => {
+  const { sampleTileJSON, server } = t.context as TestContext
+
+  const responseTilesetsPost = await server.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: sampleTileJSON,
+  })
+
+  const { id: tilesetId, name: expectedName } = responseTilesetsPost.json<
+    TileJSON & IdResource
+  >()
+
+  const responseStylesListGet = await server.inject({
+    method: 'GET',
+    url: '/styles',
+  })
+
+  const stylesList =
+    responseStylesListGet.json<{ id: string; name?: string; url: string }[]>()
+
+  t.equal(stylesList.length, 1)
+
+  const responseStyleGet = await server.inject({
+    method: 'GET',
+    url: stylesList[0].url,
+  })
+
+  t.equal(responseStyleGet.statusCode, 200)
+
+  const expectedStyle = {
+    version: 8,
+    name: expectedName,
+    sources: {
+      [DEFAULT_RASTER_SOURCE_ID]: {
+        type: 'raster',
+        url: `http://localhost:80/tilesets/${tilesetId}`,
+        tileSize: 256,
+      },
+    },
+    layers: [
+      {
+        id: DEFAULT_RASTER_LAYER_ID,
+        type: 'raster',
+        source: DEFAULT_RASTER_SOURCE_ID,
+      },
+    ],
+  }
+
+  t.same(responseStyleGet.json(), expectedStyle)
 })
 
 test('PUT /tilesets when tileset exists returns the updated tileset', async (t) => {

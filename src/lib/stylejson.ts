@@ -1,30 +1,19 @@
 /* eslint-disable @typescript-eslint/ban-types */
+import { URL } from 'url'
 import {
   validate as validateStyleJSON,
   StyleSpecification as StyleJSON,
 } from '@maplibre/maplibre-gl-style-spec'
-import { URL } from 'url'
 
-import { encodeBase32, generateId, hash } from './utils'
+import { encodeBase32, hash } from './utils'
 
+// If the style has an `upstreamUrl` property, indicating where it was
+// downloaded from, then use that as the id (this way two clients that
+// download the same style do not result in duplicates)s
 function createIdFromStyleUrl(url: string) {
   const u = new URL(url)
   u.searchParams.delete('access_token')
   return encodeBase32(hash(u.toString()))
-}
-
-/**
- * Try to get an idempotent ID for a given style.json, fallback to random ID
- */
-function getStyleId(upstreamUrl?: string): string {
-  // If the style has an `upstreamUrl` property, indicating where it was
-  // downloaded from, then use that as the id (this way two clients that
-  // download the same style do not result in duplicates)s
-  if (upstreamUrl) {
-    return createIdFromStyleUrl(upstreamUrl)
-  } else {
-    return generateId()
-  }
 }
 
 /**
@@ -56,10 +45,44 @@ function validate(style: unknown): asserts style is StyleJSON {
   }
 }
 
+const DEFAULT_RASTER_SOURCE_ID = 'raster-source'
+const DEFAULT_RASTER_LAYER_ID = 'raster-layer'
+
+function createRasterStyle({
+  name,
+  url,
+  tileSize = 256,
+}: {
+  name: string
+  url: string
+  tileSize?: 256 | 512
+}): StyleJSON {
+  return {
+    version: 8,
+    name,
+    sources: {
+      [DEFAULT_RASTER_SOURCE_ID]: {
+        type: 'raster',
+        url,
+        tileSize,
+      },
+    },
+    layers: [
+      {
+        id: DEFAULT_RASTER_LAYER_ID,
+        type: 'raster',
+        source: DEFAULT_RASTER_SOURCE_ID,
+      },
+    ],
+  }
+}
+
 export {
+  DEFAULT_RASTER_SOURCE_ID,
+  DEFAULT_RASTER_LAYER_ID,
   StyleJSON,
   createIdFromStyleUrl,
-  getStyleId,
+  createRasterStyle,
   uncompositeStyle,
   validate,
 }
