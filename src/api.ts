@@ -349,7 +349,8 @@ function createApi({
       // Create raster style if tileset format is a raster format
       if (tilejson.format !== 'pbf') {
         const rasterStyle = createRasterStyle({
-          name: tilejson.name || 'TBD',
+          // TODO: Come up with a better default name
+          name: tilejson.name || `Style ${tilesetId.slice(-4)}`,
           url: `mapeo://tilesets/${tilesetId}`,
         })
 
