@@ -78,6 +78,10 @@ teardown(() => {
 /**
  * /tilesets tests
  */
+
+// TODO: Add tilesets tests for:
+// - POST /tilesets/import (import progress)
+
 test('GET /tilesets when no tilesets exist returns an empty array', async (t) => {
   const { server } = t.context as TestContext
 
@@ -290,6 +294,31 @@ test('GET /tile of png format returns a tile image', async (t) => {
   )
 
   t.equal(typeof response.body, 'string')
+})
+
+test('POST /import creates a tileset', async (t) => {
+  const { server } = t.context as TestContext
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: `/tilesets/import`,
+    payload: {
+      filePath: path.resolve(__dirname, './fixtures/mbtiles/trails.mbtiles'),
+    },
+  })
+
+  t.equal(importResponse.statusCode, 200)
+
+  const tileset = importResponse.json<TileJSON & { id: string }>()
+
+  const tilesetGetResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${tileset.id}`,
+  })
+
+  t.equal(tilesetGetResponse.statusCode, 200)
+
+  t.same(tileset, tilesetGetResponse.json())
 })
 
 /**
@@ -571,31 +600,4 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   })
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
-})
-
-test('POST /import (success)', async (t) => {
-  const { server } = t.context as TestContext
-
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: `/tilesets/import`,
-    payload: {
-      filePath: path.resolve(__dirname, './fixtures/mbtiles/trails.mbtiles'),
-    },
-  })
-
-  t.equal(importResponse.statusCode, 200, 'Successful import responds with 200')
-
-  const tileset = importResponse.json<TileJSON & { id: string }>()
-
-  const tilesetGetResponse = await server.inject({
-    method: 'GET',
-    url: `/tilesets/${tileset.id}`,
-  })
-
-  t.same(tileset, tilesetGetResponse.json(), 'Tileset successfully created')
-
-  // TODO: Test a import progress endpoint
-
-  t.end()
 })

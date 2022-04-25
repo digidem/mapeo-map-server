@@ -113,7 +113,10 @@ export interface IdResource {
 export interface Api {
   importMBTiles(filePath: string): Promise<TileJSON & IdResource>
   // getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
-  createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
+  createTileset(tileset: TileJSON): Promise<{
+    style?: { id: string; json: StyleJSON }
+    tileset: TileJSON & IdResource
+  }>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
   getTileset(id: string): Promise<TileJSON & IdResource>
@@ -376,18 +379,25 @@ function createApi({
 
       const tilesetId = getTilesetId(tilejson)
 
-      const tileset = await api.createTileset(tilejson)
+      const { style, tileset } = await api.createTileset(tilejson)
 
-      const importId = generateId()
-
+      // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
+      // and we don't generate a style for those on tileset creation yet.
+      // Absence presents various complications when creating and updating offline area and imports in db
       tilesetImportWorker.postMessage({
         type: 'importMbTiles',
-        importId,
+        importId: generateId(),
         mbTilesDbPath: mbTilesDb.name,
+        styleId: style?.id,
         tilesetId,
       })
 
-      return new Promise((res) => {
+      return new Promise((res, rej) => {
+        // TODO: What else has to be called when this occurs? e.g. terminating the import
+        tilesetImportWorker.addListener('error', (err) => {
+          rej(err)
+        })
+
         tilesetImportWorker.addListener(
           'message',
           ({
@@ -442,18 +452,23 @@ function createApi({
             : JSON.stringify(tilejson.tiles),
       })
 
-      const result = {
+      const createdTileset = {
         ...tilejson,
         id: tilesetId,
         tiles: [getTileUrl(tilesetId)],
       }
 
+      let rasterStyle: { id: string; json: StyleJSON } | undefined
+
       if (RASTER_FORMATS.includes(tilejson.format)) {
-        const rasterStyle = createRasterStyle({
-          // TODO: Come up with a better default name
-          name: tilejson.name || `Style ${tilesetId.slice(-4)}`,
-          url: `mapeo://tilesets/${tilesetId}`,
-        })
+        rasterStyle = {
+          id: encodeBase32(hash(`style:${tilesetId}`)),
+          json: createRasterStyle({
+            // TODO: Come up with a better default name
+            name: tilejson.name || `Style ${tilesetId.slice(-4)}`,
+            url: `mapeo://tilesets/${tilesetId}`,
+          }),
+        }
 
         // TODO: Ideally could reuse createStyle here
         db.prepare<{
@@ -463,13 +478,13 @@ function createApi({
         }>(
           'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
         ).run({
-          id: encodeBase32(hash(`style:${tilesetId}`)),
+          id: rasterStyle.id,
           sourceIdToTilesetId: JSON.stringify({ ['raster-source']: tilesetId }),
-          stylejson: JSON.stringify(rasterStyle),
+          stylejson: JSON.stringify(rasterStyle.json),
         })
       }
 
-      return result
+      return { style: rasterStyle, tileset: createdTileset }
     },
 
     async putTileset(id, tilejson) {

@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
 import { TileJSON, TileJSONSchema } from '../lib/tilejson'
 import { Static, Type as T } from '@sinclair/typebox'
-import { on } from 'events'
+// import { on } from 'events'
 
 const GetTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
@@ -22,9 +22,9 @@ const ImportMBTilesBodySchema = T.Object({
   filePath: T.String(),
 })
 
-const GetImportProgressParamsSchema = T.Object({
-  tilesetId: T.String(),
-})
+// const GetImportProgressParamsSchema = T.Object({
+//   tilesetId: T.String(),
+// })
 
 const tilesets: FastifyPluginAsync = async function (fastify) {
   fastify.get(
@@ -69,9 +69,9 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const tilejson = await request.api.createTileset(request.body)
-      reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
-      return tilejson
+      const { tileset } = await request.api.createTileset(request.body)
+      reply.header('Location', `${fastify.prefix}/${tileset.id}`)
+      return tileset
     }
   )
 
