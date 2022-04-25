@@ -107,7 +107,7 @@ export interface Api {
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<{ name?: string; style: StyleJSON } & IdResource>>
+  listStyles(): Promise<Array<{ name?: string; url: string } & IdResource>>
 }
 
 function createApi({
@@ -129,6 +129,10 @@ function createApi({
 
   function getTilesetUrl(tilesetId: string): string {
     return `${apiUrl}/tilesets/${tilesetId}`
+  }
+
+  function getStyleUrl(styleId: string): string {
+    return `${apiUrl}/styles/${styleId}`
   }
 
   function getSpriteUrl(styleId: string): string {
@@ -646,44 +650,15 @@ function createApi({
     },
 
     async listStyles() {
-      const styles: ({ name?: string; style: StyleJSON } & IdResource)[] = []
-
-      db.prepare('SELECT id, stylejson, sourceIdToTilesetId FROM Style')
-        .all()
-        .forEach(
-          (row: {
-            id: string
-            stylejson: string
-            sourceIdToTilesetId: string
-          }) => {
-            let style: StyleJSON
-            let sourceIdToTilesetId: SourceIdToTilesetId
-
-            try {
-              style = JSON.parse(row.stylejson)
-              sourceIdToTilesetId = JSON.parse(row.sourceIdToTilesetId)
-            } catch (err) {
-              throw new ParseError(err)
-            }
-
-            const adjustedStyle = addOfflineUrls({
-              style,
-              styleId: row.id,
-              sourceIdToTilesetId,
-            })
-
-            // TODO:
-            // - Should we have a fallback name here or let client handle?
-            // - Providing the whole stylejson is temporary and won't be needed once static map generation is implemented
-            styles.push({
-              id: row.id,
-              name: adjustedStyle.name,
-              style: adjustedStyle,
-            })
-          }
+      return db
+        .prepare(
+          "SELECT Style.id, StyleJsonName.value as name FROM Style, json_tree(stylejson, '$.name') as StyleJsonName"
         )
-
-      return styles
+        .all()
+        .map((row: { id: string; name?: string }) => ({
+          ...row,
+          url: getStyleUrl(row.id),
+        }))
     },
 
     async getStyle(id) {

@@ -458,21 +458,14 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 
   const { id: expectedId } = responsePost.json()
 
-  const expectedSources = {
-    'mapbox-streets': {
-      ...(sampleStyleWithName.sources[
-        'mapbox-streets'
-      ] as VectorSourceSpecification),
-      url: 'http://localhost:80/tilesets/yqtx3fxnp2vdyssc82ew4f377g4y0njk',
-    },
-  }
+  const expectedUrl = `http://localhost:80/styles/${expectedId}`
 
   // TODO: `style` is a temporary field that the API will no longer return once thumbnail generation is implemented
   const expectedGetResponse = [
     {
       id: expectedId,
       name: expectedName,
-      style: { ...sampleStyleWithName, sources: expectedSources },
+      url: expectedUrl,
     },
   ]
 
