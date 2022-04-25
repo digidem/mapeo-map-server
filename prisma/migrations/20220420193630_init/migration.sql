@@ -30,21 +30,13 @@ CREATE TABLE "Tileset" (
 );
 
 -- CreateTable
-CREATE TABLE "TilesetsOnStyles" (
-    "tilesetId" TEXT NOT NULL,
-    "styleId" TEXT NOT NULL,
-
-    PRIMARY KEY ("tilesetId", "styleId"),
-    CONSTRAINT "TilesetsOnStyles_tilesetId_fkey" FOREIGN KEY ("tilesetId") REFERENCES "Tileset" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "TilesetsOnStyles_styleId_fkey" FOREIGN KEY ("styleId") REFERENCES "Style" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
-);
-
--- CreateTable
 CREATE TABLE "Style" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "stylejson" TEXT NOT NULL,
     "etag" TEXT,
-    "spriteId" TEXT
+    "upstreamUrl" TEXT,
+    "spriteId" TEXT,
+    "sourceIdToTilesetId" TEXT NOT NULL
 );
 
 -- CreateTable

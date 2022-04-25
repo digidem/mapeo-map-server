@@ -10,9 +10,8 @@ import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
 import { TileJSON, validateTileJSON } from './lib/tilejson'
+import { StyleJSON, getStyleId, uncompositeStyle } from './lib/stylejson'
 import {
-  encodeBase32,
-  generateId,
   getInterpolatedUpstreamTileUrl,
   getTilesetId,
   tileToQuadKey,
@@ -20,11 +19,7 @@ import {
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
-import {
-  RasterSourceSpecification,
-  StyleSpecification,
-  VectorSourceSpecification,
-} from './types/mapbox_style'
+import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -50,20 +45,26 @@ const MismatchedIdError = createError(
   400
 )
 
-// TODO: Fix naming and description here
-const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
+const MBAccessTokenRequiredError = createError(
+  'FST_ACCESS_TOKEN',
+  'A Mapbox API access token is required for styles that use Mapbox-hosted sources',
+  400
+)
 
-type OfflineStyle = StyleSpecification & {
-  id: string
-  sources?: {
-    [_: string]: (VectorSourceSpecification | RasterSourceSpecification) & {
-      tilesetId: string
-    }
-  }
-}
+const UpstreamJsonValidationError = createError(
+  'FST_UPSTREAM_VALIDATION',
+  'JSON validation failed for upstream resource from %s: %s',
+  500
+)
+
+const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
 
 export interface PluginOptions {
   dbPath: string
+}
+
+interface SourceIdToTilesetId {
+  [sourceId: keyof StyleJSON['sources']]: string
 }
 
 interface Context {
@@ -75,7 +76,6 @@ interface Context {
 export interface IdResource {
   id: string
 }
-
 export interface Api {
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
@@ -95,11 +95,19 @@ export interface Api {
     data: Buffer
     etag?: string
   }): Promise<void>
-  createStyle(style: StyleSpecification): Promise<OfflineStyle>
-  putStyle(id: string, style: OfflineStyle): Promise<OfflineStyle>
-  getStyle(id: string): Promise<OfflineStyle>
-  // deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<OfflineStyle>>
+  createStyle(
+    style: StyleJSON,
+    options?: {
+      accessToken?: string
+      etag?: string
+      id?: string
+      upstreamUrl?: string
+    }
+  ): Promise<{ style: StyleJSON } & IdResource>
+  updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
+  getStyle(id: string): Promise<StyleJSON>
+  deleteStyle(id: string): Promise<void>
+  listStyles(): Promise<Array<{ name?: string; url: string } & IdResource>>
 }
 
 function createApi({
@@ -123,6 +131,10 @@ function createApi({
     return `${apiUrl}/tilesets/${tilesetId}`
   }
 
+  function getStyleUrl(styleId: string): string {
+    return `${apiUrl}/styles/${styleId}`
+  }
+
   function getSpriteUrl(styleId: string): string {
     return `${apiUrl}/sprites/${styleId}`
   }
@@ -131,27 +143,49 @@ function createApi({
     return `${apiUrl}/fonts/${styleId}/{fontstack}/{range}`
   }
 
-  function addOfflineUrls(style: OfflineStyle): OfflineStyle {
-    const sources: OfflineStyle['sources'] = {}
+  function addOfflineUrls({
+    sourceIdToTilesetId,
+    style,
+  }: {
+    sourceIdToTilesetId: SourceIdToTilesetId
+    style: StyleJSON
+  }): StyleJSON {
+    const updatedSources: StyleJSON['sources'] = {}
+
     for (const sourceId of Object.keys(style.sources)) {
-      sources[sourceId] = {
-        ...style.sources[sourceId],
-        url: getTilesetUrl(sources[sourceId].tilesetId),
+      const source = style.sources[sourceId]
+
+      const tilesetId = sourceIdToTilesetId[sourceId]
+
+      const includeUrlField =
+        tilesetId && ['vector', 'raster', 'raster-dem'].includes(source.type)
+
+      updatedSources[sourceId] = {
+        ...source,
+        ...(includeUrlField ? { url: getTilesetUrl(tilesetId) } : undefined),
       }
     }
+
+    // TODO: Remap glyphs and sprite URLs to map server
     return {
       ...style,
-      sources,
-      glyphs: style.glyphs && getGlyphsUrl(style.id),
-      sprite: style.sprite && getSpriteUrl(style.id),
+      sources: updatedSources,
     }
   }
 
   function tilesetExists(tilesetId: string) {
     return (
       db
-        .prepare('SELECT COUNT(*) as count FROM Tileset WHERE id = ?')
+        .prepare('SELECT COUNT(*) AS count FROM Tileset WHERE id = ?')
         .get(tilesetId).count > 0
+    )
+  }
+
+  function styleExists(styleId: string) {
+    return (
+      db
+        .prepare('SELECT COUNT(*) AS count FROM Style WHERE id = ?')
+        .get(styleId).count > 0
     )
   }
 
@@ -214,10 +248,15 @@ function createApi({
    * Given a map of sources from a style, this will create offline tilesets for
    * each source, and update the source to reference the offline tileset
    */
-  async function createOfflineSources(
-    sources: StyleSpecification['sources']
-  ): Promise<OfflineStyle['sources']> {
-    const offlineSources: OfflineStyle['sources'] = {}
+  async function createOfflineSources({
+    accessToken,
+    sources,
+  }: {
+    accessToken?: string
+    sources: StyleJSON['sources']
+  }): Promise<SourceIdToTilesetId> {
+    // const offlineSources: StyleJSON['sources'] = {}
+    const sourceIdToTilesetId: SourceIdToTilesetId = {}
 
     for (const sourceId of Object.keys(sources)) {
       const source = sources[sourceId]
@@ -232,8 +271,14 @@ function createApi({
           `Currently only sources defined with \`source.url\` are supported (referencing a TileJSON), but this style.json has a source '${sourceId}' that does not have a \`url\` property`
         )
       }
+      if (isMapboxURL(source.url) && !accessToken) {
+        throw new MBAccessTokenRequiredError()
+      }
 
-      const tilejson = await got(source.url).json()
+      const upstreamUrl = normalizeSourceURL(source.url, accessToken)
+
+      const tilejson = await got(upstreamUrl).json()
+
       if (!validateTileJSON(tilejson)) {
         // TODO: Write these errors to UnsupportedSourceError.message rather
         // than just log them
@@ -255,10 +300,12 @@ function createApi({
         await api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
+        // await api.putTileset(tilesetId, tilejson)
       }
-      offlineSources[sourceId] = { ...source, tilesetId }
+      sourceIdToTilesetId[sourceId] = tilesetId
     }
-    return offlineSources
+
+    return sourceIdToTilesetId
   }
 
   const api: Api = {
@@ -380,6 +427,11 @@ function createApi({
           etag,
           responseType: 'json',
         })
+
+        if (!validateTileJSON(data)) {
+          // TODO: Do we want to throw here?
+          throw new UpstreamJsonValidationError(url, validateTileJSON.errors)
+        }
 
         if (data) api.putTileset(id, data)
       }
@@ -522,56 +574,134 @@ function createApi({
       transaction()
     },
 
-    async createStyle(style) {
-      const styleId = getStyleId(style)
+    async createStyle(style, { accessToken, etag, id, upstreamUrl } = {}) {
+      const styleId = id || getStyleId()
 
-      const styleExists =
-        db
-          .prepare('SELECT COUNT(*) as count FROM Style WHERE id = ?')
-          .get(styleId).count > 0
-
-      if (styleExists) {
+      if (styleExists(styleId)) {
         throw new AlreadyExistsError(
           `Style already exists. PUT changes to ${fastify.prefix}/${styleId} to modify this style`
         )
       }
 
-      const offlineStyle: OfflineStyle = {
-        ...(await uncompositeStyle(style)),
+      const sourceIdToTilesetId = await createOfflineSources({
+        accessToken,
+        sources: style.sources,
+      })
+
+      const styleToSave: StyleJSON = await uncompositeStyle(style)
+
+      db.prepare<{
+        id: string
+        stylejson: string
+        etag?: string
+        upstreamUrl?: string
+        sourceIdToTilesetId: string
+      }>(
+        'INSERT INTO Style (id, stylejson, etag, upstreamUrl, sourceIdToTilesetId) VALUES (:id, :stylejson, :etag, :upstreamUrl, :sourceIdToTilesetId)'
+      ).run({
         id: styleId,
-        sources: await createOfflineSources(style.sources),
+        stylejson: JSON.stringify(styleToSave),
+        etag,
+        upstreamUrl,
+        sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
+      })
+
+      return {
+        style: addOfflineUrls({
+          sourceIdToTilesetId,
+          style: styleToSave,
+        }),
+        id: styleId,
+      }
+    },
+
+    // TODO: May need to accept an access token
+    async updateStyle(id, style) {
+      if (!styleExists(id)) {
+        throw new NotFoundError(id)
       }
 
-      db.prepare(
-        'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
-      ).run({ id: styleId, stylejson: JSON.stringify(offlineStyle) })
+      const sourceIdToTilesetId = await createOfflineSources({
+        sources: style.sources,
+      })
 
-      return addOfflineUrls(offlineStyle)
+      const styleToSave: StyleJSON = await uncompositeStyle(style)
+
+      db.prepare<{
+        id: string
+        sourceIdToTilesetId: string
+        stylejson: string
+      }>(
+        'UPDATE Style SET stylejson = :stylejson, sourceIdToTilesetId = :sourceIdToTilesetId WHERE id = :id'
+      ).run({
+        id,
+        sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
+        stylejson: JSON.stringify(styleToSave),
+      })
+
+      return addOfflineUrls({
+        sourceIdToTilesetId,
+        style: styleToSave,
+      })
     },
 
-    async putStyle(id, style) {
-      db.prepare(
-        'INSERT INTO Style (id, stylejson) VALUES (:id, :stylejson)'
-      ).run({ id, stylejson: style })
-      return { ...style, id }
-    },
-
-    async listStyles(limit?: number) {
-      const baseQuery = 'SELECT stylejson FROM Style'
-      const stmt =
-        limit !== undefined
-          ? db.prepare(`${baseQuery} LIMIT ?`).bind(limit)
-          : db.prepare(baseQuery)
-
-      return stmt
+    async listStyles() {
+      return db
+        .prepare(
+          "SELECT Style.id, StyleJsonName.value as name FROM Style, json_tree(stylejson, '$.name') as StyleJsonName"
+        )
         .all()
-        .map((row: { stylejson: string }) => JSON.parse(row.stylejson))
+        .map((row: { id: string; name?: string }) => ({
+          ...row,
+          url: getStyleUrl(row.id),
+        }))
     },
 
     async getStyle(id) {
-      const row = db.prepare('SELECT stylejson FROM Style WHERE id = ?').get(id)
+      const row:
+        | {
+            id: string
+            stylejson: string
+            sourceIdToTilesetId: string
+          }
+        | undefined = db
+        .prepare(
+          'SELECT id, stylejson, sourceIdToTilesetId FROM Style WHERE id = ?'
+        )
+        .get(id)
 
-      return JSON.parse(row.stylejson)
+      if (!row) {
+        throw new NotFoundError(id)
+      }
+
+      let style: StyleJSON
+      let sourceIdToTilesetId: SourceIdToTilesetId
+
+      try {
+        style = JSON.parse(row.stylejson)
+        sourceIdToTilesetId = JSON.parse(row.sourceIdToTilesetId)
+      } catch (err) {
+        throw new ParseError(err)
+      }
+
+      return addOfflineUrls({
+        sourceIdToTilesetId,
+        style,
+      })
+    },
+    async deleteStyle(id: string) {
+      if (!styleExists(id)) {
+        throw new NotFoundError(id)
+      }
+
+      // TODO
+      // - Delete any orphaned tilesets and sprites
+      // - How to handle glpyhs here?
+      const deleteStyleTransaction = db.transaction(() => {
+        db.prepare('DELETE FROM Style WHERE id = ?').run(id)
+      })
+
+      deleteStyleTransaction()
     },
   }
   return api
@@ -583,6 +713,11 @@ const ApiPlugin: FastifyPluginAsync<PluginOptions> = async (
 ) => {
   // Create context once for each fastify instance
   const context = init(dbPath)
+
+  fastify.addHook('onClose', () => {
+    context.db.close()
+  })
+
   fastify.decorateRequest('api', {
     getter(this: FastifyRequest) {
       return createApi({ context, request: this, fastify })
@@ -594,43 +729,6 @@ export default fp(ApiPlugin, {
   fastify: '3.x',
   name: 'api',
 })
-
-/**
- * Try to get an idempotent ID for a given style.json, fallback to random ID
- */
-function getStyleId(style: StyleSpecification): string {
-  // If the style has an `upstreamUrl` property, indicating where it was
-  // downloaded from, then use that as the id (this way two clients that
-  // download the same style do not result in duplicates)
-  if (style.upstreamUrl) {
-    return encodeBase32(hash(style.upstreamUrl))
-  } else {
-    return generateId()
-  }
-}
-
-/**
- * TODO: Mapbox styles are sometimes served with sources combined into a single
- * "composite" source. Since core Mapbox sources (e.g. streets, satellite,
- * outdoors etc) can appear in several different styles, this function should
- * extract them from the composite style and adjust the style layers to point to
- * the original source, not the composite. This will save downloading Mapbox
- * sources multiple times for each style they appear in.
- */
-async function uncompositeStyle(
-  style: StyleSpecification
-): Promise<StyleSpecification> {
-  // TODO:
-  // 1. Check if style.sources includes source named "composite"
-  // 2. Check in "composite" includes a source id that starts with 'mapbox.'
-  // 3. Download the composite source tilejson and check vector_layers for
-  //    source_layer ids that from from the 'mapbox.' source
-  // 4. Add any 'mapbox.' sources from 'composite' as separate sources
-  // 5. Re-write style.layers for layers to use 'mapbox.' sources rather than
-  //    the composite source
-  // 6. Re-write the composite source to not include 'mapbox.' source ids
-  return style
-}
 
 function init(dbPath: string): Context {
   const db = new Database(dbPath)

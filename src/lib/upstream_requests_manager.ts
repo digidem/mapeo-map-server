@@ -1,12 +1,11 @@
 import got from 'got'
-import { TileJSON } from './tilejson'
 
 type ResponseType = 'buffer' | 'json' | 'text'
 
 type DataType<T extends ResponseType> = T extends 'buffer'
   ? Buffer
   : T extends 'json'
-  ? TileJSON
+  ? unknown
   : T extends 'text'
   ? string
   : never
@@ -44,7 +43,10 @@ export class UpstreamRequestsManager {
 
     const headers = etag ? { 'If-None-Match': etag } : {}
 
-    const request = got(url, { headers, responseType }).then((response) => {
+    const request = got(url, {
+      headers,
+      responseType,
+    }).then((response) => {
       if (response.statusCode === 304) throw new Error('Not Modified')
 
       const etag = response.headers.etag as string | undefined

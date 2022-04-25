@@ -35,7 +35,7 @@ model Tile {
 }
 
 model Tileset {
-  id               String             @id
+  id               String  @id
   // Description of tileset based on TileJSON spec
   tilejson         String
   format           String
@@ -43,27 +43,19 @@ model Tileset {
   upstreamTileUrls String?
   etag             String?
   upstreamUrl      String?
-  styles           TilesetsOnStyles[]
   tiles            Tile[]
 }
 
-model TilesetsOnStyles {
-  tileset   Tileset @relation(fields: [tilesetId], references: [id])
-  tilesetId String
-  style     Style   @relation(fields: [styleId], references: [id])
-  styleId   String
-
-  @@id([tilesetId, styleId])
-}
-
 model Style {
-  id           String             @id
+  id                  String        @id
   // JSON string that adheres to style specification v8
-  stylejson    String
-  etag         String?
-  spriteId     String?
-  offlineAreas OfflineArea[]
-  tilesets     TilesetsOnStyles[]
+  stylejson           String
+  etag                String?
+  upstreamUrl         String?
+  spriteId            String?
+  // JSON object that maps the source ids to their respective tileset ids
+  sourceIdToTilesetId String
+  offlineAreas        OfflineArea[]
 }
 
 model Sprite {

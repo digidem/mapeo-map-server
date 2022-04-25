@@ -200,3 +200,5 @@ test('Upstream resource not modified', async (t) => {
 
   t.end()
 })
+
+// TODO: Add tests for text and json response types

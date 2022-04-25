@@ -1,0 +1,20 @@
+{
+  "version": 8,
+  "sources": {
+    "mapbox-streets": {
+      "type": "vector",
+      "url": "mapbox://mapbox.mapbox-streets-v6"
+    }
+  },
+  "layers": [
+    {
+      "id": "water",
+      "source": "mapbox-streets",
+      "source-layer": "water",
+      "type": "fill",
+      "paint": {
+        "fill-color": "#00ffff"
+      }
+    }
+  ]
+}
