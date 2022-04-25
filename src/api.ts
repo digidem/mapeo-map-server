@@ -164,11 +164,10 @@ function createApi({
       }
     }
 
+    // TODO: Remap glyphs and sprite URLs to map server
     return {
       ...style,
       sources: updatedSources,
-      glyphs: style.glyphs && getGlyphsUrl(styleId),
-      sprite: style.sprite && getSpriteUrl(styleId),
     }
   }
 
