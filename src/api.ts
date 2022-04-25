@@ -9,7 +9,7 @@ import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
-import { TileJSON, validateTileJSON } from './lib/tilejson'
+import { RASTER_FORMATS, TileJSON, validateTileJSON } from './lib/tilejson'
 import {
   StyleJSON,
   createIdFromStyleUrl,
@@ -346,8 +346,7 @@ function createApi({
         tiles: [getTileUrl(tilesetId)],
       }
 
-      // Create raster style if tileset format is a raster format
-      if (tilejson.format !== 'pbf') {
+      if (RASTER_FORMATS.includes(tilejson.format)) {
         const rasterStyle = createRasterStyle({
           // TODO: Come up with a better default name
           name: tilejson.name || `Style ${tilesetId.slice(-4)}`,

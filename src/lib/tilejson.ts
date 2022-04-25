@@ -92,6 +92,12 @@ export const TileJSONSchema = T.Object(
 
 export type TileJSON = Static<typeof TileJSONSchema> & { [key: string]: any }
 
+export const RASTER_FORMATS: readonly TileJSON['format'][] = [
+  'jpg',
+  'png',
+  'webp',
+] as const
+
 interface ValidateTileJSON {
   (data: unknown): data is TileJSON
   schema?: TileJSON | boolean
