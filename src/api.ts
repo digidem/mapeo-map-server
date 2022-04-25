@@ -16,6 +16,7 @@ import {
   getTilesetId,
   tileToQuadKey,
   hash,
+  encodeBase32,
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
@@ -354,7 +355,7 @@ function createApi({
         }>(
           'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
         ).run({
-          id: getStyleId(),
+          id: encodeBase32(hash(`style:${tilesetId}`)),
           sourceIdToTilesetId: JSON.stringify({ ['raster-source']: tilesetId }),
           stylejson: JSON.stringify(rasterStyle),
         })
