@@ -146,11 +146,9 @@ function createApi({
   function addOfflineUrls({
     sourceIdToTilesetId,
     style,
-    styleId,
   }: {
     sourceIdToTilesetId: SourceIdToTilesetId
     style: StyleJSON
-    styleId: string
   }): StyleJSON {
     const updatedSources: StyleJSON['sources'] = {}
 
@@ -612,7 +610,6 @@ function createApi({
         style: addOfflineUrls({
           sourceIdToTilesetId,
           style: styleToSave,
-          styleId,
         }),
         id: styleId,
       }
@@ -645,7 +642,6 @@ function createApi({
       return addOfflineUrls({
         sourceIdToTilesetId,
         style: styleToSave,
-        styleId: id,
       })
     },
 
@@ -691,7 +687,6 @@ function createApi({
       return addOfflineUrls({
         sourceIdToTilesetId,
         style,
-        styleId: id,
       })
     },
     async deleteStyle(id: string) {
