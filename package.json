@@ -15,7 +15,7 @@
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate-dev": "prisma migrate dev",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package && node scripts/fix-maplibre.js"
   },
   "author": "Digital Democracy",
   "license": "MIT",
