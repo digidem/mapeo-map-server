@@ -11,8 +11,9 @@ import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
 import { isValidMBTilesFormat, mbTilesToTileJSON } from './lib/mbtiles'
-import { RASTER_FORMATS, TileJSON, validateTileJSON } from './lib/tilejson'
+import { TileJSON, validateTileJSON } from './lib/tilejson'
 import {
+  DEFAULT_RASTER_SOURCE_ID,
   StyleJSON,
   createIdFromStyleUrl,
   createRasterStyle,
@@ -29,11 +30,6 @@ import {
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 // import { ImportProgressEmitter } from './lib/import_progress_emitter'
-import {
-  RasterSourceSpecification,
-  StyleSpecification,
-  VectorSourceSpecification,
-} from './types/mapbox_style'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 
 const NotFoundError = createError(
@@ -113,10 +109,7 @@ export interface IdResource {
 export interface Api {
   importMBTiles(filePath: string): Promise<TileJSON & IdResource>
   // getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
-  createTileset(tileset: TileJSON): Promise<{
-    style?: { id: string; json: StyleJSON }
-    tileset: TileJSON & IdResource
-  }>
+  createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
   getTileset(id: string): Promise<TileJSON & IdResource>
@@ -134,6 +127,10 @@ export interface Api {
     data: Buffer
     etag?: string
   }): Promise<void>
+  createStyleForTileset(
+    tilesetId: string,
+    nameForStyle?: string
+  ): Promise<{ id: string; style: StyleJSON }>
   createStyle(
     style: StyleJSON,
     options?: {
@@ -285,7 +282,7 @@ function createApi({
 
   /**
    * Given a map of sources from a style, this will create offline tilesets for
-   * each source, and update the source to reference the offline tileset
+   * each source, and return a mapping of source ids to their created tileset ids
    */
   async function createOfflineSources({
     accessToken,
@@ -294,15 +291,17 @@ function createApi({
     accessToken?: string
     sources: StyleJSON['sources']
   }): Promise<SourceIdToTilesetId> {
-    // const offlineSources: StyleJSON['sources'] = {}
     const sourceIdToTilesetId: SourceIdToTilesetId = {}
 
     for (const sourceId of Object.keys(sources)) {
       const source = sources[sourceId]
 
-      if (!(source.type === 'raster' || source.type === 'vector')) {
+      // TODO:
+      // - Support vector sources
+      // - Should we continue instead of throw if the source is vector?
+      if (!(source.type === 'raster')) {
         throw new UnsupportedSourceError(
-          `Currently only sources of type 'vector' or 'raster' are supported, and this style.json has a source '${sourceId}' of type '${source.type}'`
+          `Currently only sources of type 'raster' are supported, and this style.json has a source '${sourceId}' of type '${source.type}'`
         )
       }
       if (typeof source.url !== 'string') {
@@ -336,7 +335,9 @@ function createApi({
       const tilesetId = getTilesetId(tilejson)
 
       if (!tilesetExists(tilesetId)) {
-        await api.createTileset(tilejson)
+        const tileset = await api.createTileset(tilejson)
+
+        await api.createStyleForTileset(tileset.id, tileset.name)
       } else {
         // TODO: Should we update an existing tileset here?
         // await api.putTileset(tilesetId, tilejson)
@@ -379,7 +380,12 @@ function createApi({
 
       const tilesetId = getTilesetId(tilejson)
 
-      const { style, tileset } = await api.createTileset(tilejson)
+      const tileset = await api.createTileset(tilejson)
+
+      const { id: styleId } = await api.createStyleForTileset(
+        tileset.id,
+        tileset.name
+      )
 
       // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
       // and we don't generate a style for those on tileset creation yet.
@@ -388,7 +394,7 @@ function createApi({
         type: 'importMbTiles',
         importId: generateId(),
         mbTilesDbPath: mbTilesDb.name,
-        styleId: style?.id,
+        styleId,
         tilesetId,
       })
 
@@ -434,6 +440,9 @@ function createApi({
         )
       }
 
+      const upstreamTileUrls =
+        tilejson.tiles.length === 0 ? undefined : JSON.stringify(tilejson.tiles)
+
       db.prepare<{
         id: string
         format: TileJSON['format']
@@ -446,45 +455,14 @@ function createApi({
         id: tilesetId,
         format: tilejson.format,
         tilejson: JSON.stringify(tilejson),
-        upstreamTileUrls:
-          tilejson.tiles.length === 0
-            ? undefined
-            : JSON.stringify(tilejson.tiles),
+        upstreamTileUrls,
       })
 
-      const createdTileset = {
+      return {
         ...tilejson,
         id: tilesetId,
         tiles: [getTileUrl(tilesetId)],
       }
-
-      let rasterStyle: { id: string; json: StyleJSON } | undefined
-
-      if (RASTER_FORMATS.includes(tilejson.format)) {
-        rasterStyle = {
-          id: encodeBase32(hash(`style:${tilesetId}`)),
-          json: createRasterStyle({
-            // TODO: Come up with a better default name
-            name: tilejson.name || `Style ${tilesetId.slice(-4)}`,
-            url: `mapeo://tilesets/${tilesetId}`,
-          }),
-        }
-
-        // TODO: Ideally could reuse createStyle here
-        db.prepare<{
-          id: string
-          sourceIdToTilesetId: string
-          stylejson: string
-        }>(
-          'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
-        ).run({
-          id: rasterStyle.id,
-          sourceIdToTilesetId: JSON.stringify({ ['raster-source']: tilesetId }),
-          stylejson: JSON.stringify(rasterStyle.json),
-        })
-      }
-
-      return { style: rasterStyle, tileset: createdTileset }
     },
 
     async putTileset(id, tilejson) {
@@ -725,7 +703,34 @@ function createApi({
 
       transaction()
     },
+    // TODO: Ideally could consolidate with createStyle
+    async createStyleForTileset(tilesetId, nameForStyle) {
+      const styleId = encodeBase32(hash(`style:${tilesetId}`))
 
+      // TODO: Come up with better default name?
+      const styleName = nameForStyle || `Style ${tilesetId.slice(-4)}`
+
+      const style = createRasterStyle({
+        name: styleName,
+        url: `mapeo://tilesets/${tilesetId}`,
+      })
+
+      db.prepare<{
+        id: string
+        sourceIdToTilesetId: string
+        stylejson: string
+      }>(
+        'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
+      ).run({
+        id: styleId,
+        sourceIdToTilesetId: JSON.stringify({
+          [DEFAULT_RASTER_SOURCE_ID]: tilesetId,
+        }),
+        stylejson: JSON.stringify(style),
+      })
+
+      return { id: styleId, style }
+    },
     async createStyle(style, { accessToken, etag, id, upstreamUrl } = {}) {
       const styleId =
         id || (upstreamUrl ? createIdFromStyleUrl(upstreamUrl) : generateId())

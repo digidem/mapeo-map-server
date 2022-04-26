@@ -23,6 +23,7 @@ const { extractMBTilesMetadata } = require('./mbtiles')
  * @property {'importMbTiles'} type
  * @property {string} importId
  * @property {string} mbTilesDbPath
+ * @property {string} styleId
  * @property {string} tilesetId
  */
 
@@ -102,7 +103,7 @@ function handleEventSubscription(importIds) {
   importIds.forEach((id) => subscriptions.add(id))
 }
 
-/** @param {{ importId: string, mbTilesDbPath: string, tilesetId: string, styleId?: string }} params */
+/** @param {{ importId: string, mbTilesDbPath: string, styleId: string, tilesetId: string }} params */
 function importMbTiles({ importId, mbTilesDbPath, tilesetId, styleId }) {
   /** @type {Database} */
   const mbTilesDb = new Database(mbTilesDbPath, {
@@ -127,28 +128,25 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId, styleId }) {
     )
     .iterate()
 
-  // TODO: Ideally `styleId` should always exist based on how we modeled the tables
-  if (styleId) {
-    const areaId = encodeBase32(hash(`area:${tilesetId}`))
+  const areaId = encodeBase32(hash(`area:${tilesetId}`))
 
-    upsertOfflineArea.run({
-      id: areaId,
-      boundingBox: JSON.stringify(mbTilesMetadata.bounds),
-      name: mbTilesMetadata.name,
-      // TODO: The spec says that the maxzoom should be defined but we don't fully guarantee at this point.
-      // Might be worth throwing a validation error if the zoom levels are not specified when reading the metadata
-      // @ts-expect-error
-      zoomLevel: mbTilesMetadata.maxzoom,
-      styleId,
-    })
+  upsertOfflineArea.run({
+    id: areaId,
+    boundingBox: JSON.stringify(mbTilesMetadata.bounds),
+    name: mbTilesMetadata.name,
+    // TODO: The spec says that the maxzoom should be defined but we don't fully guarantee at this point.
+    // Might be worth throwing a validation error if the zoom levels are not specified when reading the metadata
+    // @ts-expect-error
+    zoomLevel: mbTilesMetadata.maxzoom,
+    styleId,
+  })
 
-    insertImport.run({
-      id: importId,
-      totalResources: totalBytesToImport,
-      tilesetId,
-      areaId,
-    })
-  }
+  insertImport.run({
+    id: importId,
+    totalResources: totalBytesToImport,
+    tilesetId,
+    areaId,
+  })
 
   subscriptions.add(importId)
 

@@ -3,12 +3,12 @@ import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
 import { FastifyInstance } from 'fastify'
-import { VectorSourceSpecification } from '@maplibre/maplibre-gl-style-spec'
+import { RasterSourceSpecification } from '@maplibre/maplibre-gl-style-spec'
 
 import { IdResource, Api } from './api'
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
-import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
+import simpleRasterStylejson from './fixtures/good-stylejson/good-simple-raster.json'
 import {
   DEFAULT_RASTER_SOURCE_ID,
   DEFAULT_RASTER_LAYER_ID,
@@ -49,7 +49,7 @@ before(() => {
   }
 
   assertSampleTileJSONIsValid(mapboxRasterTilejson)
-  validateStyleJSON(simpleStylejson)
+  validateStyleJSON(simpleRasterStylejson)
 
   mockTileServer.listen()
 })
@@ -62,7 +62,7 @@ beforeEach((t) => {
   t.context = {
     server: app({ logger: false }, { dbPath }),
     sampleTileJSON: mapboxRasterTilejson,
-    sampleStyleJSON: simpleStylejson,
+    sampleStyleJSON: simpleRasterStylejson,
   }
 })
 
@@ -327,6 +327,7 @@ test('POST /import creates a tileset', async (t) => {
 
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
+// -
 
 test('POST /styles with invalid style returns 400 status code', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
@@ -447,6 +448,35 @@ test('POST /styles when providing valid style returns resource with id and alter
   })
 })
 
+test('POST /styles when providing valid style creates styles for its raster sources', async (t) => {
+  const { server, sampleStyleJSON } = t.context as TestContext
+
+  const expectedStylesFromSources = Object.values(
+    sampleStyleJSON.sources
+  ).filter((source) => source.type === 'raster').length
+
+  const responsePost = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
+  })
+
+  const { id } = responsePost.json()
+
+  const responseGet = await server.inject({ method: 'GET', url: '/styles' })
+
+  const styleInfoList =
+    responseGet.json<{ id: string; name?: string; url: string }[]>()
+
+  t.equal(styleInfoList.length, 1 + expectedStylesFromSources)
+
+  const postStyleInfoIncluded = styleInfoList.find(
+    (styleInfo) => styleInfo.id === id
+  )
+
+  t.ok(postStyleInfoIncluded)
+})
+
 test('POST /styles when required Mapbox access token is missing returns 400 status code', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
@@ -460,7 +490,7 @@ test('POST /styles when required Mapbox access token is missing returns 400 stat
   t.equal(responsePost.statusCode, 400)
 })
 
-test('GET /styles/:styleId when  style does not exist return 404 status code', async (t) => {
+test('GET /styles/:styleId when style does not exist return 404 status code', async (t) => {
   const { server } = t.context as TestContext
 
   const id = 'nonexistent-id'
@@ -493,15 +523,14 @@ test('GET /styles/:styleId when style exists returns altered style', async (t) =
   t.equal(responseGet.statusCode, 200)
 
   // This will change if a style fixture other than good-stylejson/good-simple.json is used
-  const expectedTilesetId = 'yqtx3fxnp2vdyssc82ew4f377g4y0njk' // generated from getTilesetId in lib/utils.ts
+  const expectedTilesetId = 'kgbnbb3mck9jekk1ct6f3anjpe804rnv' // generated from getTilesetId in lib/utils.ts
   const expectedTilesetUrl = `http://localhost:80/tilesets/${expectedTilesetId}`
 
-  // Each source id should be replaced with the id of the tileset used for it
   const expectedSources = {
-    'mapbox-streets': {
-      ...(simpleStylejson.sources[
-        'mapbox-streets'
-      ] as VectorSourceSpecification),
+    'mapbox://mapbox.satellite': {
+      ...(simpleRasterStylejson.sources[
+        'mapbox://mapbox.satellite'
+      ] as RasterSourceSpecification),
       url: expectedTilesetUrl,
     },
   }
@@ -545,14 +574,20 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 
   const expectedUrl = `http://localhost:80/styles/${expectedId}`
 
-  // TODO: `style` is a temporary field that the API will no longer return once thumbnail generation is implemented
-  const expectedGetResponse = [
-    {
-      id: expectedId,
-      name: expectedName,
-      url: expectedUrl,
-    },
-  ]
+  const expectedStyleInfo = {
+    id: expectedId,
+    name: expectedName,
+    url: expectedUrl,
+  }
+
+  // We create a style for raster sources
+  const expectedStyleInfoForSource = {
+    id: 'zzm3bdqpgfte2xbpqwd2xdvxegyvbg28',
+    name: 'Style 4rnv',
+    url: 'http://localhost:80/styles/zzm3bdqpgfte2xbpqwd2xdvxegyvbg28',
+  }
+
+  const expectedGetResponse = [expectedStyleInfoForSource, expectedStyleInfo]
 
   const responseGet = await server.inject({ method: 'GET', url: '/styles' })
 
@@ -580,7 +615,10 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: simpleStylejson, accessToken: DUMMY_MB_ACCESS_TOKEN },
+    payload: {
+      style: simpleRasterStylejson,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
   })
 
   const { id } = responsePost.json<{ id: string; style: StyleJSON }>()

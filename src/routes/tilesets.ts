@@ -69,7 +69,9 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const { tileset } = await request.api.createTileset(request.body)
+      const tileset = await request.api.createTileset(request.body)
+      await request.api.createStyleForTileset(tileset.id, tileset.name)
+
       reply.header('Location', `${fastify.prefix}/${tileset.id}`)
       return tileset
     }
