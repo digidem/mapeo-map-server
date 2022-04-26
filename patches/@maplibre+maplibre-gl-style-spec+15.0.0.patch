@@ -171,16 +171,3 @@ index 5c7f452..c16ee43 100644
      let migrated = false;
  
      if (style.version === 7) {
-diff --git a/node_modules/@maplibre/maplibre-gl-style-spec/package.json b/node_modules/@maplibre/maplibre-gl-style-spec/package.json
-index 275f9a9..09bf12e 100644
---- a/node_modules/@maplibre/maplibre-gl-style-spec/package.json
-+++ b/node_modules/@maplibre/maplibre-gl-style-spec/package.json
-@@ -56,7 +60,7 @@
-     "maplibre-gl-js"
-   ],
-   "license": "ISC",
--  "main": "./dist/index.js",
-+  "main": "./dist/index.cjs",
-   "module": "./dist/index.es.js",
-   "name": "@maplibre/maplibre-gl-style-spec",
-   "repository": {
