@@ -806,7 +806,7 @@ function createApi({
     async listStyles() {
       return db
         .prepare(
-          "SELECT Style.id, StyleJsonName.value as name FROM Style, json_tree(stylejson, '$.name') as StyleJsonName"
+          "SELECT Style.id, json_extract(stylejson, '$.name') as name FROM Style"
         )
         .all()
         .map((row: { id: string; name?: string }) => ({
