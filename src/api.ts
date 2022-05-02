@@ -335,9 +335,7 @@ function createApi({
       const tilesetId = getTilesetId(tilejson)
 
       if (!tilesetExists(tilesetId)) {
-        const tileset = await api.createTileset(tilejson)
-
-        await api.createStyleForTileset(tileset.id, tileset.name)
+        await api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
         // await api.putTileset(tilesetId, tilejson)

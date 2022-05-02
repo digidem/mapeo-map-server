@@ -448,35 +448,6 @@ test('POST /styles when providing valid style returns resource with id and alter
   })
 })
 
-test('POST /styles when providing valid style creates styles for its raster sources', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
-
-  const expectedStylesFromSources = Object.values(
-    sampleStyleJSON.sources
-  ).filter((source) => source.type === 'raster').length
-
-  const responsePost = await server.inject({
-    method: 'POST',
-    url: '/styles',
-    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
-  })
-
-  const { id } = responsePost.json()
-
-  const responseGet = await server.inject({ method: 'GET', url: '/styles' })
-
-  const styleInfoList =
-    responseGet.json<{ id: string; name?: string; url: string }[]>()
-
-  t.equal(styleInfoList.length, 1 + expectedStylesFromSources)
-
-  const postStyleInfoIncluded = styleInfoList.find(
-    (styleInfo) => styleInfo.id === id
-  )
-
-  t.ok(postStyleInfoIncluded)
-})
-
 test('POST /styles when required Mapbox access token is missing returns 400 status code', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
@@ -577,14 +548,7 @@ test('GET /styles when styles exist returns array of metadata for each', async (
     url: expectedUrl,
   }
 
-  // We create a style for raster sources
-  const expectedStyleInfoForSource = {
-    id: 'zzm3bdqpgfte2xbpqwd2xdvxegyvbg28',
-    name: 'Style 4rnv',
-    url: 'http://localhost:80/styles/zzm3bdqpgfte2xbpqwd2xdvxegyvbg28',
-  }
-
-  const expectedGetResponse = [expectedStyleInfoForSource, expectedStyleInfo]
+  const expectedGetResponse = [expectedStyleInfo]
 
   const responseGet = await server.inject({ method: 'GET', url: '/styles' })
 
