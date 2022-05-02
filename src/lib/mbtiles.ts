@@ -28,7 +28,9 @@ export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
     id: generateId(),
     // TODO: are we strictly supporting this version of the tilejson spec?
     tilejson: '2.2.0',
-    // Technically not compliant with spec
+    // Technically not compliant with spec (should have at least one url),
+    // but we use this to indicate that there are no upstream urls for a tileset to fetch from,
+    // which applies to cases like mbtiles imports
     tiles: [],
   }
 }
