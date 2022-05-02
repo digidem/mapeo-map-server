@@ -503,7 +503,7 @@ test('GET /styles/:styleId when style does not exist return 404 status code', as
   t.equal(responseGet.statusCode, 404)
 })
 
-test('GET /styles/:styleId when style exists returns altered style', async (t) => {
+test('GET /styles/:styleId when style exists returns style with sources pointing to offline tilesets', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -522,25 +522,22 @@ test('GET /styles/:styleId when style exists returns altered style', async (t) =
 
   t.equal(responseGet.statusCode, 200)
 
-  // This will change if a style fixture other than good-stylejson/good-simple.json is used
-  const expectedTilesetId = 'kgbnbb3mck9jekk1ct6f3anjpe804rnv' // generated from getTilesetId in lib/utils.ts
-  const expectedTilesetUrl = `http://localhost:80/tilesets/${expectedTilesetId}`
+  for (const source of Object.values(
+    responseGet.json<StyleJSON>()['sources']
+  )) {
+    const urlExists = 'url' in source && source.url !== undefined
 
-  const expectedSources = {
-    'mapbox://mapbox.satellite': {
-      ...(simpleRasterStylejson.sources[
-        'mapbox://mapbox.satellite'
-      ] as RasterSourceSpecification),
-      url: expectedTilesetUrl,
-    },
+    t.ok(urlExists)
+
+    if (urlExists) {
+      const responseTilesetGet = await server.inject({
+        method: 'GET',
+        url: source.url,
+      })
+
+      t.equal(responseTilesetGet.statusCode, 200)
+    }
   }
-
-  const expectedGetResponse = {
-    ...sampleStyleJSON,
-    sources: expectedSources,
-  }
-
-  t.same(responseGet.json(), expectedGetResponse)
 })
 
 test('GET /styles when no styles exist returns body with an empty array', async (t) => {
