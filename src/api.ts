@@ -762,6 +762,10 @@ export default fp(ApiPlugin, {
 function init(dbPath: string): Context {
   const db = new Database(dbPath)
 
+  // Enable WAL for potential performance benefits
+  // https://github.com/JoshuaWise/better-sqlite3/blob/master/docs/performance.md
+  db.pragma('journal_mode = WAL');
+
   migrate(db, path.resolve(__dirname, '../prisma/migrations'))
 
   return {
