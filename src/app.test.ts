@@ -3,7 +3,6 @@ import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
 import { FastifyInstance } from 'fastify'
-import { RasterSourceSpecification } from '@maplibre/maplibre-gl-style-spec'
 
 import { IdResource, Api } from './api'
 import app from './app'
@@ -22,8 +21,9 @@ tmp.setGracefulCleanup()
 
 const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
 
-type TestContext = {
+interface TestContext {
   server: FastifyInstance
+  sampleMbTilesPath: string
   sampleTileJSON: TileJSON
   sampleStyleJSON: StyleJSON
 }
@@ -59,8 +59,14 @@ beforeEach((t) => {
 
   const dbPath = path.resolve(dataDir, 'test.db')
 
+  const mbTilesPath = path.resolve(
+    __dirname,
+    './fixtures/mbtiles/trails.mbtiles'
+  )
+
   t.context = {
     server: app({ logger: false }, { dbPath }),
+    sampleMbTilesPath: mbTilesPath,
     sampleTileJSON: mapboxRasterTilejson,
     sampleStyleJSON: simpleRasterStylejson,
   }
@@ -296,29 +302,47 @@ test('GET /tile of png format returns a tile image', async (t) => {
   t.equal(typeof response.body, 'string')
 })
 
-test('POST /import creates a tileset', async (t) => {
-  const { server } = t.context as TestContext
+test('POST /tilesets/import creates tileset', async (t) => {
+  const { sampleMbTilesPath, server } = t.context as TestContext
 
   const importResponse = await server.inject({
     method: 'POST',
-    url: `/tilesets/import`,
-    payload: {
-      filePath: path.resolve(__dirname, './fixtures/mbtiles/trails.mbtiles'),
-    },
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
   })
 
   t.equal(importResponse.statusCode, 200)
 
-  const tileset = importResponse.json<TileJSON & { id: string }>()
+  const createdTileset = importResponse.json<TileJSON & { id: string }>()
 
   const tilesetGetResponse = await server.inject({
     method: 'GET',
-    url: `/tilesets/${tileset.id}`,
+    url: `/tilesets/${createdTileset.id}`,
   })
 
   t.equal(tilesetGetResponse.statusCode, 200)
 
-  t.same(tileset, tilesetGetResponse.json())
+  t.same(tilesetGetResponse.json(), createdTileset)
+})
+
+test('POST /tilesets/import creates style for created tileset', async (t) => {
+  const { sampleMbTilesPath, server } = t.context as TestContext
+
+  await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  // TODO: Would be ideal to get the specific style created for the tileset
+  const getStylesResponse = await server.inject({
+    method: 'GET',
+    url: '/styles',
+  })
+
+  t.equal(getStylesResponse.statusCode, 200)
+
+  t.equal(getStylesResponse.json().length, 1)
 })
 
 /**
