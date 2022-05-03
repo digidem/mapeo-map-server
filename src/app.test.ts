@@ -3,12 +3,11 @@ import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
 import { FastifyInstance } from 'fastify'
-import { VectorSourceSpecification } from '@maplibre/maplibre-gl-style-spec'
 
 import { IdResource, Api } from './api'
 import app from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
-import simpleStylejson from './fixtures/good-stylejson/good-simple.json'
+import simpleRasterStylejson from './fixtures/good-stylejson/good-simple-raster.json'
 import {
   DEFAULT_RASTER_SOURCE_ID,
   DEFAULT_RASTER_LAYER_ID,
@@ -22,8 +21,9 @@ tmp.setGracefulCleanup()
 
 const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
 
-type TestContext = {
+interface TestContext {
   server: FastifyInstance
+  sampleMbTilesPath: string
   sampleTileJSON: TileJSON
   sampleStyleJSON: StyleJSON
 }
@@ -49,7 +49,7 @@ before(() => {
   }
 
   assertSampleTileJSONIsValid(mapboxRasterTilejson)
-  validateStyleJSON(simpleStylejson)
+  validateStyleJSON(simpleRasterStylejson)
 
   mockTileServer.listen()
 })
@@ -57,13 +57,18 @@ before(() => {
 beforeEach((t) => {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
+  const dbPath = path.resolve(dataDir, 'test.db')
+
+  const mbTilesPath = path.resolve(
+    __dirname,
+    './fixtures/mbtiles/trails.mbtiles'
+  )
+
   t.context = {
-    server: app(
-      { logger: false },
-      { dbPath: path.resolve(dataDir, 'test.db') }
-    ),
+    server: app({ logger: false }, { dbPath }),
+    sampleMbTilesPath: mbTilesPath,
     sampleTileJSON: mapboxRasterTilejson,
-    sampleStyleJSON: simpleStylejson,
+    sampleStyleJSON: simpleRasterStylejson,
   }
 })
 
@@ -79,6 +84,10 @@ teardown(() => {
 /**
  * /tilesets tests
  */
+
+// TODO: Add tilesets tests for:
+// - POST /tilesets/import (import progress)
+
 test('GET /tilesets when no tilesets exist returns an empty array', async (t) => {
   const { server } = t.context as TestContext
 
@@ -293,12 +302,81 @@ test('GET /tile of png format returns a tile image', async (t) => {
   t.equal(typeof response.body, 'string')
 })
 
+test('POST /tilesets/import creates tileset', async (t) => {
+  const { sampleMbTilesPath, server } = t.context as TestContext
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  t.equal(importResponse.statusCode, 200)
+
+  const createdTileset = importResponse.json<TileJSON & { id: string }>()
+
+  const tilesetGetResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${createdTileset.id}`,
+  })
+
+  t.equal(tilesetGetResponse.statusCode, 200)
+
+  t.same(tilesetGetResponse.json(), createdTileset)
+})
+
+test('POST /tilesets/import creates style for created tileset', async (t) => {
+  const { sampleMbTilesPath, server } = t.context as TestContext
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const { id: createdTilesetId } = importResponse.json<
+    TileJSON & { id: string }
+  >()
+
+  const getStylesResponse = await server.inject({
+    method: 'GET',
+    url: '/styles',
+  })
+
+  const stylesList =
+    getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
+
+  const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
+
+  const styles = await Promise.all(
+    stylesList.map(({ url }) =>
+      server
+        .inject({
+          method: 'GET',
+          url,
+        })
+        .then((response) => response.json<StyleJSON>())
+    )
+  )
+
+  const matchingStyle = styles.find((style) =>
+    Object.values(style.sources).find((source) => {
+      if ('url' in source && source.url) {
+        return source.url === expectedSourceUrl
+      }
+    })
+  )
+
+  t.ok(matchingStyle)
+})
+
 /**
  * /styles tests
  */
 
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
+// -
 
 test('POST /styles with invalid style returns 400 status code', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
@@ -432,7 +510,7 @@ test('POST /styles when required Mapbox access token is missing returns 400 stat
   t.equal(responsePost.statusCode, 400)
 })
 
-test('GET /styles/:styleId when  style does not exist return 404 status code', async (t) => {
+test('GET /styles/:styleId when style does not exist return 404 status code', async (t) => {
   const { server } = t.context as TestContext
 
   const id = 'nonexistent-id'
@@ -445,7 +523,7 @@ test('GET /styles/:styleId when  style does not exist return 404 status code', a
   t.equal(responseGet.statusCode, 404)
 })
 
-test('GET /styles/:styleId when style exists returns altered style', async (t) => {
+test('GET /styles/:styleId when style exists returns style with sources pointing to offline tilesets', async (t) => {
   const { server, sampleStyleJSON } = t.context as TestContext
 
   const responsePost = await server.inject({
@@ -464,26 +542,22 @@ test('GET /styles/:styleId when style exists returns altered style', async (t) =
 
   t.equal(responseGet.statusCode, 200)
 
-  // This will change if a style fixture other than good-stylejson/good-simple.json is used
-  const expectedTilesetId = 'yqtx3fxnp2vdyssc82ew4f377g4y0njk' // generated from getTilesetId in lib/utils.ts
-  const expectedTilesetUrl = `http://localhost:80/tilesets/${expectedTilesetId}`
+  for (const source of Object.values(
+    responseGet.json<StyleJSON>()['sources']
+  )) {
+    const urlExists = 'url' in source && source.url !== undefined
 
-  // Each source id should be replaced with the id of the tileset used for it
-  const expectedSources = {
-    'mapbox-streets': {
-      ...(simpleStylejson.sources[
-        'mapbox-streets'
-      ] as VectorSourceSpecification),
-      url: expectedTilesetUrl,
-    },
+    t.ok(urlExists)
+
+    if (urlExists) {
+      const responseTilesetGet = await server.inject({
+        method: 'GET',
+        url: source.url,
+      })
+
+      t.equal(responseTilesetGet.statusCode, 200)
+    }
   }
-
-  const expectedGetResponse = {
-    ...sampleStyleJSON,
-    sources: expectedSources,
-  }
-
-  t.same(responseGet.json(), expectedGetResponse)
 })
 
 test('GET /styles when no styles exist returns body with an empty array', async (t) => {
@@ -517,14 +591,13 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 
   const expectedUrl = `http://localhost:80/styles/${expectedId}`
 
-  // TODO: `style` is a temporary field that the API will no longer return once thumbnail generation is implemented
-  const expectedGetResponse = [
-    {
-      id: expectedId,
-      name: expectedName,
-      url: expectedUrl,
-    },
-  ]
+  const expectedStyleInfo = {
+    id: expectedId,
+    name: expectedName,
+    url: expectedUrl,
+  }
+
+  const expectedGetResponse = [expectedStyleInfo]
 
   const responseGet = await server.inject({ method: 'GET', url: '/styles' })
 
@@ -552,7 +625,10 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: simpleStylejson, accessToken: DUMMY_MB_ACCESS_TOKEN },
+    payload: {
+      style: simpleRasterStylejson,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
   })
 
   const { id } = responsePost.json<{ id: string; style: StyleJSON }>()

@@ -83,27 +83,24 @@ model Glyph {
 }
 
 model OfflineArea {
-  id          String    @id
+  id          String   @id
   zoomLevel   Int
-  // Comma-separated string of 4 floats
-  boundingBox String
+  boundingBox String // Comma-separated string of 4 floats
   name        String
-  style       Style     @relation(fields: [styleId], references: [id])
+  style       Style    @relation(fields: [styleId], references: [id])
   styleId     String
-  download    Download?
+  imports     Import[]
 }
 
-// TODO: should we add styles_downloaded and tiles_downloaded fields?
-model Download {
-  id                  String      @id
-  // TODO: should this only refer to tiles+glyphs?
-  downloadedResources Int
-  // TODO: should this only refer to tiles+glyphs?
-  totalResources      Int
-  // When downloaded = total
-  isComplete          Boolean
-  started             DateTime    @default(now())
-  finished            DateTime?
-  offlineArea         OfflineArea @relation(fields: [areaId], references: [id], onUpdate: Cascade)
-  areaId              String      @unique
+model Import {
+  id                String      @id
+  importedResources Int
+  totalResources    Int
+  isComplete        Boolean // When downloaded = total
+  started           DateTime    @default(now())
+  finished          DateTime?
+  tilesetId         String?
+  importType        String // 'tileset' | 'style_resources' (stylejson, glyphs, sprites)
+  offlineArea       OfflineArea @relation(fields: [areaId], references: [id], onUpdate: Cascade)
+  areaId            String      @unique
 }

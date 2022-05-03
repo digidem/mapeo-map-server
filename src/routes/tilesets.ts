@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
 import { TileJSON, TileJSONSchema } from '../lib/tilejson'
 import { Static, Type as T } from '@sinclair/typebox'
+// import { on } from 'events'
 
 const GetTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
@@ -16,6 +17,14 @@ const GetTileParamsSchema = T.Object({
 const PutTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
 })
+
+const ImportMBTilesBodySchema = T.Object({
+  filePath: T.String(),
+})
+
+// const GetImportProgressParamsSchema = T.Object({
+//   tilesetId: T.String(),
+// })
 
 const tilesets: FastifyPluginAsync = async function (fastify) {
   fastify.get(
@@ -60,9 +69,11 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const tilejson = await request.api.createTileset(request.body)
-      reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
-      return tilejson
+      const tileset = await request.api.createTileset(request.body)
+      await request.api.createStyleForTileset(tileset.id, tileset.name)
+
+      reply.header('Location', `${fastify.prefix}/${tileset.id}`)
+      return tileset
     }
   )
 
@@ -106,6 +117,59 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       return tilejson
     }
   )
+
+  fastify.post<{ Body: Static<typeof ImportMBTilesBodySchema> }>(
+    '/import',
+    {
+      schema: {
+        body: ImportMBTilesBodySchema,
+        response: {
+          200: TileJSONSchema,
+        },
+      },
+    },
+    async function (request, reply) {
+      const tilejson = await request.api.importMBTiles(request.body.filePath)
+      reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
+      return tilejson
+    }
+  )
+
+  // fastify.get<{ Params: Static<typeof GetImportProgressParamsSchema> }>(
+  //   '/import/:tilesetId',
+  //   {
+  //     schema: {
+  //       params: GetImportProgressParamsSchema,
+  //     },
+  //   },
+  //   async function (request, reply) {
+  //     const emitter = await request.api.getImportProgress(
+  //       request.params.tilesetId
+  //     )
+
+  //     reply.raw.setHeader('Content-Type', 'text/event-stream')
+  //     reply.raw.setHeader('Connection', 'keep-alive')
+  //     reply.raw.setHeader('Cache-Control', 'no-cache,no-transform')
+  //     reply.raw.setHeader('x-no-compression', 1)
+
+  //     emitter.on('progress', ({ type, ...data }) => {
+  //       const finished = data.soFar === data.total
+
+  //       reply.raw.write(`event: ${finished ? 'finished' : type}\n`)
+
+  //       if (data) {
+  //         reply.raw.write(`data: ${JSON.stringify(data)}\n`)
+  //       }
+
+  //       reply.raw.write('\n')
+
+  //       if (finished) {
+  //         reply.raw.end()
+  //         emitter.removeAllListeners('progress')
+  //       }
+  //     })
+  //   }
+  // )
 }
 
 export default tilesets

@@ -1,4 +1,5 @@
 import path from 'path'
+import { Worker } from 'worker_threads'
 import { Headers } from '@mapbox/mbtiles'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from 'fastify-error'
@@ -9,8 +10,10 @@ import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
-import { RASTER_FORMATS, TileJSON, validateTileJSON } from './lib/tilejson'
+import { isValidMBTilesFormat, mbTilesToTileJSON } from './lib/mbtiles'
+import { TileJSON, validateTileJSON } from './lib/tilejson'
 import {
+  DEFAULT_RASTER_SOURCE_ID,
   StyleJSON,
   createIdFromStyleUrl,
   createRasterStyle,
@@ -26,6 +29,7 @@ import {
 } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
+// import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 
 const NotFoundError = createError(
@@ -58,6 +62,24 @@ const MBAccessTokenRequiredError = createError(
   400
 )
 
+const UnsupportedMBTilesFormatError = createError(
+  'FST_UNSUPPORTED_MBTILES_FORMAT',
+  '`format` must be `jpg`, `png`, `pbf`, or `webp`',
+  400
+)
+
+const MBTilesImportTargetMissingError = createError(
+  'FST_MBTILES_IMPORT_TARGET_MISSING',
+  'mbtiles file at `%s` could not be read',
+  400
+)
+
+const MBTilesInvalidMetadataError = createError(
+  'FST_MBTILES_INVALID_METADATA',
+  'mbtiles file has invalid metadata schema',
+  400
+)
+
 const UpstreamJsonValidationError = createError(
   'FST_UPSTREAM_VALIDATION',
   'JSON validation failed for upstream resource from %s: %s',
@@ -76,6 +98,7 @@ interface SourceIdToTilesetId {
 
 interface Context {
   db: DatabaseInstance
+  tilesetImportWorker: Worker
   upstreamRequestsManager: UpstreamRequestsManager
 }
 
@@ -84,6 +107,8 @@ export interface IdResource {
   id: string
 }
 export interface Api {
+  importMBTiles(filePath: string): Promise<TileJSON & IdResource>
+  // getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
@@ -102,6 +127,10 @@ export interface Api {
     data: Buffer
     etag?: string
   }): Promise<void>
+  createStyleForTileset(
+    tilesetId: string,
+    nameForStyle?: string
+  ): Promise<{ id: string; style: StyleJSON }>
   createStyle(
     style: StyleJSON,
     options?: {
@@ -127,7 +156,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, upstreamRequestsManager } = context
+  const { db, tilesetImportWorker, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -253,7 +282,7 @@ function createApi({
 
   /**
    * Given a map of sources from a style, this will create offline tilesets for
-   * each source, and update the source to reference the offline tileset
+   * each source, and return a mapping of source ids to their created tileset ids
    */
   async function createOfflineSources({
     accessToken,
@@ -262,15 +291,17 @@ function createApi({
     accessToken?: string
     sources: StyleJSON['sources']
   }): Promise<SourceIdToTilesetId> {
-    // const offlineSources: StyleJSON['sources'] = {}
     const sourceIdToTilesetId: SourceIdToTilesetId = {}
 
     for (const sourceId of Object.keys(sources)) {
       const source = sources[sourceId]
 
-      if (!(source.type === 'raster' || source.type === 'vector')) {
+      // TODO:
+      // - Support vector sources
+      // - Should we continue instead of throw if the source is vector?
+      if (!(source.type === 'raster')) {
         throw new UnsupportedSourceError(
-          `Currently only sources of type 'vector' or 'raster' are supported, and this style.json has a source '${sourceId}' of type '${source.type}'`
+          `Currently only sources of type 'raster' are supported, and this style.json has a source '${sourceId}' of type '${source.type}'`
         )
       }
       if (typeof source.url !== 'string') {
@@ -316,6 +347,88 @@ function createApi({
   }
 
   const api: Api = {
+    async importMBTiles(filePath: string) {
+      const filePathWithExtension =
+        path.extname(filePath) === '.mbtiles' ? filePath : filePath + '.mbtiles'
+
+      let mbTilesDb: DatabaseInstance
+
+      try {
+        mbTilesDb = new Database(filePathWithExtension, {
+          // Ideally would set `readOnly` to `true` here but causes `fileMustExist` to be ignored:
+          // https://github.com/JoshuaWise/better-sqlite3/blob/230ea65ed0d7566e32d41c3d13a90fb32ccdbee6/docs/api.md#new-databasepath-options
+          fileMustExist: true,
+        })
+      } catch (_err) {
+        throw new MBTilesImportTargetMissingError(filePath)
+      }
+
+      const tilejson = mbTilesToTileJSON(mbTilesDb)
+
+      mbTilesDb.close()
+
+      // TODO: Should this be handled in extractMBTilesMetadata?
+      if (!(tilejson.format && isValidMBTilesFormat(tilejson.format))) {
+        throw new UnsupportedMBTilesFormatError()
+      }
+
+      if (!validateTileJSON(tilejson)) {
+        throw new MBTilesInvalidMetadataError()
+      }
+
+      const tilesetId = getTilesetId(tilejson)
+
+      const tileset = await api.createTileset(tilejson)
+
+      const { id: styleId } = await api.createStyleForTileset(
+        tileset.id,
+        tileset.name
+      )
+
+      // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
+      // and we don't generate a style for those on tileset creation yet.
+      // Absence presents various complications when creating and updating offline area and imports in db
+      tilesetImportWorker.postMessage({
+        type: 'importMbTiles',
+        importId: generateId(),
+        mbTilesDbPath: mbTilesDb.name,
+        styleId,
+        tilesetId,
+      })
+
+      return new Promise((res, rej) => {
+        // TODO: What else has to be called when this occurs? e.g. terminating the import
+        tilesetImportWorker.addListener('error', (err) => {
+          rej(err)
+        })
+
+        tilesetImportWorker.addListener(
+          'message',
+          ({
+            soFar,
+            total,
+          }: {
+            type: 'progress'
+            importId: string
+            soFar: number
+            total: number
+          }) => {
+            if (soFar === total) {
+              tilesetImportWorker.postMessage({ type: 'importTerminate' })
+              res(tileset)
+            }
+          }
+        )
+      })
+    },
+    // async getImportProgress(offlineAreaId) {
+    //   const importIds: string[] = db
+    //     .prepare('SELECT id FROM Import WHERE areaId = ?')
+    //     .all(offlineAreaId)
+    //     .map((row: { id: string }) => row.id)
+
+    //   return new ImportProgressEmitter(tilesetImportWorker, importIds)
+    // },
     async createTileset(tilejson) {
       const tilesetId = getTilesetId(tilejson)
 
@@ -325,11 +438,14 @@ function createApi({
         )
       }
 
+      const upstreamTileUrls =
+        tilejson.tiles.length === 0 ? undefined : JSON.stringify(tilejson.tiles)
+
       db.prepare<{
         id: string
         format: TileJSON['format']
         tilejson: string
-        upstreamTileUrls: string
+        upstreamTileUrls?: string
       }>(
         'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls) ' +
           'VALUES (:id, :tilejson, :format, :upstreamTileUrls)'
@@ -337,37 +453,14 @@ function createApi({
         id: tilesetId,
         format: tilejson.format,
         tilejson: JSON.stringify(tilejson),
-        upstreamTileUrls: JSON.stringify(tilejson.tiles),
+        upstreamTileUrls,
       })
 
-      const result = {
+      return {
         ...tilejson,
         id: tilesetId,
         tiles: [getTileUrl(tilesetId)],
       }
-
-      if (RASTER_FORMATS.includes(tilejson.format)) {
-        const rasterStyle = createRasterStyle({
-          // TODO: Come up with a better default name
-          name: tilejson.name || `Style ${tilesetId.slice(-4)}`,
-          url: `mapeo://tilesets/${tilesetId}`,
-        })
-
-        // TODO: Ideally could reuse createStyle here
-        db.prepare<{
-          id: string
-          sourceIdToTilesetId: string
-          stylejson: string
-        }>(
-          'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
-        ).run({
-          id: encodeBase32(hash(`style:${tilesetId}`)),
-          sourceIdToTilesetId: JSON.stringify({ ['raster-source']: tilesetId }),
-          stylejson: JSON.stringify(rasterStyle),
-        })
-      }
-
-      return result
     },
 
     async putTileset(id, tilejson) {
@@ -383,7 +476,7 @@ function createApi({
         id: string
         format: TileJSON['format']
         tilejson: string
-        upstreamTileUrls: string
+        upstreamTileUrls?: string
       }>(
         'UPDATE Tileset SET ' +
           'tilejson = :tilejson, ' +
@@ -394,7 +487,10 @@ function createApi({
         id,
         format: tilejson.format,
         tilejson: JSON.stringify(tilejson),
-        upstreamTileUrls: JSON.stringify(tilejson.tiles),
+        upstreamTileUrls:
+          tilejson.tiles.length === 0
+            ? undefined
+            : JSON.stringify(tilejson.tiles),
       })
 
       mem.clear(memoizedGetTilesetInfo)
@@ -441,10 +537,10 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      let tileset: TileJSON
+      let tilejson: TileJSON
 
       try {
-        tileset = JSON.parse(row.tilejson)
+        tilejson = JSON.parse(row.tilejson)
       } catch (err) {
         throw new ParseError(err)
       }
@@ -468,16 +564,17 @@ function createApi({
         fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
       }
 
-      return { ...tileset, tiles: [getTileUrl(id)], id }
+      return { ...tilejson, tiles: [getTileUrl(id)], id }
     },
 
     async getTile({ tilesetId, zoom, x, y }) {
       const quadKey = tileToQuadKey({ x, y, zoom })
 
-      let tile:
+      const row:
         | {
             data: Buffer
             etag?: string
+            tilejson: string
           }
         | undefined = db
         .prepare<{
@@ -509,7 +606,7 @@ function createApi({
         if (upstreamTileUrl) {
           const response = await upstreamRequestsManager.getUpstream({
             url: upstreamTileUrl,
-            etag: tile?.etag,
+            etag: row?.etag,
             responseType: 'buffer',
           })
 
@@ -530,7 +627,10 @@ function createApi({
         }
       }
 
-      if (tile) {
+      let tile: { data: Buffer; etag?: string } | undefined
+
+      if (row) {
+        tile = { data: row.data, etag: row.etag }
         fetchOnlineResource().catch(noop)
       } else {
         tile = await fetchOnlineResource()
@@ -601,7 +701,34 @@ function createApi({
 
       transaction()
     },
+    // TODO: Ideally could consolidate with createStyle
+    async createStyleForTileset(tilesetId, nameForStyle) {
+      const styleId = encodeBase32(hash(`style:${tilesetId}`))
 
+      // TODO: Come up with better default name?
+      const styleName = nameForStyle || `Style ${tilesetId.slice(-4)}`
+
+      const style = createRasterStyle({
+        name: styleName,
+        url: `mapeo://tilesets/${tilesetId}`,
+      })
+
+      db.prepare<{
+        id: string
+        sourceIdToTilesetId: string
+        stylejson: string
+      }>(
+        'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
+      ).run({
+        id: styleId,
+        sourceIdToTilesetId: JSON.stringify({
+          [DEFAULT_RASTER_SOURCE_ID]: tilesetId,
+        }),
+        stylejson: JSON.stringify(style),
+      })
+
+      return { id: styleId, style }
+    },
     async createStyle(style, { accessToken, etag, id, upstreamUrl } = {}) {
       const styleId =
         id || (upstreamUrl ? createIdFromStyleUrl(upstreamUrl) : generateId())
@@ -677,7 +804,7 @@ function createApi({
     async listStyles() {
       return db
         .prepare(
-          "SELECT Style.id, StyleJsonName.value as name FROM Style, json_tree(stylejson, '$.name') as StyleJsonName"
+          "SELECT Style.id, json_extract(stylejson, '$.name') as name FROM Style"
         )
         .all()
         .map((row: { id: string; name?: string }) => ({
@@ -743,7 +870,8 @@ const ApiPlugin: FastifyPluginAsync<PluginOptions> = async (
   // Create context once for each fastify instance
   const context = init(dbPath)
 
-  fastify.addHook('onClose', () => {
+  fastify.addHook('onClose', async () => {
+    await context.tilesetImportWorker.terminate()
     context.db.close()
   })
 
@@ -770,6 +898,10 @@ function init(dbPath: string): Context {
 
   return {
     db,
+    tilesetImportWorker: new Worker(
+      path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
+      { workerData: { dbPath } }
+    ),
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
 }

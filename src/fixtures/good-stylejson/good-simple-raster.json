@@ -1,0 +1,21 @@
+{
+  "version": 8,
+  "sources": {
+    "mapbox://mapbox.satellite": {
+      "url": "mapbox://mapbox.satellite",
+      "type": "raster",
+      "tileSize": 256
+    }
+  },
+  "layers": [
+    {
+      "id": "satellite",
+      "type": "raster",
+      "metadata": {
+        "mapbox:featureComponent": "satellite",
+        "mapbox:group": "Satellite imagery, land"
+      },
+      "source": "mapbox://mapbox.satellite"
+    }
+  ]
+}

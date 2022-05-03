@@ -73,16 +73,18 @@ CREATE TABLE "OfflineArea" (
 );
 
 -- CreateTable
-CREATE TABLE "Download" (
+CREATE TABLE "Import" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "downloadedResources" INTEGER NOT NULL,
+    "importedResources" INTEGER NOT NULL,
     "totalResources" INTEGER NOT NULL,
     "isComplete" BOOLEAN NOT NULL,
     "started" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "finished" DATETIME,
+    "tilesetId" TEXT,
+    "importType" TEXT NOT NULL,
     "areaId" TEXT NOT NULL,
-    CONSTRAINT "Download_areaId_fkey" FOREIGN KEY ("areaId") REFERENCES "OfflineArea" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "Import_areaId_fkey" FOREIGN KEY ("areaId") REFERENCES "OfflineArea" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Download_areaId_key" ON "Download"("areaId");
+CREATE UNIQUE INDEX "Import_areaId_key" ON "Import"("areaId");
