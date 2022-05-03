@@ -343,25 +343,29 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
     url: '/styles',
   })
 
-  const styles =
+  const stylesList =
     getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
 
   const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
-  const matchingStyle = styles.find(async ({ url }) => {
-    const getStyleResponse = await server.inject({
-      method: 'GET',
-      url,
-    })
+  const styles = await Promise.all(
+    stylesList.map(({ url }) =>
+      server
+        .inject({
+          method: 'GET',
+          url,
+        })
+        .then((response) => response.json<StyleJSON>())
+    )
+  )
 
-    const style = getStyleResponse.json<StyleJSON>()
-
-    return Object.values(style.sources).find((source) => {
+  const matchingStyle = styles.find((style) =>
+    Object.values(style.sources).find((source) => {
       if ('url' in source && source.url) {
         return source.url === expectedSourceUrl
       }
     })
-  })
+  )
 
   t.ok(matchingStyle)
 })
