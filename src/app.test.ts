@@ -328,21 +328,42 @@ test('POST /tilesets/import creates tileset', async (t) => {
 test('POST /tilesets/import creates style for created tileset', async (t) => {
   const { sampleMbTilesPath, server } = t.context as TestContext
 
-  await server.inject({
+  const importResponse = await server.inject({
     method: 'POST',
     url: '/tilesets/import',
     payload: { filePath: sampleMbTilesPath },
   })
 
-  // TODO: Would be ideal to get the specific style created for the tileset
+  const { id: createdTilesetId } = importResponse.json<
+    TileJSON & { id: string }
+  >()
+
   const getStylesResponse = await server.inject({
     method: 'GET',
     url: '/styles',
   })
 
-  t.equal(getStylesResponse.statusCode, 200)
+  const styles =
+    getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
 
-  t.equal(getStylesResponse.json().length, 1)
+  const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
+
+  const matchingStyle = styles.find(async ({ url }) => {
+    const getStyleResponse = await server.inject({
+      method: 'GET',
+      url,
+    })
+
+    const style = getStyleResponse.json<StyleJSON>()
+
+    return Object.values(style.sources).find((source) => {
+      if ('url' in source && source.url) {
+        return source.url === expectedSourceUrl
+      }
+    })
+  })
+
+  t.ok(matchingStyle)
 })
 
 /**
