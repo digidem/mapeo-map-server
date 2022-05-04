@@ -8,7 +8,6 @@
   },
   "scripts": {
     "dev": "ts-node-dev --files --transpile-only --respawn --no-notify ./server.ts | pino-pretty",
-    "start": "npm run clean && npm run build && node dist/src/server.js",
     "build": "npm run clean && tsc -b",
     "clean": "tsc -b --clean",
     "test": "TS_NODE_FILES=true tap --ts --no-check-coverage --test-ignore='^(dist|scripts)'",
