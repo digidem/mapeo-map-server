@@ -2,12 +2,12 @@
   "name": "@mapeo/mapserver",
   "version": "1.0.0",
   "description": "Serve raster & vector map tiles along with style resources for GL maps",
-  "main": "lib/server.js",
+  "main": "dist/app.js",
   "engines": {
     "node": "12.18.3"
   },
   "scripts": {
-    "dev": "ts-node-dev --files --transpile-only --respawn --no-notify src/server.ts | pino-pretty",
+    "dev": "ts-node-dev --files --transpile-only --respawn --no-notify ./server.ts | pino-pretty",
     "start": "npm run clean && npm run build && node dist/src/server.js",
     "build": "npm run clean && tsc -b",
     "clean": "tsc -b --clean",

@@ -1,6 +1,6 @@
 import 'make-promises-safe'
-import createApp from './app'
-import './type-extensions' // necessary to make sure that the fastify types are augmented
+
+import createApp from './src/app'
 
 // Require the framework and instantiate it
 const fastify = createApp({
