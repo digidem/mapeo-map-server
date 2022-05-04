@@ -5,9 +5,9 @@
 const fs = require('fs')
 const path = require('path')
 
-const PACKAGE_JSON_PATH = path.resolve(
-  __dirname,
-  '../node_modules/@maplibre/maplibre-gl-style-spec/package.json'
+const PACKAGE_JSON_PATH = path.join(
+  require.resolve('@maplibre/maplibre-gl-style-spec'),
+  '../../package.json'
 )
 
 const file = fs.readFileSync(PACKAGE_JSON_PATH, { encoding: 'utf8' })
