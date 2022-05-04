@@ -15,10 +15,14 @@
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate-dev": "prisma migrate dev",
-    "postinstall": "patch-package && node scripts/fix-maplibre.js"
+    "postinstall": "patch-package && node scripts/fix-maplibre.js",
+    "prepare": "npm run build"
   },
   "author": "Digital Democracy",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@mapbox/mbtiles": "^0.12.1",
     "@mapbox/sphericalmercator": "^1.2.0",

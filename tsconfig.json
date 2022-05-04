@@ -24,5 +24,13 @@
       "./types"
     ],
     "allowJs": true,
-  }
+  },
+  "include": [
+    "src/**/*",
+    "types/**/*",
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/mocks/**/*",
+  ]
 }
