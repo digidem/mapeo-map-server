@@ -28,7 +28,6 @@
   "include": [
     "src/**/*",
     "types/**/*",
-    "scripts/**/*",
   ],
   "exclude": [
     "src/**/*.test.ts",

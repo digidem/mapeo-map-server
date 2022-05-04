@@ -2,7 +2,7 @@
   "name": "@mapeo/mapserver",
   "version": "1.0.0",
   "description": "Serve raster & vector map tiles along with style resources for GL maps",
-  "main": "dist/src/app.js",
+  "main": "dist/app.js",
   "engines": {
     "node": "12.18.3"
   },
@@ -14,13 +14,15 @@
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate-dev": "prisma migrate dev",
-    "postinstall": "patch-package && node scripts/fix-maplibre.js",
+    "postinstall": "patch-package && node -e \"try{require('./scripts/fix-maplibre')}catch(e){console.warn(e)}\"",
     "prepare": "npm run build"
   },
   "author": "Digital Democracy",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "patches",
+    "scripts"
   ],
   "dependencies": {
     "@mapbox/mbtiles": "^0.12.1",
