@@ -2,7 +2,7 @@
   "name": "@mapeo/mapserver",
   "version": "1.0.0",
   "description": "Serve raster & vector map tiles along with style resources for GL maps",
-  "main": "dist/app.js",
+  "main": "dist/src/app.js",
   "engines": {
     "node": "12.18.3"
   },
