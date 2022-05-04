@@ -42,6 +42,7 @@
     "is-url": "^1.2.4",
     "make-promises-safe": "^5.1.0",
     "mem": "^8.1.1",
+    "patch-package": "^6.4.7",
     "quick-lru": "^5.1.1",
     "tiny-typed-emitter": "^2.1.0"
   },
@@ -66,7 +67,6 @@
     "husky": "^4.3.0",
     "lint-staged": "^10.5.0",
     "msw": "^0.36.8",
-    "patch-package": "^6.4.7",
     "pino-pretty": "^4.3.0",
     "prettier": "^2.4.1",
     "prisma": "^3.8.1",
