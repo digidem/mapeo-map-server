@@ -54,7 +54,6 @@
     "@tsconfig/node12": "^1.0.9",
     "@types/better-sqlite3": "^7.5.0",
     "@types/is-url": "^1.2.30",
-    "@types/json-schema": "^7.0.9",
     "@types/mapbox__point-geometry": "^0.1.2",
     "@types/mapbox__sphericalmercator": "^1.1.5",
     "@types/node": "^14.14.5",
