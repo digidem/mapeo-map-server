@@ -69,7 +69,7 @@
     "lint-staged": "^10.5.0",
     "msw": "~0.38.2",
     "pino-pretty": "^7.6.1",
-    "prettier": "^2.4.1",
+    "prettier": "^2.6.2",
     "prisma": "^3.13.0",
     "prisma-dbml-generator": "^0.9.0",
     "prisma-erd-generator": "^0.11.0",
