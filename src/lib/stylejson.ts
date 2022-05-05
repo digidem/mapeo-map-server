@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/ban-types */
 import { URL } from 'url'
-import {
-  validate as validateStyleJSON,
-  StyleSpecification as StyleJSON,
-} from '@maplibre/maplibre-gl-style-spec'
+// @ts-ignore
+import { validate as validateStyleJSON } from '@maplibre/maplibre-gl-style-spec'
+import { StyleSpecification as StyleJSON } from '@maplibre/maplibre-gl-style-spec/types.g'
 
 import { encodeBase32, hash } from './utils'
 
@@ -41,7 +40,7 @@ function validate(style: unknown): asserts style is StyleJSON {
 
   if (errors.length > 0) {
     // TODO: not sure what the best thing to throw here is
-    throw new Error(errors.map((err) => err.message).join('\n'))
+    throw new Error(errors.map((err: Error) => err.message).join('\n'))
   }
 }
 
