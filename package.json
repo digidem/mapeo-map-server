@@ -23,7 +23,6 @@
     "prisma/migrations"
   ],
   "dependencies": {
-    "@fastify/etag": "^3.0.0",
     "@mapbox/mbtiles": "^0.12.1",
     "@mapbox/sphericalmercator": "^1.2.0",
     "@mapbox/tiletype": "^0.3.1",
@@ -48,6 +47,7 @@
     "uuid": "^8.3.2"
   },
   "devDependencies": {
+    "@fastify/etag": "^3.0.0",
     "@mapbox/point-geometry": "^0.1.0",
     "@tsconfig/node12": "^1.0.9",
     "@types/better-sqlite3": "^7.5.0",
