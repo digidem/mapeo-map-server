@@ -34,7 +34,7 @@
     "ajv": "^8.8.1",
     "base32.js": "^0.1.0",
     "better-sqlite3": "^7.5.1",
-    "fastify": "^3.24.0",
+    "fastify": "^3.29.0",
     "fastify-oas": "^3.0.8",
     "fastify-plugin": "^3.0.1",
     "get-stream": "^6.0.1",
