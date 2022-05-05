@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import path from 'path'
 import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
-import fastifySwagger from 'fastify-swagger'
+import fastifySwagger from '@fastify/swagger'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
 import api, { PluginOptions } from './api'

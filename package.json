@@ -24,6 +24,7 @@
   ],
   "dependencies": {
     "@fastify/error": "^2.0.0",
+    "@fastify/swagger": "^6.0.1",
     "@mapbox/mbtiles": "^0.12.1",
     "@mapbox/sphericalmercator": "^1.2.0",
     "@mapbox/tiletype": "^0.3.1",
@@ -36,7 +37,6 @@
     "fastify": "^3.24.0",
     "fastify-oas": "^3.0.8",
     "fastify-plugin": "^3.0.1",
-    "fastify-swagger": "^4.12.6",
     "get-stream": "^6.0.1",
     "got": "^11.8.3",
     "is-url": "^1.2.4",
