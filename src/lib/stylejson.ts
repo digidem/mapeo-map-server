@@ -2,8 +2,8 @@
 import { URL } from 'url'
 // @ts-ignore
 import { validate as validateStyleJSON } from '@maplibre/maplibre-gl-style-spec'
-import { StyleSpecification as StyleJSON } from '@maplibre/maplibre-gl-style-spec/types.g'
 
+import { StyleSpecification as StyleJSON } from './style-spec'
 import { encodeBase32, hash } from './utils'
 
 // If the style has an `upstreamUrl` property, indicating where it was
