@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify'
-import createError from 'fastify-error'
+import createError from '@fastify/error'
 import got from 'got'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
