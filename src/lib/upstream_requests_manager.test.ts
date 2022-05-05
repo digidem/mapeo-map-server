@@ -1,5 +1,5 @@
 import Fastify from 'fastify'
-import Etag from 'fastify-etag'
+import Etag from '@fastify/etag'
 import { afterEach, beforeEach, test } from 'tap'
 
 import { UpstreamRequestsManager } from './upstream_requests_manager'
