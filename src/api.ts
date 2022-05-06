@@ -890,6 +890,12 @@ export default fp(ApiPlugin, {
 function init(dbPath: string): Context {
   const db = new Database(dbPath)
 
+  // Enable auto-vacuum by setting it to incremental mode
+  // This has to be set before the anything on the db instance is called!
+  // https://www.sqlite.org/pragma.html#pragma_auto_vacuum
+  // https://www.sqlite.org/pragma.html#pragma_incremental_vacuum
+  db.pragma('auto_vacuum = INCREMENTAL')
+
   // Enable WAL for potential performance benefits
   // https://github.com/JoshuaWise/better-sqlite3/blob/master/docs/performance.md
   db.pragma('journal_mode = WAL')
