@@ -4,7 +4,7 @@ import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
 import fastifySwagger from '@fastify/swagger'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
-import api, { PluginOptions } from './api'
+import api, { MapServerOptions } from './api'
 import * as routes from './routes'
 
 const version = JSON.parse(
@@ -14,12 +14,12 @@ const version = JSON.parse(
 ).version
 
 function build(
-  opts: FastifyServerOptions = {},
-  pluginOpts?: PluginOptions
+  fastifyOpts: FastifyServerOptions = {},
+  mapServerOpts: MapServerOptions = {}
 ): FastifyInstance {
-  const fastify = createFastify(opts)
+  const fastify = createFastify(fastifyOpts)
 
-  fastify.register(api, pluginOpts)
+  fastify.register(api, mapServerOpts)
 
   fastify.register(fastifySwagger, {
     swagger: {
@@ -38,5 +38,7 @@ function build(
 
   return fastify
 }
+
+export { MapServerOptions }
 
 export default build

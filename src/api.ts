@@ -88,8 +88,8 @@ const UpstreamJsonValidationError = createError(
 
 const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
 
-export interface PluginOptions {
-  dbPath: string
+export interface MapServerOptions {
+  dbPath?: string
 }
 
 interface SourceIdToTilesetId {
@@ -863,7 +863,7 @@ function createApi({
   return api
 }
 
-const ApiPlugin: FastifyPluginAsync<PluginOptions> = async (
+const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   fastify,
   { dbPath }
 ) => {
@@ -887,8 +887,8 @@ export default fp(ApiPlugin, {
   name: 'api',
 })
 
-function init(dbPath: string): Context {
-  const db = new Database(dbPath)
+function init(dbPath?: string): Context {
+  const db = new Database(dbPath || ':memory:')
 
   // Enable auto-vacuum by setting it to incremental mode
   // This has to be set before the anything on the db instance is called!
