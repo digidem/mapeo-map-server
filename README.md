@@ -1,5 +1,7 @@
 # Mapeo Map Server
 
+![Build Status](https://github.com/digidem/mapeo-mapserver/actions/workflows/node.yml/badge.svg)
+
 An in-progress offline map style and tile server for Mapeo.
 
 `npm install @mapeo/mapserver`
@@ -11,6 +13,7 @@ An in-progress offline map style and tile server for Mapeo.
 - [X] Manages Mapbox map styles
 
 - [X] Supports importing MBTile files as tilesets
+  - [ ] Supports getting import progress
 
 - [ ] Provides info related to downloads and storage
 
