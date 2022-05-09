@@ -48,8 +48,8 @@ mapServer.listen(3000, function (err) {
 Creates the Fastify instance and returns a function that configures it for the map server and returns it
 
 - `fastifyOpts (optional)`: Options to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
-- `mapServerOpts (optional)`: Options to customize the map server instance. Options include:
-  - `dbPath: string (optional)`: File path that points to the SQLite database to use. If the file does not exist, it will be created. If not specified, the database will be created in memory.
+- `mapServerOpts`: Options to customize the map server instance. Options include:
+  - `dbPath: string`: File path that points to the SQLite database to use. If the file does not exist, it will be created.
 
 ## Technical Details
 
