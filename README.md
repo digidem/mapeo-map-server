@@ -20,7 +20,7 @@ An in-progress offline map style and tile server for Mapeo.
 
 ## Usage
 
-The default export is a function that creates a map server instance, which is built on top of [Fastify](https://www.fastify.io/). Basic usage is as follows:
+The default export is a factory function for creating a map server instance, which is built on top of [Fastify](https://www.fastify.io/). Basic usage is as follows:
 
 ```js
 // If you're using TypeScript, you may want to use one of the following import syntaxes to get type definitions:
