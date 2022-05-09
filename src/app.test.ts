@@ -532,8 +532,10 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
     payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
-  const { id: expectedId } =
-    responsePost.json<{ id: string; style: StyleJSON }>()
+  const { id: expectedId } = responsePost.json<{
+    id: string
+    style: StyleJSON
+  }>()
 
   const responseGet = await server.inject({
     method: 'GET',
