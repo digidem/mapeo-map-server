@@ -89,7 +89,7 @@ const UpstreamJsonValidationError = createError(
 const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
 
 export interface MapServerOptions {
-  dbPath?: string
+  dbPath: string
 }
 
 interface SourceIdToTilesetId {
@@ -867,6 +867,9 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   fastify,
   { dbPath }
 ) => {
+  if (dbPath == null)
+    throw new Error('Map server option `dbPath` must be specified')
+
   // Create context once for each fastify instance
   const context = init(dbPath)
 
@@ -887,8 +890,8 @@ export default fp(ApiPlugin, {
   name: 'api',
 })
 
-function init(dbPath?: string): Context {
-  const db = new Database(dbPath || ':memory:')
+function init(dbPath: string): Context {
+  const db = new Database(dbPath)
 
   // Enable auto-vacuum by setting it to incremental mode
   // This has to be set before the anything on the db instance is called!

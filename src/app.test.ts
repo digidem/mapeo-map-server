@@ -5,7 +5,7 @@ import fs from 'fs'
 import { FastifyInstance } from 'fastify'
 
 import { IdResource, Api } from './api'
-import app from './app'
+import createServer from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleRasterStylejson from './fixtures/good-stylejson/good-simple-raster.json'
 import {
@@ -65,7 +65,7 @@ beforeEach((t) => {
   )
 
   t.context = {
-    server: app({ logger: false }, { dbPath }),
+    server: createServer({ logger: false })({ dbPath }),
     sampleMbTilesPath: mbTilesPath,
     sampleTileJSON: mapboxRasterTilejson,
     sampleStyleJSON: simpleRasterStylejson,

@@ -26,23 +26,26 @@ The default export is a function that creates a map server instance, which is bu
 // If you're using TypeScript, you may want to use one of the following import syntaxes to get type definitions:
 // - `require('@mapeo/mapserver').default`
 // - `import createMapServer from '@mapeo/mapServer'
-const createMapServer = require('@mapeo/mapserver')
+const createServer = require("@mapeo/mapserver");
 
-// Create the map server instance
-const mapServer = createMapServer({ logger: true }, { dbPath: "./example.db" });
+// Create the initial server instance and return the setup function
+const createMapServer = createServer({ logger: true });
+
+// Create the map server and return the server instance
+const mapServer = createMapServer({ dbPath: "./example.db" });
 
 // Run the server!
 mapServer.listen(3000, function (err) {
   if (err) {
-    maspServer.log.error(err);
+    mapServer.log.error(err);
     process.exit(1);
   }
 });
 ```
 
-### `createMapServer(fastifyOpts, mapServerOpts)`
+### `createServer(fastifyOpts): (mapServerOpts) => FastifyInstance`
 
-Creates the map server instance.
+Creates the Fastify instance and returns a function that configures it for the map server and returns it
 
 - `fastifyOpts (optional)`: Options to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
 - `mapServerOpts (optional)`: Options to customize the map server instance. Options include:
