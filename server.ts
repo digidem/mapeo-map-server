@@ -1,16 +1,18 @@
 import 'make-promises-safe'
 
-import createApp from './src/app'
+import createMapServer, { MapServerOptions } from './src/app'
+
+const mapServerOpts: MapServerOptions = {
+  dbPath: './example.db',
+}
 
 // Require the framework and instantiate it
-const fastify = createApp({
-  logger: true,
-})
+const mapServer = createMapServer({ logger: true }, mapServerOpts)
 
 // Run the server!
-fastify.listen(3000, function (err) {
+mapServer.listen(3000, function (err) {
   if (err) {
-    fastify.log.error(err)
+    mapServer.log.error(err)
     process.exit(1)
   }
 })

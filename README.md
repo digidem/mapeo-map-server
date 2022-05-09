@@ -23,6 +23,9 @@ An in-progress offline map style and tile server for Mapeo.
 The default export is a function that creates a map server instance, which is built on top of [Fastify](https://www.fastify.io/). Basic usage is as follows:
 
 ```js
+// If you're using TypeScript, you may want to use one of the following import syntaxes to get type definitions:
+// - `require('@mapeo/mapserver').default`
+// - `import createMapServer from '@mapeo/mapServer'
 const createMapServer = require('@mapeo/mapserver')
 
 // Create the map server instance

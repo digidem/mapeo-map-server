@@ -13,7 +13,7 @@ const version = JSON.parse(
   })
 ).version
 
-function build(
+function createServer(
   fastifyOpts: FastifyServerOptions = {},
   mapServerOpts: MapServerOptions = {}
 ): FastifyInstance {
@@ -41,4 +41,7 @@ function build(
 
 export { MapServerOptions }
 
-export default build
+export default createServer
+
+module.exports = createServer
+module.exports.default = createServer
