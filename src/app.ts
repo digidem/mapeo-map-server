@@ -14,30 +14,29 @@ const version = JSON.parse(
 ).version
 
 function createServer(
-  fastifyOpts: FastifyServerOptions = {}
-): (mapServerOpts: MapServerOptions) => FastifyInstance {
+  fastifyOpts: FastifyServerOptions = {},
+  mapServerOpts: MapServerOptions
+): FastifyInstance {
   const fastify = createFastify(fastifyOpts)
 
-  return (mapServerOpts: MapServerOptions) => {
-    fastify.register(api, mapServerOpts)
+  fastify.register(api, mapServerOpts)
 
-    fastify.register(fastifySwagger, {
-      swagger: {
-        info: {
-          title: 'Mapeo Map Server',
-          version,
-        },
+  fastify.register(fastifySwagger, {
+    swagger: {
+      info: {
+        title: 'Mapeo Map Server',
+        version,
       },
-      routePrefix: '/docs',
-      exposeRoute: true,
-    })
+    },
+    routePrefix: '/docs',
+    exposeRoute: true,
+  })
 
-    for (const name of Object.keys(routes) as Array<keyof typeof routes>) {
-      fastify.register(routes[name], { prefix: '/' + name })
-    }
-
-    return fastify
+  for (const name of Object.keys(routes) as Array<keyof typeof routes>) {
+    fastify.register(routes[name], { prefix: '/' + name })
   }
+
+  return fastify
 }
 
 export { MapServerOptions }

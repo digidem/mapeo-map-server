@@ -25,14 +25,11 @@ The default export is a factory function for creating a map server instance, whi
 ```js
 // If you're using TypeScript, you may want to use one of the following import syntaxes to get type definitions:
 // - `require('@mapeo/mapserver').default`
-// - `import createMapServer from '@mapeo/mapServer'
-const createServer = require("@mapeo/mapserver");
+// - `import createMapServer from '@mapeo/mapserver'
+const createMapServer = require("@mapeo/mapserver");
 
-// Create the initial server instance and return the setup function
-const createMapServer = createServer({ logger: true });
-
-// Create the map server and return the server instance
-const mapServer = createMapServer({ dbPath: "./example.db" });
+// Create the server instance
+const mapServer = createMapServer({ logger: true }, { dbPath: "./example.db" });
 
 // Run the server!
 mapServer.listen(3000, function (err) {
@@ -43,13 +40,13 @@ mapServer.listen(3000, function (err) {
 });
 ```
 
-### `createServer(fastifyOpts): (mapServerOpts) => FastifyInstance`
+### `createServer(fastifyOpts, mapServerOpts): FastifyInstance`
 
-Creates the Fastify instance and returns a function that configures it for the map server and returns it
+Creates the map server instance
 
-- `fastifyOpts (optional)`: Options to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
-- `mapServerOpts`: Options to customize the map server instance. Options include:
-  - `dbPath: string`: File path that points to the SQLite database to use. If the file does not exist, it will be created.
+- `fastifyOpts (optional)`: Options object to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
+- `mapServerOpts (required)`: Options object to customize the map server instance. Options include:
+  - `dbPath: string (required)`: File path that points to the SQLite database to use. If the file does not exist, it will be created.
 
 ## Technical Details
 
