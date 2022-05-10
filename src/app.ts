@@ -1,17 +1,9 @@
-import { readFileSync } from 'fs'
-import path from 'path'
 import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
 import fastifySwagger from '@fastify/swagger'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
 import api, { MapServerOptions } from './api'
 import * as routes from './routes'
-
-const version = JSON.parse(
-  readFileSync(path.resolve(__dirname, '../package.json'), {
-    encoding: 'utf-8',
-  })
-).version
 
 function createServer(
   fastifyOpts: FastifyServerOptions = {},
@@ -25,7 +17,8 @@ function createServer(
     swagger: {
       info: {
         title: 'Mapeo Map Server',
-        version,
+        // Change when package.json version changes
+        version: '1.0.0-alpha.0',
       },
     },
     routePrefix: '/docs',
