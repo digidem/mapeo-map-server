@@ -1,7 +1,6 @@
 import { FastifyPluginAsync } from 'fastify'
 import { TileJSON, TileJSONSchema } from '../lib/tilejson'
 import { Static, Type as T } from '@sinclair/typebox'
-// import { on } from 'events'
 
 const GetTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
