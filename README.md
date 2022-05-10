@@ -1,10 +1,10 @@
 # Mapeo Map Server
 
-![Build Status](https://github.com/digidem/mapeo-mapserver/actions/workflows/node.yml/badge.svg)
+![Build Status](https://github.com/digidem/mapeo-map-server/actions/workflows/node.yml/badge.svg)
 
 An in-progress offline map style and tile server for Mapeo.
 
-`npm install @mapeo/mapserver`
+`npm install @mapeo/map-server`
 
 *⚠️ This is alpha software. No guarantees can be made about the stability of the API at the moment, so proceed with caution. 😄*
 
@@ -26,9 +26,9 @@ The default export is a factory function for creating a map server instance, whi
 
 ```js
 // If you're using TypeScript, you may want to use one of the following import syntaxes to get type definitions:
-// - `require('@mapeo/mapserver').default`
-// - `import createMapServer from '@mapeo/mapserver'
-const createMapServer = require("@mapeo/mapserver");
+// - `require('@mapeo/map-server').default`
+// - `import createMapServer from '@mapeo/map-server'
+const createMapServer = require("@mapeo/map-server");
 
 // Create the server instance
 const mapServer = createMapServer({ logger: true }, { dbPath: "./example.db" });
