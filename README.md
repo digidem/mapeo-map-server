@@ -6,6 +6,8 @@ An in-progress offline map style and tile server for Mapeo.
 
 `npm install @mapeo/mapserver`
 
+*⚠️ This is alpha software. No guarantees can be made about the stability of the API at the moment, so proceed with caution. 😄*
+
 ## Features
 
 - [X] Manages tiles and tilesets (TileJSON)
