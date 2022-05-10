@@ -18,7 +18,7 @@ function createServer(
       info: {
         title: 'Mapeo Map Server',
         // Change when package.json version changes
-        version: '1.0.0-alpha.0',
+        version: '1.0.0-alpha.2',
       },
     },
     routePrefix: '/docs',
