@@ -1,6 +1,6 @@
 {
   "name": "@mapeo/map-server",
-  "version": "1.0.0",
+  "version": "1.0.0-alpha.0",
   "description": "Serve raster & vector map tiles along with style resources for GL maps",
   "main": "dist/app.js",
   "types": "dist/app.d.ts",
