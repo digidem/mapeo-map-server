@@ -3,8 +3,9 @@ const process = require('process')
 const { parentPort, workerData } = require('worker_threads')
 const Database = require('better-sqlite3')
 
-const { hash, tileToQuadKey, encodeBase32 } = require('./utils')
 const { extractMBTilesMetadata } = require('./mbtiles')
+const { tileToQuadKey } = require('./tiles')
+const { hash, encodeBase32 } = require('./utils')
 
 /**
  * @typedef {Object} WorkerData

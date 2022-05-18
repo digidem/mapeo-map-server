@@ -1,11 +1,53 @@
-import { Metadata } from '@mapbox/mbtiles'
 import SphericalMercator from '@mapbox/sphericalmercator'
 import { Database as DatabaseInstance } from 'better-sqlite3'
 
 import { TileJSON } from './tilejson'
+import { TileHeaders } from './tiles'
 import { generateId } from './utils'
 
 type ValidMBTilesFormat = TileJSON['format']
+
+export interface Headers extends TileHeaders {
+  'Last-Modified'?: string
+  Etag?: string
+}
+
+/**
+ * MBTiles metadata
+ * See https://github.com/mapbox/mbtiles-spec/blob/master/1.3/spec.md
+ */
+export interface Metadata {
+  /** The human-readable name of the tileset */
+  name: string
+  /** The file format of the tile data: `pbf`, `jpg`, `png`, `webp`, or an
+   * [IETF media
+   * type](https://www.iana.org/assignments/media-types/media-types.xhtml) for
+   * other formats */
+  format: 'pbf' | 'jpg' | 'png' | 'webp' // TODO: IETF media types
+  /** The maximum extent of the rendered map area. Bounds must define an area
+   * covered by all zoom levels. The bounds are represented as `WGS 84`
+   * latitude and longitude values, in the OpenLayers Bounds format (left,
+   * bottom, right, top). For example, the `bounds` of the full Earth, minus
+   * the poles, would be: `-180.0,-85,180,85` */
+  bounds?: [number, number, number, number]
+  /** The longitude, latitude, and zoom level of the default view of the map. */
+  center?: [number, number, number]
+  /** The lowest zoom level for which the tileset provides data */
+  minzoom?: number
+  /** The highest zoom level for which the tileset provides data */
+  maxzoom?: number
+  /** An attribution string, which explains the sources of data and/or style for the map */
+  attribution?: string
+  /** A description of the tileset's content */
+  description?: string
+  type?: 'overlay' | 'baselayer'
+  /** The version of the tileset. This refers to a revision of the tileset
+   * itself, not of the MBTiles specification. The MBTiles Spec says this
+   * should be a number, but node-mbtiles implements this as a string, which
+   * is the same as TileJSON */
+  version?: string
+  json?: string
+}
 
 export const VALID_MBTILES_FORMATS: ValidMBTilesFormat[] = [
   'pbf',

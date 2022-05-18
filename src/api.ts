@@ -1,17 +1,24 @@
 import path from 'path'
 import { Worker } from 'worker_threads'
-import { Headers } from '@mapbox/mbtiles'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from '@fastify/error'
 import fp from 'fastify-plugin'
 import got from 'got'
-import { headers } from '@mapbox/tiletype'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
-import { isValidMBTilesFormat, mbTilesToTileJSON } from './lib/mbtiles'
+import {
+  Headers as MbTilesHeaders,
+  isValidMBTilesFormat,
+  mbTilesToTileJSON,
+} from './lib/mbtiles'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
+import {
+  getInterpolatedUpstreamTileUrl,
+  getTileHeaders,
+  tileToQuadKey,
+} from './lib/tiles'
 import {
   DEFAULT_RASTER_SOURCE_ID,
   StyleJSON,
@@ -19,14 +26,7 @@ import {
   createRasterStyle,
   uncompositeStyle,
 } from './lib/stylejson'
-import {
-  getInterpolatedUpstreamTileUrl,
-  getTilesetId,
-  tileToQuadKey,
-  hash,
-  encodeBase32,
-  generateId,
-} from './lib/utils'
+import { getTilesetId, hash, encodeBase32, generateId } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 // import { ImportProgressEmitter } from './lib/import_progress_emitter'
@@ -118,7 +118,7 @@ export interface Api {
     zoom: number
     x: number
     y: number
-  }): Promise<{ data: Buffer; headers: Headers }>
+  }): Promise<{ data: Buffer; headers: MbTilesHeaders }>
   putTile(opts: {
     tilesetId: string
     zoom: number
@@ -647,7 +647,7 @@ function createApi({
         data: tile.data,
         // TODO: This never returns a Last-Modified header but seems like the endpoint would want it to if possible?
         // Would require changing the return type of UpstreamRequestsManager.getUpstream
-        headers: { ...headers(tile.data), Etag: tile.etag },
+        headers: { ...getTileHeaders(tile.data), Etag: tile.etag },
       }
     },
 

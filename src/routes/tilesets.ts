@@ -88,8 +88,8 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       const { data, headers } = await request.api.getTile(request.params)
       // Ignore Etag header from MBTiles
       reply.header('Last-Modified', headers['Last-Modified'])
+      // See getTileHeaders in lib/utils.ts
       reply.header('Content-Type', headers['Content-Type'])
-      // These come from https://github.com/mapbox/tiletype
       reply.header('Content-Encoding', headers['Content-Encoding'])
       reply.send(data)
     }
