@@ -158,7 +158,7 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId, styleId }) {
   /** @type {IterableIterator<{ data: Buffer, x: number, y: number, z: number }>} */
   const iterableQuery = mbTilesDb
     .prepare(
-      'SELECT zoom_level AS z, tile_column AS y, tile_row AS x, tile_data AS data FROM tiles'
+      'SELECT zoom_level AS z, tile_column AS x, tile_row AS y, tile_data AS data FROM tiles'
     )
     .iterate()
 
@@ -185,7 +185,7 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId, styleId }) {
   subscriptions.add(importId)
 
   for (const { data, x, y, z } of iterableQuery) {
-    const quadKey = tileToQuadKey({ zoom: z, x, y })
+    const quadKey = tileToQuadKey({ zoom: z, x, y: (1 << z) - 1 - y })
 
     const tileHash = hash(data).toString('hex')
 
