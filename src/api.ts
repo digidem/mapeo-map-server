@@ -32,6 +32,8 @@ import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 // import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 
+const activeWorkers: Map<string, () => Promise<void>> = new Map()
+
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
   'Resource `%s` not found',
@@ -98,7 +100,6 @@ interface SourceIdToTilesetId {
 
 interface Context {
   db: DatabaseInstance
-  tilesetImportWorker: Worker
   upstreamRequestsManager: UpstreamRequestsManager
 }
 
@@ -156,7 +157,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, tilesetImportWorker, upstreamRequestsManager } = context
+  const { db, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -385,12 +386,23 @@ function createApi({
         tileset.name
       )
 
+      const tilesetImportWorker = new Worker(
+        path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
+        { workerData: { dbPath: db.name } }
+      )
+
+      const importId = generateId()
+
+      activeWorkers.set(importId, async () => {
+        await tilesetImportWorker.terminate()
+      })
+
       // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
       // and we don't generate a style for those on tileset creation yet.
       // Absence presents various complications when creating and updating offline area and imports in db
       tilesetImportWorker.postMessage({
         type: 'importMbTiles',
-        importId: generateId(),
+        importId,
         mbTilesDbPath: mbTilesDb.name,
         styleId,
         tilesetId,
@@ -398,8 +410,13 @@ function createApi({
 
       return new Promise((res, rej) => {
         // TODO: What else has to be called when this occurs? e.g. terminating the import
-        tilesetImportWorker.addListener('error', (err) => {
+        tilesetImportWorker.on('error', (err) => {
+          activeWorkers.delete(importId)
           rej(err)
+        })
+
+        tilesetImportWorker.addListener('exit', () => {
+          activeWorkers.delete(importId)
         })
 
         tilesetImportWorker.addListener(
@@ -878,7 +895,10 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   const context = init(dbPath)
 
   fastify.addHook('onClose', async () => {
-    await context.tilesetImportWorker.terminate()
+    await Promise.all(
+      Array.from(activeWorkers.values()).map((terminateCb) => terminateCb())
+    )
+    activeWorkers.clear()
     context.db.close()
   })
 
@@ -911,10 +931,6 @@ function init(dbPath: string): Context {
 
   return {
     db,
-    tilesetImportWorker: new Worker(
-      path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
-      { workerData: { dbPath } }
-    ),
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
 }

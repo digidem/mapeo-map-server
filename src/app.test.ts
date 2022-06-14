@@ -370,6 +370,50 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
   t.ok(matchingStyle)
 })
 
+test('POST /tilesets/import multiple times using same source file works', async (t) => {
+  const { sampleMbTilesPath, server } = t.context as TestContext
+
+  const importResponse1 = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  t.equal(importResponse1.statusCode, 200)
+
+  const createdTileset1 = importResponse1.json<TileJSON & { id: string }>()
+
+  const tilesetGetResponse1 = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${createdTileset1.id}`,
+  })
+
+  t.equal(tilesetGetResponse1.statusCode, 200)
+
+  t.same(tilesetGetResponse1.json(), createdTileset1)
+
+  // Repeated request with same file path
+
+  const importResponse2 = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  t.equal(importResponse2.statusCode, 200)
+
+  const createdTileset2 = importResponse2.json<TileJSON & { id: string }>()
+
+  const tilesetGetResponse2 = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${createdTileset2.id}`,
+  })
+
+  t.equal(tilesetGetResponse2.statusCode, 200)
+
+  t.same(tilesetGetResponse2.json(), createdTileset2)
+})
+
 /**
  * /styles tests
  */
