@@ -62,6 +62,10 @@ export function isValidMBTilesFormat(
   return VALID_MBTILES_FORMATS.includes(format as ValidMBTilesFormat)
 }
 
+export function isSupportedMBTilesFormat(format: ValidMBTilesFormat): boolean {
+  return format !== 'pbf'
+}
+
 export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
   const metadata = extractMBTilesMetadata(mbTilesDb)
 

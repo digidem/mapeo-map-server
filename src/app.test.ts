@@ -55,7 +55,7 @@ function createContext() {
 
   const mbTilesPath = path.resolve(
     __dirname,
-    './fixtures/mbtiles/trails.mbtiles'
+    './fixtures/mbtiles/raster/countries-png.mbtiles'
   )
 
   const context = {
@@ -319,6 +319,29 @@ test('POST /tilesets/import fails when providing path for non-existent file', as
   t.equal(importResponse.json().code, 'FST_MBTILES_IMPORT_TARGET_MISSING')
 
   return cleanup()
+})
+
+test('POST /tilesets/import fails when provided vector tiles format', async (t) => {
+  const { cleanup, server } = createContext()
+
+  const unsupportedFixturePath = path.resolve(
+    __dirname,
+    './fixtures/mbtiles/vector/trails-pbf.mbtiles'
+  )
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: {
+      filePath: unsupportedFixturePath,
+    },
+  })
+
+  t.equal(importResponse.statusCode, 400)
+
+  t.equal(importResponse.json().code, 'FST_UNSUPPORTED_MBTILES_FORMAT')
+
+  cleanup()
 })
 
 test('POST /tilesets/import creates tileset', async (t) => {
