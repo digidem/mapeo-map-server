@@ -695,6 +695,8 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
 })
 
 test('DELETE /styles/:styleId works for style with associated OfflineArea and Import', async (t) => {
+  t.plan(3)
+
   const { sampleMbTilesPath, server } = t.context as TestContext
 
   const importResponse = await server.inject({
