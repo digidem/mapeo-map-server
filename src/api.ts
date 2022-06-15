@@ -32,7 +32,9 @@ import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 // import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 
-const activeWorkers: Map<string, () => Promise<void>> = new Map()
+// Whenever a tile import is requested, a new worker is created
+// Used for tracking workers to handle subscriptions, server lifecycle events, etc.
+const activeWorkers: Map<string, Worker> = new Map()
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -393,9 +395,7 @@ function createApi({
 
       const importId = generateId()
 
-      activeWorkers.set(importId, async () => {
-        await tilesetImportWorker.terminate()
-      })
+      activeWorkers.set(importId, tilesetImportWorker)
 
       // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
       // and we don't generate a style for those on tileset creation yet.
@@ -896,7 +896,7 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
 
   fastify.addHook('onClose', async () => {
     await Promise.all(
-      Array.from(activeWorkers.values()).map((terminateCb) => terminateCb())
+      Array.from(activeWorkers.values()).map((worker) => worker.terminate())
     )
     activeWorkers.clear()
     context.db.close()
