@@ -1,5 +1,4 @@
 // @ts-check
-const process = require('process')
 const { parentPort, workerData } = require('worker_threads')
 const Database = require('better-sqlite3')
 
@@ -26,11 +25,6 @@ const { hash, encodeBase32 } = require('./utils')
  * @property {string} mbTilesDbPath
  * @property {string} styleId
  * @property {string} tilesetId
- */
-
-/**
- * @typedef {Object} ImportTerminateAction
- * @property {'importTerminate'} type
  */
 
 const queries = {
@@ -104,16 +98,12 @@ if (!parentPort) throw new Error('No parent port found')
 
 parentPort.on('message', handleMessage)
 
-/** @param {ImportAction | ImportTerminateAction} action */
+/** @param {ImportAction} action */
 function handleMessage(action) {
   switch (action.type) {
     case 'importMbTiles': {
       const { type, ...params } = action
       importMbTiles(params)
-      break
-    }
-    case 'importTerminate': {
-      process.exit(0)
       break
     }
   }

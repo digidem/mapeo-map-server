@@ -411,8 +411,10 @@ function createApi({
       return new Promise((res, rej) => {
         // TODO: What else has to be called when this occurs? e.g. terminating the import
         tilesetImportWorker.on('error', (err) => {
-          activeWorkers.delete(importId)
-          rej(err)
+          tilesetImportWorker.terminate().then(() => {
+            activeWorkers.delete(importId)
+            rej(err)
+          })
         })
 
         tilesetImportWorker.addListener('exit', () => {
@@ -431,8 +433,10 @@ function createApi({
             total: number
           }) => {
             if (soFar === total) {
-              tilesetImportWorker.postMessage({ type: 'importTerminate' })
-              res(tileset)
+              tilesetImportWorker.terminate().then(() => {
+                activeWorkers.delete(importId)
+                res(tileset)
+              })
             }
           }
         )
