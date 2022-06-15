@@ -409,7 +409,6 @@ function createApi({
       })
 
       return new Promise((res, rej) => {
-        // TODO: What else has to be called when this occurs? e.g. terminating the import
         tilesetImportWorker.on('error', (err) => {
           tilesetImportWorker.terminate().then(() => {
             activeWorkers.delete(importId)
