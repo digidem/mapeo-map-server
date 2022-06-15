@@ -371,51 +371,45 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
-  // This is a potentially longer operation
-  // so increase the timeout to 1 minute
-  t.setTimeout(60000)
+  t.plan(4)
 
   const { sampleMbTilesPath, server } = t.context as TestContext
 
-  const importResponse1 = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
-  })
+  async function requestImport() {
+    return await server.inject({
+      method: 'POST',
+      url: '/tilesets/import',
+      payload: { filePath: sampleMbTilesPath },
+    })
+  }
+
+  const importResponse1 = await requestImport()
 
   t.equal(importResponse1.statusCode, 200)
 
-  const createdTileset1 = importResponse1.json<TileJSON & { id: string }>()
+  const { id: tilesetId1 } = importResponse1.json()
 
   const tilesetGetResponse1 = await server.inject({
     method: 'GET',
-    url: `/tilesets/${createdTileset1.id}`,
+    url: `/tilesets/${tilesetId1}`,
   })
 
   t.equal(tilesetGetResponse1.statusCode, 200)
 
-  t.same(tilesetGetResponse1.json(), createdTileset1)
-
   // Repeated request with same file path
 
-  const importResponse2 = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
-  })
+  const importResponse2 = await requestImport()
 
   t.equal(importResponse2.statusCode, 200)
 
-  const createdTileset2 = importResponse2.json<TileJSON & { id: string }>()
+  const { id: tilesetId2 } = importResponse1.json()
 
   const tilesetGetResponse2 = await server.inject({
     method: 'GET',
-    url: `/tilesets/${createdTileset2.id}`,
+    url: `/tilesets/${tilesetId2}`,
   })
 
   t.equal(tilesetGetResponse2.statusCode, 200)
-
-  t.same(tilesetGetResponse2.json(), createdTileset2)
 })
 
 /**
