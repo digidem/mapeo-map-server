@@ -29,12 +29,6 @@ const { hash, encodeBase32 } = require('./utils')
  */
 
 /**
- * @typedef {Object} ImportSubscribeAction
- * @property {'importEventSubscription'} type
- * @property {string[]} importIds
- */
-
-/**
  * @typedef {Object} ImportTerminateAction
  * @property {'importTerminate'} type
  */
@@ -103,9 +97,6 @@ const queries = {
       .run(params),
 }
 
-/** @type {Set<string>} */
-const subscriptions = new Set()
-
 /** @type {Database} */
 const db = new Database(workerData.dbPath)
 
@@ -113,7 +104,7 @@ if (!parentPort) throw new Error('No parent port found')
 
 parentPort.on('message', handleMessage)
 
-/** @param {ImportAction | ImportSubscribeAction | ImportTerminateAction} action */
+/** @param {ImportAction | ImportTerminateAction} action */
 function handleMessage(action) {
   switch (action.type) {
     case 'importMbTiles': {
@@ -121,20 +112,11 @@ function handleMessage(action) {
       importMbTiles(params)
       break
     }
-    case 'importEventSubscription': {
-      handleEventSubscription(action.importIds)
-      break
-    }
     case 'importTerminate': {
       process.exit(0)
       break
     }
   }
-}
-
-/** @param {string[]} importIds */
-function handleEventSubscription(importIds) {
-  importIds.forEach((id) => subscriptions.add(id))
 }
 
 /** @param {{ importId: string, mbTilesDbPath: string, styleId: string, tilesetId: string }} params */
@@ -182,8 +164,6 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId, styleId }) {
     areaId,
   })
 
-  subscriptions.add(importId)
-
   for (const { data, x, y, z } of iterableQuery) {
     const quadKey = tileToQuadKey({ zoom: z, x, y: (1 << z) - 1 - y })
 
@@ -213,7 +193,7 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId, styleId }) {
 
     tilesImportTransaction()
 
-    if (parentPort && subscriptions.has(importId)) {
+    if (parentPort) {
       parentPort.postMessage({
         type: 'progress',
         importId,
@@ -222,8 +202,6 @@ function importMbTiles({ importId, mbTilesDbPath, tilesetId, styleId }) {
       })
     }
   }
-
-  subscriptions.delete(importId)
 
   mbTilesDb.close()
 }
