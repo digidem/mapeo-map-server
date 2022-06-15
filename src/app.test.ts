@@ -371,6 +371,10 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
+  // This is a potentially longer operation
+  // so increase the timeout to 1 minute
+  t.setTimeout(60000)
+
   const { sampleMbTilesPath, server } = t.context as TestContext
 
   const importResponse1 = await server.inject({
