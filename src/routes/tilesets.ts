@@ -19,6 +19,7 @@ const PutTilesetParamsSchema = T.Object({
 
 const ImportMBTilesBodySchema = T.Object({
   filePath: T.String(),
+  styleName: T.Optional(T.String()),
 })
 
 // const GetImportProgressParamsSchema = T.Object({
@@ -128,7 +129,7 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const tilejson = await request.api.importMBTiles(request.body.filePath)
+      const tilejson = await request.api.importMBTiles(request.body)
       reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
       return tilejson
     }

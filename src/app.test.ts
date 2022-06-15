@@ -328,10 +328,12 @@ test('POST /tilesets/import creates tileset', async (t) => {
 test('POST /tilesets/import creates style for created tileset', async (t) => {
   const { sampleMbTilesPath, server } = t.context as TestContext
 
+  const customStyleName = 'Test Style Name'
+
   const importResponse = await server.inject({
     method: 'POST',
     url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
+    payload: { filePath: sampleMbTilesPath, styleName: customStyleName },
   })
 
   const { id: createdTilesetId } = importResponse.json<
@@ -368,6 +370,12 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
   )
 
   t.ok(matchingStyle)
+
+  t.equal(
+    matchingStyle?.name,
+    customStyleName,
+    'style uses provided name for name field'
+  )
 })
 
 /**

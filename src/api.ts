@@ -107,7 +107,10 @@ export interface IdResource {
   id: string
 }
 export interface Api {
-  importMBTiles(filePath: string): Promise<TileJSON & IdResource>
+  importMBTiles(params: {
+    filePath: string
+    styleName?: string
+  }): Promise<TileJSON & IdResource>
   // getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
@@ -347,7 +350,7 @@ function createApi({
   }
 
   const api: Api = {
-    async importMBTiles(filePath: string) {
+    async importMBTiles({ filePath, styleName }) {
       const filePathWithExtension =
         path.extname(filePath) === '.mbtiles' ? filePath : filePath + '.mbtiles'
 
@@ -382,7 +385,7 @@ function createApi({
 
       const { id: styleId } = await api.createStyleForTileset(
         tileset.id,
-        tileset.name
+        styleName || tileset.name
       )
 
       // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
