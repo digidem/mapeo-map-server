@@ -402,7 +402,7 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
   t.equal(importResponse2.statusCode, 200)
 
-  const { id: tilesetId2 } = importResponse1.json()
+  const { id: tilesetId2 } = importResponse2.json()
 
   const tilesetGetResponse2 = await server.inject({
     method: 'GET',
