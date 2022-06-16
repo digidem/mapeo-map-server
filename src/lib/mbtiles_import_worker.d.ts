@@ -9,8 +9,8 @@ export interface WorkerData {
 }
 
 export interface Queries {
-  getMbTilesTotalByteSize: () => number
-  getMbTilesData: () => IterableIterator<{
+  getMbTilesImportInfo: () => { byteCount: number; tileCount: number }
+  getIterableTileRows: () => IterableIterator<{
     data: Buffer
     z: number
     y: number
@@ -26,12 +26,14 @@ export interface Queries {
   insertImport: (params: {
     id: string
     totalResources: number
+    totalBytes: number
     areaId: string
     tilesetId?: string
   }) => RunResult
   updateImport: (params: {
     id: string
     importedResources: number
+    importedBytes: number
     isComplete: number
   }) => RunResult
   upsertTileData: (params: {

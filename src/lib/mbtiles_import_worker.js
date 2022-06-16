@@ -29,11 +29,13 @@ const mbTilesDb = new Database(mbTilesDbPath, {
 
 /** @type {import('./mbtiles_import_worker').Queries} */
 const queries = {
-  getMbTilesTotalByteSize: () =>
+  getMbTilesImportInfo: () =>
     mbTilesDb
-      .prepare('SELECT SUM(LENGTH(tile_data)) AS total FROM tiles;')
-      .get().total,
-  getMbTilesData: () =>
+      .prepare(
+        'SELECT SUM(LENGTH(tile_data)) AS byteCount, COUNT(*) AS tileCount FROM tiles;'
+      )
+      .get(),
+  getIterableTileRows: () =>
     mbTilesDb
       .prepare(
         'SELECT zoom_level AS z, tile_column AS x, tile_row AS y, tile_data AS data FROM tiles'
@@ -51,14 +53,16 @@ const queries = {
   insertImport: (params) =>
     db
       .prepare(
-        'INSERT INTO Import (id, totalResources, areaId, tilesetId, importedResources, isComplete, importType) ' +
-          "VALUES (:id, :totalResources, :areaId, :tilesetId, 0, 0, 'tileset')"
+        'INSERT INTO Import (id, totalResources, totalBytes, areaId, tilesetId, importedResources, importedBytes, isComplete, importType) ' +
+          "VALUES (:id, :totalResources, :totalBytes, :areaId, :tilesetId, 0, 0, 0, 'tileset')"
       )
       .run(params),
   updateImport: (params) =>
     db
       .prepare(
-        'UPDATE Import SET importedResources = :importedResources, isComplete = :isComplete, finished = CURRENT_TIMESTAMP WHERE id = :id'
+        'UPDATE Import SET importedResources = :importedResources, importedBytes = :importedBytes, ' +
+          'isComplete = :isComplete, finished = CURRENT_TIMESTAMP ' +
+          'WHERE id = :id'
       )
       .run(params),
   upsertTileData: (params) =>
@@ -97,13 +101,9 @@ function handleMessage(message) {
 }
 
 function importMbTiles() {
-  let bytesSoFar = 0
-
-  const totalBytesToImport = queries.getMbTilesTotalByteSize()
+  const { byteCount, tileCount } = queries.getMbTilesImportInfo()
 
   const mbTilesMetadata = extractMBTilesMetadata(mbTilesDb)
-
-  const iterableQuery = queries.getMbTilesData()
 
   const areaId = encodeBase32(hash(`area:${tilesetId}`))
 
@@ -120,12 +120,18 @@ function importMbTiles() {
 
   queries.insertImport({
     id: importId,
-    totalResources: totalBytesToImport,
+    totalBytes: byteCount,
+    totalResources: tileCount,
     tilesetId,
     areaId,
   })
 
-  for (const { data, x, y, z } of iterableQuery) {
+  const tileRows = queries.getIterableTileRows()
+
+  let tilesProcessed = 0
+  let bytesSoFar = 0
+
+  for (const { data, x, y, z } of tileRows) {
     const quadKey = tileToQuadKey({ zoom: z, x, y: (1 << z) - 1 - y })
 
     const tileHash = hash(data).toString('hex')
@@ -143,12 +149,14 @@ function importMbTiles() {
         tilesetId,
       })
 
+      tilesProcessed++
       bytesSoFar += data.byteLength
 
       queries.updateImport({
         id: importId,
-        importedResources: bytesSoFar,
-        isComplete: bytesSoFar === totalBytesToImport ? 1 : 0,
+        importedResources: tilesProcessed,
+        importedBytes: bytesSoFar,
+        isComplete: tilesProcessed === tileCount ? 1 : 0,
       })
     })
 
@@ -159,7 +167,7 @@ function importMbTiles() {
         type: 'progress',
         importId,
         soFar: bytesSoFar,
-        total: totalBytesToImport,
+        total: byteCount,
       })
     }
   }
