@@ -1,4 +1,4 @@
-import { afterEach, before, beforeEach, teardown, test, setTimeout } from 'tap'
+import { afterEach, before, beforeEach, teardown, test } from 'tap'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
@@ -80,10 +80,6 @@ afterEach((t) => {
 teardown(() => {
   mockTileServer.close()
 })
-
-// Set overall test timeout to 60 seconds (60000ms)
-// Necessary since any tile import tests take a little longer
-setTimeout(60 * 60 * 1000)
 
 /**
  * /tilesets tests
@@ -698,69 +694,73 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
 })
 
-test('DELETE /styles/:styleId works for style with associated OfflineArea and Import', async (t) => {
-  t.plan(3)
+test(
+  'DELETE /styles/:styleId works for style created from tileset import',
+  { timeout: 10000 },
+  async (t) => {
+    t.plan(3)
 
-  const { sampleMbTilesPath, server } = t.context as TestContext
+    const { sampleMbTilesPath, server } = t.context as TestContext
 
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
-  })
-
-  const { id: createdTilesetId } = importResponse.json<
-    TileJSON & { id: string }
-  >()
-
-  const getStylesResponse = await server.inject({
-    method: 'GET',
-    url: '/styles',
-  })
-
-  const stylesList =
-    getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
-
-  const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
-
-  const styles = await Promise.all(
-    stylesList.map(({ url, id }) =>
-      server
-        .inject({
-          method: 'GET',
-          url,
-        })
-        .then((response) => response.json<StyleJSON>())
-        .then((style) => ({ ...style, id }))
-    )
-  )
-
-  const matchingStyle = styles.find((style) =>
-    Object.values(style.sources).find((source) => {
-      if ('url' in source && source.url) {
-        return source.url === expectedSourceUrl
-      }
+    const importResponse = await server.inject({
+      method: 'POST',
+      url: '/tilesets/import',
+      payload: { filePath: sampleMbTilesPath },
     })
-  )
 
-  if (!matchingStyle) {
-    t.fail('Could not find style created by import')
-    return
+    const { id: createdTilesetId } = importResponse.json<
+      TileJSON & { id: string }
+    >()
+
+    const getStylesResponse = await server.inject({
+      method: 'GET',
+      url: '/styles',
+    })
+
+    const stylesList =
+      getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
+
+    const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
+
+    const styles = await Promise.all(
+      stylesList.map(({ url, id }) =>
+        server
+          .inject({
+            method: 'GET',
+            url,
+          })
+          .then((response) => response.json<StyleJSON>())
+          .then((style) => ({ ...style, id }))
+      )
+    )
+
+    const matchingStyle = styles.find((style) =>
+      Object.values(style.sources).find((source) => {
+        if ('url' in source && source.url) {
+          return source.url === expectedSourceUrl
+        }
+      })
+    )
+
+    if (!matchingStyle) {
+      t.fail('Could not find style created by import')
+      return
+    }
+
+    const responseDelete = await server.inject({
+      method: 'DELETE',
+      url: `/styles/${matchingStyle.id}`,
+    })
+
+    t.equal(responseDelete.statusCode, 204)
+
+    t.equal(responseDelete.body, '')
+
+    const responseGet = await server.inject({
+      method: 'GET',
+      url: `/styles/${matchingStyle.id}`,
+    })
+
+    t.equal(responseGet.statusCode, 404, 'style is properly deleted')
   }
-
-  const responseDelete = await server.inject({
-    method: 'DELETE',
-    url: `/styles/${matchingStyle.id}`,
-  })
-
-  t.equal(responseDelete.statusCode, 204)
-
-  t.equal(responseDelete.body, '')
-
-  const responseGet = await server.inject({
-    method: 'GET',
-    url: `/styles/${matchingStyle.id}`,
-  })
-
-  t.equal(responseGet.statusCode, 404, 'style is properly deleted')
-})
+)
