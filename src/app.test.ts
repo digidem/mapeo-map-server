@@ -1,4 +1,4 @@
-import { afterEach, before, beforeEach, teardown, test } from 'tap'
+import { afterEach, before, beforeEach, teardown, test, setTimeout } from 'tap'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
@@ -80,6 +80,10 @@ afterEach((t) => {
 teardown(() => {
   mockTileServer.close()
 })
+
+// Set overall test timeout to 60 seconds (60000ms)
+// Necessary since any tile import tests take a little longer
+setTimeout(60 * 60 * 1000)
 
 /**
  * /tilesets tests
