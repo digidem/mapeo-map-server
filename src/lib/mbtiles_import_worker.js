@@ -9,6 +9,10 @@ const { hash, encodeBase32 } = require('./utils')
 /**
  * @typedef {Object} WorkerData
  * @property {string} dbPath
+ * @property {string} importId
+ * @property {string} mbTilesDbPath
+ * @property {string} styleId
+ * @property {string} tilesetId
  */
 
 /** @typedef {import('better-sqlite3').Database} Database */
@@ -20,11 +24,7 @@ const { hash, encodeBase32 } = require('./utils')
 
 /**
  * @typedef {Object} ImportAction
- * @property {'importMbTiles'} type
- * @property {string} importId
- * @property {string} mbTilesDbPath
- * @property {string} styleId
- * @property {string} tilesetId
+ * @property {'start'} type
  */
 
 const queries = {
@@ -91,8 +91,11 @@ const queries = {
       .run(params),
 }
 
+/** @type {WorkerData} */
+const { dbPath, importId, mbTilesDbPath, tilesetId, styleId } = workerData
+
 /** @type {Database} */
-const db = new Database(workerData.dbPath)
+const db = new Database(dbPath)
 
 if (!parentPort) throw new Error('No parent port found')
 
@@ -101,16 +104,14 @@ parentPort.on('message', handleMessage)
 /** @param {ImportAction} action */
 function handleMessage(action) {
   switch (action.type) {
-    case 'importMbTiles': {
-      const { type, ...params } = action
-      importMbTiles(params)
+    case 'start': {
+      importMbTiles()
       break
     }
   }
 }
 
-/** @param {{ importId: string, mbTilesDbPath: string, styleId: string, tilesetId: string }} params */
-function importMbTiles({ importId, mbTilesDbPath, tilesetId, styleId }) {
+function importMbTiles() {
   /** @type {Database} */
   const mbTilesDb = new Database(mbTilesDbPath, {
     // Ideally would set `readOnly` to `true` here but causes `fileMustExist` to be ignored:

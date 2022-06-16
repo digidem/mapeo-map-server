@@ -385,25 +385,27 @@ function createApi({
         tileset.name
       )
 
-      const tilesetImportWorker = new Worker(
-        path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
-        { workerData: { dbPath: db.name } }
-      )
-
       const importId = generateId()
 
-      activeWorkers.set(importId, tilesetImportWorker)
+      const tilesetImportWorker = new Worker(
+        path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
+        {
+          workerData: {
+            dbPath: db.name,
+            importId,
+            mbTilesDbPath: mbTilesDb.name,
+            // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
+            // and we don't generate a style for those on tileset creation yet.
+            // Absence presents various complications when creating and updating offline area and imports in db
+            styleId,
+            tilesetId,
+          },
+        }
+      )
 
-      // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
-      // and we don't generate a style for those on tileset creation yet.
-      // Absence presents various complications when creating and updating offline area and imports in db
-      tilesetImportWorker.postMessage({
-        type: 'importMbTiles',
-        importId,
-        mbTilesDbPath: mbTilesDb.name,
-        styleId,
-        tilesetId,
-      })
+      tilesetImportWorker.postMessage({ type: 'start' })
+
+      activeWorkers.set(importId, tilesetImportWorker)
 
       return new Promise((res, rej) => {
         tilesetImportWorker.on('error', (err) => {
