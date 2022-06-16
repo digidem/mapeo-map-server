@@ -889,14 +889,14 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   const context = init(dbPath)
 
   fastify.addHook('onClose', async () => {
-    const { activeWorkers } = context
+    const { activeWorkers, db } = context
 
     await Promise.all(
       Array.from(activeWorkers.values()).map((worker) => worker.terminate())
     )
 
     activeWorkers.clear()
-    context.db.close()
+    db.close()
   })
 
   fastify.decorateRequest('api', {

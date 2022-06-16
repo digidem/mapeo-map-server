@@ -29,13 +29,13 @@ const mbTilesDb = new Database(mbTilesDbPath, {
 
 /** @type {import('./mbtiles_import_worker').Queries} */
 const queries = {
-  getMbTilesImportInfo: () =>
+  getMbTilesImportTotals: () =>
     mbTilesDb
       .prepare(
-        'SELECT SUM(LENGTH(tile_data)) AS byteCount, COUNT(*) AS tileCount FROM tiles;'
+        'SELECT SUM(LENGTH(tile_data)) AS bytes, COUNT(*) AS tiles FROM tiles;'
       )
       .get(),
-  getIterableTileRows: () =>
+  getMbTileTileRows: () =>
     mbTilesDb
       .prepare(
         'SELECT zoom_level AS z, tile_column AS x, tile_row AS y, tile_data AS data FROM tiles'
@@ -101,7 +101,8 @@ function handleMessage(message) {
 }
 
 function importMbTiles() {
-  const { byteCount, tileCount } = queries.getMbTilesImportInfo()
+  const { bytes: totalBytes, tiles: totalTiles } =
+    queries.getMbTilesImportTotals()
 
   const mbTilesMetadata = extractMBTilesMetadata(mbTilesDb)
 
@@ -120,13 +121,13 @@ function importMbTiles() {
 
   queries.insertImport({
     id: importId,
-    totalBytes: byteCount,
-    totalResources: tileCount,
+    totalBytes: totalBytes,
+    totalResources: totalTiles,
     tilesetId,
     areaId,
   })
 
-  const tileRows = queries.getIterableTileRows()
+  const tileRows = queries.getMbTileTileRows()
 
   let tilesProcessed = 0
   let bytesSoFar = 0
@@ -156,7 +157,7 @@ function importMbTiles() {
         id: importId,
         importedResources: tilesProcessed,
         importedBytes: bytesSoFar,
-        isComplete: tilesProcessed === tileCount ? 1 : 0,
+        isComplete: tilesProcessed === totalTiles ? 1 : 0,
       })
     })
 
@@ -167,7 +168,7 @@ function importMbTiles() {
         type: 'progress',
         importId,
         soFar: bytesSoFar,
-        total: byteCount,
+        total: totalBytes,
       })
     }
   }

@@ -9,8 +9,8 @@ export interface WorkerData {
 }
 
 export interface Queries {
-  getMbTilesImportInfo: () => { byteCount: number; tileCount: number }
-  getIterableTileRows: () => IterableIterator<{
+  getMbTilesImportTotals: () => { bytes: number; tiles: number }
+  getMbTileTileRows: () => IterableIterator<{
     data: Buffer
     z: number
     y: number
