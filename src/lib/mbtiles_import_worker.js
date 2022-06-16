@@ -1,4 +1,6 @@
 // @ts-check
+const process = require('process')
+
 const { parentPort, workerData } = require('worker_threads')
 const Database = require('better-sqlite3')
 
@@ -26,6 +28,19 @@ const { hash, encodeBase32 } = require('./utils')
  * @typedef {Object} ImportAction
  * @property {'start'} type
  */
+
+/** @type {WorkerData} */
+const { dbPath, importId, mbTilesDbPath, tilesetId, styleId } = workerData
+
+/** @type {Database} */
+const db = new Database(dbPath)
+
+/** @type {Database} */
+const mbTilesDb = new Database(mbTilesDbPath, {
+  // Ideally would set `readOnly` to `true` here but causes `fileMustExist` to be ignored:
+  // https://github.com/JoshuaWise/better-sqlite3/blob/230ea65ed0d7566e32d41c3d13a90fb32ccdbee6/docs/api.md#new-databasepath-options
+  fileMustExist: true,
+})
 
 const queries = {
   /**
@@ -91,11 +106,10 @@ const queries = {
       .run(params),
 }
 
-/** @type {WorkerData} */
-const { dbPath, importId, mbTilesDbPath, tilesetId, styleId } = workerData
-
-/** @type {Database} */
-const db = new Database(dbPath)
+process.on('exit', () => {
+  db.close()
+  mbTilesDb.close()
+})
 
 if (!parentPort) throw new Error('No parent port found')
 
@@ -112,13 +126,6 @@ function handleMessage(action) {
 }
 
 function importMbTiles() {
-  /** @type {Database} */
-  const mbTilesDb = new Database(mbTilesDbPath, {
-    // Ideally would set `readOnly` to `true` here but causes `fileMustExist` to be ignored:
-    // https://github.com/JoshuaWise/better-sqlite3/blob/230ea65ed0d7566e32d41c3d13a90fb32ccdbee6/docs/api.md#new-databasepath-options
-    fileMustExist: true,
-  })
-
   let bytesSoFar = 0
 
   /** @type {number} */
