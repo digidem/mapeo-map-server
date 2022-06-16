@@ -32,10 +32,6 @@ import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 // import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 
-// Whenever a tile import is requested, a new worker is created
-// Used for tracking workers to handle subscriptions, server lifecycle events, etc.
-const activeWorkers: Map<string, Worker> = new Map()
-
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
   'Resource `%s` not found',
@@ -101,6 +97,7 @@ interface SourceIdToTilesetId {
 }
 
 interface Context {
+  activeWorkers: Map<string, Worker>
   db: DatabaseInstance
   upstreamRequestsManager: UpstreamRequestsManager
 }
@@ -159,7 +156,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, upstreamRequestsManager } = context
+  const { activeWorkers, db, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -898,9 +895,12 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   const context = init(dbPath)
 
   fastify.addHook('onClose', async () => {
+    const { activeWorkers } = context
+
     await Promise.all(
       Array.from(activeWorkers.values()).map((worker) => worker.terminate())
     )
+
     activeWorkers.clear()
     context.db.close()
   })
@@ -933,6 +933,9 @@ function init(dbPath: string): Context {
   migrate(db, path.resolve(__dirname, '../prisma/migrations'))
 
   return {
+    // Whenever a tile import is requested, a new worker is created
+    // Used for tracking workers to handle subscriptions, server lifecycle events, etc.
+    activeWorkers: new Map(),
     db,
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
