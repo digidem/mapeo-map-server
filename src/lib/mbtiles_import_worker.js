@@ -35,7 +35,7 @@ const queries = {
         'SELECT SUM(LENGTH(tile_data)) AS bytes, COUNT(*) AS tiles FROM tiles;'
       )
       .get(),
-  getMbTileTileRows: () =>
+  getMbTilesTileRows: () =>
     mbTilesDb
       .prepare(
         'SELECT zoom_level AS z, tile_column AS x, tile_row AS y, tile_data AS data FROM tiles'
@@ -127,7 +127,7 @@ function importMbTiles() {
     areaId,
   })
 
-  const tileRows = queries.getMbTileTileRows()
+  const tileRows = queries.getMbTilesTileRows()
 
   let tilesProcessed = 0
   let bytesSoFar = 0
