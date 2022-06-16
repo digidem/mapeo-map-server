@@ -83,7 +83,7 @@ teardown(() => {
 
 // Set overall test timeout to 60 seconds (60000ms)
 // Necessary since any tile import tests take a little longer
-setTimeout(60 * 60 * 1000)
+setTimeout(60 * 1000)
 
 /**
  * /tilesets tests
