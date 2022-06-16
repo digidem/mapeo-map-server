@@ -698,7 +698,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
 })
 
-test('DELETE /styles/:styleId works for style with associated OfflineArea and Import', async (t) => {
+test('DELETE /styles/:styleId works for style created from tileset import', async (t) => {
   t.plan(3)
 
   const { sampleMbTilesPath, server } = t.context as TestContext
