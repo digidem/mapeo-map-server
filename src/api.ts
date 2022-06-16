@@ -31,6 +31,7 @@ import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 // import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
+import { PortMessage } from './lib/mbtiles_import_worker'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -419,28 +420,17 @@ function createApi({
           activeWorkers.delete(importId)
         })
 
-        tilesetImportWorker.addListener(
-          'message',
-          ({
-            importId,
-            soFar,
-            total,
-          }: {
-            type: 'progress'
-            importId: string
-            soFar: number
-            total: number
-          }) => {
-            console.log(`${importId}: ${soFar} / ${total}`)
-            if (soFar === total) {
-              console.log(`${importId}: done!`)
+        tilesetImportWorker.addListener('message', (message: PortMessage) => {
+          switch (message.type) {
+            case 'complete': {
               tilesetImportWorker.terminate().then(() => {
-                activeWorkers.delete(importId)
+                activeWorkers.delete(message.importId)
                 res(tileset)
               })
+              break
             }
           }
-        )
+        })
       })
     },
     // async getImportProgress(offlineAreaId) {

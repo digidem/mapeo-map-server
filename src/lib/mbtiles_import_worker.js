@@ -1,21 +1,11 @@
 // @ts-check
 const process = require('process')
-
 const { parentPort, workerData } = require('worker_threads')
 const Database = require('better-sqlite3')
 
 const { extractMBTilesMetadata } = require('./mbtiles')
 const { tileToQuadKey } = require('./tiles')
 const { hash, encodeBase32 } = require('./utils')
-
-/**
- * @typedef {Object} WorkerData
- * @property {string} dbPath
- * @property {string} importId
- * @property {string} mbTilesDbPath
- * @property {string} styleId
- * @property {string} tilesetId
- */
 
 /** @typedef {import('better-sqlite3').Database} Database */
 
@@ -24,12 +14,7 @@ const { hash, encodeBase32 } = require('./utils')
  * @typedef {import('better-sqlite3').Statement<P>} Statement
  */
 
-/**
- * @typedef {Object} ImportAction
- * @property {'start'} type
- */
-
-/** @type {WorkerData} */
+/** @type {import('./mbtiles_import_worker').WorkerData} */
 const { dbPath, importId, mbTilesDbPath, tilesetId, styleId } = workerData
 
 /** @type {Database} */
@@ -42,12 +27,18 @@ const mbTilesDb = new Database(mbTilesDbPath, {
   fileMustExist: true,
 })
 
+/** @type {import('./mbtiles_import_worker').Queries} */
 const queries = {
-  /**
-   *
-   * @param {{ id: string, zoomLevel: string, boundingBox: string, name: string, styleId: string }} params
-   * @returns {Database.RunResult}
-   */
+  getMbTilesTotalByteSize: () =>
+    mbTilesDb
+      .prepare('SELECT SUM(LENGTH(tile_data)) AS total FROM tiles;')
+      .get().total,
+  getMbTilesData: () =>
+    mbTilesDb
+      .prepare(
+        'SELECT zoom_level AS z, tile_column AS x, tile_row AS y, tile_data AS data FROM tiles'
+      )
+      .iterate(),
   upsertOfflineArea: (params) =>
     db
       .prepare(
@@ -57,11 +48,6 @@ const queries = {
           'zoomLevel = excluded.zoomLevel, boundingBox = excluded.boundingBox, name = excluded.name, styleId = excluded.styleId'
       )
       .run(params),
-  /**
-   *
-   * @param {{ id: string, totalResources: number, areaId: string, tilesetId?: string }} params
-   * @returns {Database.RunResult}
-   */
   insertImport: (params) =>
     db
       .prepare(
@@ -69,22 +55,12 @@ const queries = {
           "VALUES (:id, :totalResources, :areaId, :tilesetId, 0, 0, 'tileset')"
       )
       .run(params),
-  /**
-   *
-   * @param {{ id: string, importedResources: number, isComplete: number }} params
-   * @returns {Database.RunResult}
-   */
   updateImport: (params) =>
     db
       .prepare(
         'UPDATE Import SET importedResources = :importedResources, isComplete = :isComplete, finished = CURRENT_TIMESTAMP WHERE id = :id'
       )
       .run(params),
-  /**
-   *
-   * @param {{ data: Buffer, tileHash: string, tilesetId: string }} params
-   * @returns {Database.RunResult}
-   */
   upsertTileData: (params) =>
     db
       .prepare(
@@ -92,11 +68,6 @@ const queries = {
           'ON CONFLICT (tileHash, tilesetId) DO UPDATE SET data = excluded.data'
       )
       .run(params),
-  /**
-   *
-   * @param {{ quadKey: string, tileHash: string, tilesetId: string }} params
-   * @returns {Database.RunResult}
-   */
   upsertTile: (params) =>
     db
       .prepare(
@@ -115,9 +86,9 @@ if (!parentPort) throw new Error('No parent port found')
 
 parentPort.on('message', handleMessage)
 
-/** @param {ImportAction} action */
-function handleMessage(action) {
-  switch (action.type) {
+/** @param {import('./mbtiles_import_worker').WorkerMessage} message*/
+function handleMessage(message) {
+  switch (message.type) {
     case 'start': {
       importMbTiles()
       break
@@ -128,19 +99,11 @@ function handleMessage(action) {
 function importMbTiles() {
   let bytesSoFar = 0
 
-  /** @type {number} */
-  const totalBytesToImport = mbTilesDb
-    .prepare('SELECT SUM(LENGTH(tile_data)) AS total FROM tiles;')
-    .get().total
+  const totalBytesToImport = queries.getMbTilesTotalByteSize()
 
   const mbTilesMetadata = extractMBTilesMetadata(mbTilesDb)
 
-  /** @type {IterableIterator<{ data: Buffer, x: number, y: number, z: number }>} */
-  const iterableQuery = mbTilesDb
-    .prepare(
-      'SELECT zoom_level AS z, tile_column AS x, tile_row AS y, tile_data AS data FROM tiles'
-    )
-    .iterate()
+  const iterableQuery = queries.getMbTilesData()
 
   const areaId = encodeBase32(hash(`area:${tilesetId}`))
 
@@ -201,5 +164,13 @@ function importMbTiles() {
     }
   }
 
+  db.close()
   mbTilesDb.close()
+
+  if (parentPort) {
+    parentPort.postMessage({
+      type: 'complete',
+      importId,
+    })
+  }
 }
