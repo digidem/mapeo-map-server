@@ -420,6 +420,7 @@ function createApi({
         tilesetImportWorker.addListener(
           'message',
           ({
+            importId,
             soFar,
             total,
           }: {
@@ -428,7 +429,9 @@ function createApi({
             soFar: number
             total: number
           }) => {
+            console.log(`${importId}: ${soFar} / ${total}`)
             if (soFar === total) {
+              console.log(`${importId}: done!`)
               tilesetImportWorker.terminate().then(() => {
                 activeWorkers.delete(importId)
                 res(tileset)
