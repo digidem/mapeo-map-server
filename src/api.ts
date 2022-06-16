@@ -409,28 +409,27 @@ function createApi({
       activeWorkers.set(importId, tilesetImportWorker)
 
       return new Promise((res, rej) => {
-        tilesetImportWorker.on('error', (err) => {
-          tilesetImportWorker.terminate().then(() => {
-            activeWorkers.delete(importId)
-            rej(err)
-          })
-        })
-
-        tilesetImportWorker.addListener('exit', () => {
-          activeWorkers.delete(importId)
-        })
-
-        tilesetImportWorker.addListener('message', (message: PortMessage) => {
-          switch (message.type) {
-            case 'complete': {
-              tilesetImportWorker.terminate().then(() => {
-                activeWorkers.delete(message.importId)
-                res(tileset)
-              })
-              break
+        tilesetImportWorker
+          .on('message', (message: PortMessage) => {
+            switch (message.type) {
+              case 'complete': {
+                tilesetImportWorker.terminate().then(() => {
+                  activeWorkers.delete(message.importId)
+                  res(tileset)
+                })
+                break
+              }
             }
-          }
-        })
+          })
+          .on('error', (err) => {
+            tilesetImportWorker.terminate().then(() => {
+              activeWorkers.delete(importId)
+              rej(err)
+            })
+          })
+          .on('exit', () => {
+            activeWorkers.delete(importId)
+          })
       })
     },
     // async getImportProgress(offlineAreaId) {
