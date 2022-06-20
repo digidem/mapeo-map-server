@@ -17,6 +17,8 @@ const { hash, encodeBase32 } = require('./utils')
 /** @type {import('./mbtiles_import_worker').WorkerData} */
 const { dbPath, importId, mbTilesDbPath, tilesetId, styleId } = workerData
 
+const PROGRESS_THROTTLE = 200 // ms
+
 /** @type {Database} */
 const db = new Database(dbPath)
 
@@ -101,6 +103,7 @@ function handleMessage(message) {
 }
 
 function importMbTiles() {
+  if (!parentPort) throw new Error('No parent port found')
   const { bytes: totalBytes, tiles: totalTiles } =
     queries.getMbTilesImportTotals()
 
@@ -131,6 +134,7 @@ function importMbTiles() {
 
   let tilesProcessed = 0
   let bytesSoFar = 0
+  let lastProgressEvent = 0
 
   for (const { data, x, y, z } of tileRows) {
     const quadKey = tileToQuadKey({ zoom: z, x, y: (1 << z) - 1 - y })
@@ -163,23 +167,29 @@ function importMbTiles() {
 
     tilesImportTransaction()
 
-    if (parentPort) {
+    if (Date.now() - lastProgressEvent > PROGRESS_THROTTLE) {
       parentPort.postMessage({
         type: 'progress',
         importId,
         soFar: bytesSoFar,
         total: totalBytes,
       })
+      lastProgressEvent = Date.now()
     }
   }
 
   db.close()
   mbTilesDb.close()
 
-  if (parentPort) {
-    parentPort.postMessage({
-      type: 'complete',
-      importId,
-    })
-  }
+  // Ensure a final progress event is sent (because of throttle)
+  parentPort.postMessage({
+    type: 'progress',
+    importId,
+    soFar: bytesSoFar,
+    total: totalBytes,
+  })
+  parentPort.postMessage({
+    type: 'complete',
+    importId,
+  })
 }

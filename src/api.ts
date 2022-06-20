@@ -98,7 +98,7 @@ interface SourceIdToTilesetId {
 }
 
 interface Context {
-  activeWorkers: Map<string, Worker>
+  activeWorkers: Set<Worker>
   db: DatabaseInstance
   upstreamRequestsManager: UpstreamRequestsManager
 }
@@ -404,32 +404,42 @@ function createApi({
         }
       )
 
-      tilesetImportWorker.postMessage({ type: 'start' })
-
-      activeWorkers.set(importId, tilesetImportWorker)
+      activeWorkers.add(tilesetImportWorker)
 
       return new Promise((res, rej) => {
         tilesetImportWorker
           .on('message', (message: PortMessage) => {
             switch (message.type) {
               case 'complete': {
-                tilesetImportWorker.terminate().then(() => {
-                  activeWorkers.delete(message.importId)
-                  res(tileset)
-                })
+                tilesetImportWorker
+                  .terminate()
+                  .then(() => {
+                    activeWorkers.delete(tilesetImportWorker)
+                    res(tileset)
+                  })
+                  .catch(rej)
                 break
+              }
+              case 'progress': {
+                // TODO
               }
             }
           })
           .on('error', (err) => {
-            tilesetImportWorker.terminate().then(() => {
-              activeWorkers.delete(importId)
-              rej(err)
-            })
+            tilesetImportWorker
+              .terminate()
+              .then(() => {
+                activeWorkers.delete(tilesetImportWorker)
+                rej(err)
+              })
+              .catch(rej)
           })
           .on('exit', () => {
-            activeWorkers.delete(importId)
+            activeWorkers.delete(tilesetImportWorker)
           })
+
+        // Only start once the listeners above are attached
+        tilesetImportWorker.postMessage({ type: 'start' })
       })
     },
     // async getImportProgress(offlineAreaId) {
@@ -891,9 +901,7 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   fastify.addHook('onClose', async () => {
     const { activeWorkers, db } = context
 
-    await Promise.all(
-      Array.from(activeWorkers.values()).map((worker) => worker.terminate())
-    )
+    await Promise.all([...activeWorkers].map((worker) => worker.terminate()))
 
     activeWorkers.clear()
     db.close()
@@ -929,7 +937,7 @@ function init(dbPath: string): Context {
   return {
     // Whenever a tile import is requested, a new worker is created
     // Used for tracking workers to handle subscriptions, server lifecycle events, etc.
-    activeWorkers: new Map(),
+    activeWorkers: new Set(),
     db,
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
