@@ -1,15 +1,7 @@
-import {
-  afterEach,
-  before,
-  beforeEach,
-  teardown,
-  test,
-  setTimeout as setTestTimeout,
-} from 'tap'
+import test from 'tape'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
-import { FastifyInstance } from 'fastify'
 
 import { IdResource, Api } from './api'
 import createMapServer from './app'
@@ -28,13 +20,6 @@ tmp.setGracefulCleanup()
 
 const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
 
-interface TestContext {
-  server: FastifyInstance
-  sampleMbTilesPath: string
-  sampleTileJSON: TileJSON
-  sampleStyleJSON: StyleJSON
-}
-
 function assertSampleTileJSONIsValid(data: unknown): asserts data is TileJSON {
   if (!validateTileJSON(data)) {
     const message = `Sample input does not conform to TileJSON schema spec: ${JSON.stringify(
@@ -47,21 +32,23 @@ function assertSampleTileJSONIsValid(data: unknown): asserts data is TileJSON {
   }
 }
 
-before(() => {
-  // Check if prisma/migrations directory exists in project
-  if (!fs.existsSync(path.resolve(__dirname, '../prisma/migrations'))) {
-    throw new Error(
-      'Could not find prisma migrations directory. Make sure you run `npm run prisma:migrate-dev -- --name MIGRATION_NAME_HERE` first!'
-    )
-  }
+// Check if prisma/migrations directory exists in project
+if (!fs.existsSync(path.resolve(__dirname, '../prisma/migrations'))) {
+  throw new Error(
+    'Could not find prisma migrations directory. Make sure you run `npm run prisma:migrate-dev -- --name MIGRATION_NAME_HERE` first!'
+  )
+}
 
-  assertSampleTileJSONIsValid(mapboxRasterTilejson)
-  validateStyleJSON(simpleRasterStylejson)
+assertSampleTileJSONIsValid(mapboxRasterTilejson)
+validateStyleJSON(simpleRasterStylejson)
 
-  mockTileServer.listen()
+mockTileServer.listen()
+
+test.onFinish(() => {
+  mockTileServer.close()
 })
 
-beforeEach((t) => {
+function createContext() {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
   const dbPath = path.resolve(dataDir, 'test.db')
@@ -71,26 +58,16 @@ beforeEach((t) => {
     './fixtures/mbtiles/trails.mbtiles'
   )
 
-  t.context = {
+  const context = {
     server: createMapServer({ logger: false }, { dbPath }),
     sampleMbTilesPath: mbTilesPath,
     sampleTileJSON: mapboxRasterTilejson,
     sampleStyleJSON: simpleRasterStylejson,
+    cleanup: () => context.server.close(),
   }
-})
 
-afterEach((t) => {
-  t.context.server.close()
-  mockTileServer.resetHandlers()
-})
-
-teardown(() => {
-  mockTileServer.close()
-})
-
-// Set overall test timeout to 60 seconds (60000ms)
-// Necessary since any tile import tests take a little longer
-setTestTimeout(60 * 1000)
+  return context
+}
 
 /**
  * /tilesets tests
@@ -100,7 +77,7 @@ setTestTimeout(60 * 1000)
 // - POST /tilesets/import (import progress)
 
 test('GET /tilesets when no tilesets exist returns an empty array', async (t) => {
-  const { server } = t.context as TestContext
+  const { server, cleanup } = createContext()
 
   const response = await server.inject({ method: 'GET', url: '/tilesets' })
 
@@ -114,11 +91,11 @@ test('GET /tilesets when no tilesets exist returns an empty array', async (t) =>
 
   t.same(response.json(), [])
 
-  t.end()
+  cleanup()
 })
 
 test('GET /tilesets when tilesets exist returns an array of the tilesets', async (t) => {
-  const { sampleTileJSON, server } = t.context as TestContext
+  const { cleanup, sampleTileJSON, server } = createContext()
 
   await server.inject({
     method: 'POST',
@@ -139,10 +116,12 @@ test('GET /tilesets when tilesets exist returns an array of the tilesets', async
   const response = await server.inject({ method: 'GET', url: '/tilesets' })
 
   t.same(response.json(), expectedResponse)
+
+  cleanup()
 })
 
 test('POST /tilesets when tileset does not exist creates a tileset and returns it', async (t) => {
-  const { sampleTileJSON, server } = t.context as TestContext
+  const { cleanup, sampleTileJSON, server } = createContext()
 
   const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
   const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
@@ -167,10 +146,12 @@ test('POST /tilesets when tileset does not exist creates a tileset and returns i
   })
 
   t.equal(responseGet.statusCode, 200)
+
+  cleanup()
 })
 
 test('POST /tilesets creates a style for the raster tileset', async (t) => {
-  const { sampleTileJSON, server } = t.context as TestContext
+  const { cleanup, sampleTileJSON, server } = createContext()
 
   const responseTilesetsPost = await server.inject({
     method: 'POST',
@@ -219,10 +200,12 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
   }
 
   t.same(responseStyleGet.json(), expectedStyle)
+
+  cleanup()
 })
 
 test('PUT /tilesets when tileset exists returns the updated tileset', async (t) => {
-  const { sampleTileJSON, server } = t.context as TestContext
+  const { cleanup, sampleTileJSON, server } = createContext()
 
   const initialResponse = await server.inject({
     method: 'POST',
@@ -245,10 +228,12 @@ test('PUT /tilesets when tileset exists returns the updated tileset', async (t) 
   t.notSame(initialResponse.json(), updatedResponse.json())
 
   t.equal(updatedResponse.json<TileJSON>().name, updatedFields.name)
+
+  cleanup()
 })
 
 test('PUT /tilesets when providing an incorrect id returns 400 status code', async (t) => {
-  const { sampleTileJSON, server } = t.context as TestContext
+  const { cleanup, sampleTileJSON, server } = createContext()
 
   const response = await server.inject({
     method: 'PUT',
@@ -257,10 +242,12 @@ test('PUT /tilesets when providing an incorrect id returns 400 status code', asy
   })
 
   t.equal(response.statusCode, 400)
+
+  cleanup()
 })
 
 test('PUT /tilesets when tileset does not exist returns 404 status code', async (t) => {
-  const { sampleTileJSON, server } = t.context as TestContext
+  const { cleanup, sampleTileJSON, server } = createContext()
 
   const response = await server.inject({
     method: 'PUT',
@@ -269,13 +256,15 @@ test('PUT /tilesets when tileset does not exist returns 404 status code', async 
   })
 
   t.equal(response.statusCode, 404)
+
+  cleanup()
 })
 
 /**
  * /tile tests
  */
 test('GET /tile before tileset is created returns 404 status code', async (t) => {
-  const { server } = t.context as TestContext
+  const { cleanup, server } = createContext()
 
   const response = await server.inject({
     method: 'GET',
@@ -283,10 +272,12 @@ test('GET /tile before tileset is created returns 404 status code', async (t) =>
   })
 
   t.equal(response.statusCode, 404)
+
+  cleanup()
 })
 
 test('GET /tile of png format returns a tile image', async (t) => {
-  const { sampleTileJSON, server } = t.context as TestContext
+  const { cleanup, sampleTileJSON, server } = createContext()
 
   // Create initial tileset
   const initialResponse = await server.inject({
@@ -311,10 +302,12 @@ test('GET /tile of png format returns a tile image', async (t) => {
   )
 
   t.equal(typeof response.body, 'string')
+
+  cleanup()
 })
 
 test('POST /tilesets/import creates tileset', async (t) => {
-  const { sampleMbTilesPath, server } = t.context as TestContext
+  const { cleanup, sampleMbTilesPath, server } = createContext()
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -334,10 +327,12 @@ test('POST /tilesets/import creates tileset', async (t) => {
   t.equal(tilesetGetResponse.statusCode, 200)
 
   t.same(tilesetGetResponse.json(), createdTileset)
+
+  cleanup()
 })
 
 test('POST /tilesets/import creates style for created tileset', async (t) => {
-  const { sampleMbTilesPath, server } = t.context as TestContext
+  const { cleanup, sampleMbTilesPath, server } = createContext()
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -379,12 +374,14 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
   )
 
   t.ok(matchingStyle)
+
+  cleanup()
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
   t.plan(4)
 
-  const { sampleMbTilesPath, server } = t.context as TestContext
+  const { cleanup, sampleMbTilesPath, server } = createContext()
 
   async function requestImport() {
     return await server.inject({
@@ -421,6 +418,8 @@ test('POST /tilesets/import multiple times using same source file works', async 
   })
 
   t.equal(tilesetGetResponse2.statusCode, 200)
+
+  cleanup()
 })
 
 /**
@@ -429,10 +428,9 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
-// -
 
 test('POST /styles with invalid style returns 400 status code', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
+  const { cleanup, server, sampleStyleJSON } = createContext()
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -441,12 +439,14 @@ test('POST /styles with invalid style returns 400 status code', async (t) => {
   })
 
   t.equal(responsePost.statusCode, 400)
+
+  cleanup()
 })
 
 // Reflects the case where a user is providing the style directly
 // We'd enforce at the application level that they provide an `id` field in their body
 test('POST /styles when providing an id returns resource with the same id', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
+  const { cleanup, server, sampleStyleJSON } = createContext()
 
   const expectedId = 'example-style-id'
 
@@ -463,10 +463,12 @@ test('POST /styles when providing an id returns resource with the same id', asyn
   })
 
   t.equal(responsePost.json().id, expectedId)
+
+  cleanup()
 })
 
 test('POST /styles when style exists returns 409', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
+  const { cleanup, server, sampleStyleJSON } = createContext()
 
   const payload = {
     style: sampleStyleJSON,
@@ -492,7 +494,7 @@ test('POST /styles when style exists returns 409', async (t) => {
 })
 
 test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
+  const { cleanup, server, sampleStyleJSON } = createContext()
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -542,16 +544,19 @@ test('POST /styles when providing valid style returns resource with id and alter
     t.same(
       { ...source, ...ignoredSourceFields },
       {
+        // @ts-ignore
         ...sampleStyleJSON.sources[sourceId],
         ...ignoredSourceFields,
       },
       'with exception of `url` field, source from created style matches source from input'
     )
   })
+
+  cleanup()
 })
 
 test('POST /styles when required Mapbox access token is missing returns 400 status code', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
+  const { cleanup, server, sampleStyleJSON } = createContext()
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -561,10 +566,12 @@ test('POST /styles when required Mapbox access token is missing returns 400 stat
   })
 
   t.equal(responsePost.statusCode, 400)
+
+  cleanup()
 })
 
 test('GET /styles/:styleId when style does not exist return 404 status code', async (t) => {
-  const { server } = t.context as TestContext
+  const { cleanup, server } = createContext()
 
   const id = 'nonexistent-id'
 
@@ -574,10 +581,12 @@ test('GET /styles/:styleId when style does not exist return 404 status code', as
   })
 
   t.equal(responseGet.statusCode, 404)
+
+  cleanup()
 })
 
 test('GET /styles/:styleId when style exists returns style with sources pointing to offline tilesets', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
+  const { cleanup, server, sampleStyleJSON } = createContext()
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -613,20 +622,24 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
       t.equal(responseTilesetGet.statusCode, 200)
     }
   }
+
+  cleanup()
 })
 
 test('GET /styles when no styles exist returns body with an empty array', async (t) => {
-  const { server } = t.context as TestContext
+  const { cleanup, server } = createContext()
 
   const response = await server.inject({ method: 'GET', url: '/styles' })
 
   t.equal(response.statusCode, 200)
 
   t.same(response.json(), [])
+
+  cleanup()
 })
 
 test('GET /styles when styles exist returns array of metadata for each', async (t) => {
-  const { server, sampleStyleJSON } = t.context as TestContext
+  const { cleanup, server, sampleStyleJSON } = createContext()
 
   const expectedName = 'My Style'
 
@@ -659,10 +672,12 @@ test('GET /styles when styles exist returns array of metadata for each', async (
   t.equal(responseGet.statusCode, 200)
 
   t.same(responseGet.json(), expectedGetResponse)
+
+  cleanup()
 })
 
 test('DELETE /styles/:styleId when style does not exist returns 404 status code', async (t) => {
-  const { server } = t.context as TestContext
+  const { cleanup, server } = createContext()
 
   const id = 'nonexistent-id'
 
@@ -672,10 +687,12 @@ test('DELETE /styles/:styleId when style does not exist returns 404 status code'
   })
 
   t.equal(responseDelete.statusCode, 404)
+
+  cleanup()
 })
 
 test('DELETE /styles/:styleId when style exists returns 204 status code and empty body', async (t) => {
-  const { server } = t.context as TestContext
+  const { cleanup, server } = createContext()
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -703,12 +720,14 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   })
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
+
+  cleanup()
 })
 
 test('DELETE /styles/:styleId works for style created from tileset import', async (t) => {
   t.plan(3)
 
-  const { sampleMbTilesPath, server } = t.context as TestContext
+  const { cleanup, sampleMbTilesPath, server } = createContext()
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -770,4 +789,6 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
   })
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
+
+  cleanup()
 })

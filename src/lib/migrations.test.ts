@@ -1,19 +1,11 @@
-import { beforeEach, test } from 'tap'
+import test from 'tape'
 import tmp from 'tmp'
 import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
-import Database, { Database as DatabaseInstance } from 'better-sqlite3'
+import Database from 'better-sqlite3'
 
 import { Migration, migrate } from './migrations'
-
-type TestContext = {
-  buildMigration: (name: string, query: string) => void
-  db: DatabaseInstance
-  generateMigrationName: (name: string) => string
-  getSQLiteTableInfo: (tableName?: string) => any[]
-  runMigrations: () => void
-}
 
 tmp.setGracefulCleanup()
 
@@ -63,7 +55,7 @@ function formatTimeUnit(n: number) {
   return n.toString().padStart(2, '0')
 }
 
-beforeEach((t) => {
+function createContext() {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
   const allMigrationsDir = path.resolve(dataDir, './prisma/migrations')
@@ -108,18 +100,18 @@ beforeEach((t) => {
     migrate(db, allMigrationsDir)
   }
 
-  t.context = {
+  return {
     buildMigration,
     db,
     generateMigrationName,
     getSQLiteTableInfo,
     runMigrations,
   }
-})
+}
 
 test('Works when database schema is not initialized', (t) => {
   const { buildMigration, db, generateMigrationName, runMigrations } =
-    t.context as TestContext
+    createContext()
 
   const migrationName = generateMigrationName('init')
 
@@ -176,7 +168,7 @@ test('Works when a subsequent migration is run', (t) => {
     generateMigrationName,
     getSQLiteTableInfo,
     runMigrations,
-  } = t.context as TestContext
+  } = createContext()
 
   buildMigration(generateMigrationName('init'), fixtures.initial)
 
@@ -201,12 +193,16 @@ test('Works when a subsequent migration is run', (t) => {
   )
 
   t.ok(
-    allPersistedMigrations.every((migration) =>
-      t.ok(
-        migrationRecordedAsSuccess(migration),
-        `Migration with name "${migration.migration_name}" recorded as successful`
-      )
-    ),
+    allPersistedMigrations.every((migration) => {
+      {
+        const successful = migrationRecordedAsSuccess(migration)
+        t.ok(
+          successful,
+          `Migration with name "${migration.migration_name}" recorded as successful`
+        )
+        return successful
+      }
+    }),
     'All migrations recorded as successful'
   )
 
@@ -223,7 +219,7 @@ test('Works when a subsequent migration is run', (t) => {
 
 test('Does nothing when no new migrations need to be applied (idempotency)', (t) => {
   const { buildMigration, db, generateMigrationName, runMigrations } =
-    t.context as TestContext
+    createContext()
 
   buildMigration(generateMigrationName('init'), fixtures.initial)
 
@@ -253,7 +249,7 @@ test('Does nothing when no new migrations need to be applied (idempotency)', (t)
 
 test('Applies multiple migrations sequentially if necessary', (t) => {
   const { buildMigration, db, generateMigrationName, runMigrations } =
-    t.context as TestContext
+    createContext()
 
   const firstMigrationName = generateMigrationName('init')
   const secondMigrationName = generateMigrationName('add_column')
@@ -276,12 +272,14 @@ test('Applies multiple migrations sequentially if necessary', (t) => {
   )
 
   t.ok(
-    allMigrations.every((migration) =>
+    allMigrations.every((migration) => {
+      const successful = migrationRecordedAsSuccess(migration)
       t.ok(
-        migrationRecordedAsSuccess(migration),
+        successful,
         `Migration with name "${migration.migration_name}" recorded as successful`
       )
-    ),
+      return successful
+    }),
     'All migrations recorded as successful'
   )
 
@@ -295,7 +293,7 @@ test('Only updates migrations table when bad migration is attempted', (t) => {
     generateMigrationName,
     getSQLiteTableInfo,
     runMigrations,
-  } = t.context as TestContext
+  } = createContext()
 
   buildMigration(generateMigrationName('init'), fixtures.initial)
 
