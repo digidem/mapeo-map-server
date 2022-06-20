@@ -25,11 +25,7 @@ db.pragma('auto_vacuum = INCREMENTAL')
 db.pragma('journal_mode = WAL')
 
 /** @type {Database} */
-const mbTilesDb = new Database(mbTilesDbPath, {
-  // Ideally would set `readOnly` to `true` here but causes `fileMustExist` to be ignored:
-  // https://github.com/JoshuaWise/better-sqlite3/blob/230ea65ed0d7566e32d41c3d13a90fb32ccdbee6/docs/api.md#new-databasepath-options
-  fileMustExist: true,
-})
+const mbTilesDb = new Database(mbTilesDbPath, { readonly: true })
 
 /** @type {import('./mbtiles_import_worker').Queries} */
 const queries = {
