@@ -1,11 +1,12 @@
 import { Statement } from 'better-sqlite3'
 
-export interface WorkerData {
+export interface ImportWorkerOptions {
   dbPath: string
   importId: string
   mbTilesDbPath: string
   styleId: string
   tilesetId: string
+  port: MessagePort
 }
 
 export interface Queries {
@@ -48,20 +49,12 @@ export interface Queries {
   }>
 }
 
-export type MessageComplete = {
-  type: 'complete'
-  importId: string
-}
 export type MessageProgress = {
   type: 'progress'
   importId: string
   soFar: number
   total: number
 }
-export type MessageStart = { type: 'start' }
 
 // Message types received by the port (main thread)
-export type PortMessage = MessageProgress | MessageComplete
-
-// Message types received by the worker
-export type WorkerMessage = MessageStart
+export type PortMessage = MessageProgress

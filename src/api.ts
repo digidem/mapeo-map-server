@@ -1,5 +1,5 @@
 import path from 'path'
-import { Worker } from 'worker_threads'
+import { MessageChannel } from 'worker_threads'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from '@fastify/error'
 import fp from 'fastify-plugin'
@@ -7,6 +7,7 @@ import got from 'got'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
+import Piscina from 'piscina'
 
 import {
   Headers as MbTilesHeaders,
@@ -31,7 +32,6 @@ import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 // import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
-import { PortMessage } from './lib/mbtiles_import_worker'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -98,7 +98,7 @@ interface SourceIdToTilesetId {
 }
 
 interface Context {
-  activeWorkers: Set<Worker>
+  piscina: Piscina
   db: DatabaseInstance
   upstreamRequestsManager: UpstreamRequestsManager
 }
@@ -157,7 +157,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { activeWorkers, db, upstreamRequestsManager } = context
+  const { piscina, db, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -388,59 +388,30 @@ function createApi({
 
       const importId = generateId()
 
-      const tilesetImportWorker = new Worker(
-        path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
+      const { port1, port2 } = new MessageChannel()
+
+      port2.on('message', (/** message: PortMessage */) => {
+        // TODO: do something with progress messages
+      })
+
+      await piscina.run(
         {
-          workerData: {
-            dbPath: db.name,
-            importId,
-            mbTilesDbPath: mbTilesDb.name,
-            // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
-            // and we don't generate a style for those on tileset creation yet.
-            // Absence presents various complications when creating and updating offline area and imports in db
-            styleId,
-            tilesetId,
-          },
-        }
+          dbPath: db.name,
+          importId,
+          mbTilesDbPath: mbTilesDb.name,
+          // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
+          // and we don't generate a style for those on tileset creation yet.
+          // Absence presents various complications when creating and updating offline area and imports in db
+          styleId,
+          tilesetId,
+          port: port1,
+        },
+        { transferList: [port1] }
       )
 
-      activeWorkers.add(tilesetImportWorker)
+      port2.close()
 
-      return new Promise((res, rej) => {
-        tilesetImportWorker
-          .on('message', (message: PortMessage) => {
-            switch (message.type) {
-              case 'complete': {
-                tilesetImportWorker
-                  .terminate()
-                  .then(() => {
-                    activeWorkers.delete(tilesetImportWorker)
-                    res(tileset)
-                  })
-                  .catch(rej)
-                break
-              }
-              case 'progress': {
-                // TODO
-              }
-            }
-          })
-          .on('error', (err) => {
-            tilesetImportWorker
-              .terminate()
-              .then(() => {
-                activeWorkers.delete(tilesetImportWorker)
-                rej(err)
-              })
-              .catch(rej)
-          })
-          .on('exit', () => {
-            activeWorkers.delete(tilesetImportWorker)
-          })
-
-        // Only start once the listeners above are attached
-        tilesetImportWorker.postMessage({ type: 'start' })
-      })
+      return tileset
     },
     // async getImportProgress(offlineAreaId) {
     //   const importIds: string[] = db
@@ -899,11 +870,8 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   const context = init(dbPath)
 
   fastify.addHook('onClose', async () => {
-    const { activeWorkers, db } = context
-
-    await Promise.all([...activeWorkers].map((worker) => worker.terminate()))
-
-    activeWorkers.clear()
+    const { piscina, db } = context
+    await piscina.destroy()
     db.close()
   })
 
@@ -934,10 +902,15 @@ function init(dbPath: string): Context {
 
   migrate(db, path.resolve(__dirname, '../prisma/migrations'))
 
+  const piscina = new Piscina({
+    filename: path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
+  })
+  piscina.on('error', (error) => {
+    // TODO: Do something with this error https://github.com/piscinajs/piscina#event-error
+    console.error(error)
+  })
   return {
-    // Whenever a tile import is requested, a new worker is created
-    // Used for tracking workers to handle subscriptions, server lifecycle events, etc.
-    activeWorkers: new Set(),
+    piscina,
     db,
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
