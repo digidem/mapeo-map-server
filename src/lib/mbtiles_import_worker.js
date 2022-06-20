@@ -21,6 +21,8 @@ const PROGRESS_THROTTLE = 200 // ms
 
 /** @type {Database} */
 const db = new Database(dbPath)
+db.pragma('auto_vacuum = INCREMENTAL')
+db.pragma('journal_mode = WAL')
 
 /** @type {Database} */
 const mbTilesDb = new Database(mbTilesDbPath, {
