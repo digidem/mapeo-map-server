@@ -41,44 +41,29 @@ const queries = {
         'SELECT zoom_level AS z, tile_column AS x, tile_row AS y, tile_data AS data FROM tiles'
       )
       .iterate(),
-  upsertOfflineArea: (params) =>
-    db
-      .prepare(
-        'INSERT INTO OfflineArea (id, zoomLevel, boundingBox, name, styleId) ' +
-          'VALUES (:id, :zoomLevel, :boundingBox, :name, :styleId) ' +
-          'ON CONFLICT (id) DO UPDATE SET ' +
-          'zoomLevel = excluded.zoomLevel, boundingBox = excluded.boundingBox, name = excluded.name, styleId = excluded.styleId'
-      )
-      .run(params),
-  insertImport: (params) =>
-    db
-      .prepare(
-        'INSERT INTO Import (id, totalResources, totalBytes, areaId, tilesetId, importedResources, importedBytes, isComplete, importType) ' +
-          "VALUES (:id, :totalResources, :totalBytes, :areaId, :tilesetId, 0, 0, 0, 'tileset')"
-      )
-      .run(params),
-  updateImport: (params) =>
-    db
-      .prepare(
-        'UPDATE Import SET importedResources = :importedResources, importedBytes = :importedBytes, ' +
-          'isComplete = :isComplete, finished = CURRENT_TIMESTAMP ' +
-          'WHERE id = :id'
-      )
-      .run(params),
-  upsertTileData: (params) =>
-    db
-      .prepare(
-        'INSERT INTO TileData (tileHash, data, tilesetId) VALUES (:tileHash, :data, :tilesetId) ' +
-          'ON CONFLICT (tileHash, tilesetId) DO UPDATE SET data = excluded.data'
-      )
-      .run(params),
-  upsertTile: (params) =>
-    db
-      .prepare(
-        'INSERT INTO Tile (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId) ' +
-          'ON CONFLICT (quadkey, tilesetId) DO UPDATE SET tilehash = excluded.tileHash'
-      )
-      .run(params),
+  upsertOfflineArea: db.prepare(
+    'INSERT INTO OfflineArea (id, zoomLevel, boundingBox, name, styleId) ' +
+      'VALUES (:id, :zoomLevel, :boundingBox, :name, :styleId) ' +
+      'ON CONFLICT (id) DO UPDATE SET ' +
+      'zoomLevel = excluded.zoomLevel, boundingBox = excluded.boundingBox, name = excluded.name, styleId = excluded.styleId'
+  ),
+  insertImport: db.prepare(
+    'INSERT INTO Import (id, totalResources, totalBytes, areaId, tilesetId, importedResources, importedBytes, isComplete, importType) ' +
+      "VALUES (:id, :totalResources, :totalBytes, :areaId, :tilesetId, 0, 0, 0, 'tileset')"
+  ),
+  updateImport: db.prepare(
+    'UPDATE Import SET importedResources = :importedResources, importedBytes = :importedBytes, ' +
+      'isComplete = :isComplete, finished = CURRENT_TIMESTAMP ' +
+      'WHERE id = :id'
+  ),
+  upsertTileData: db.prepare(
+    'INSERT INTO TileData (tileHash, data, tilesetId) VALUES (:tileHash, :data, :tilesetId) ' +
+      'ON CONFLICT (tileHash, tilesetId) DO UPDATE SET data = excluded.data'
+  ),
+  upsertTile: db.prepare(
+    'INSERT INTO Tile (quadKey, tileHash, tilesetId) VALUES (:quadKey, :tileHash, :tilesetId) ' +
+      'ON CONFLICT (quadkey, tilesetId) DO UPDATE SET tilehash = excluded.tileHash'
+  ),
 }
 
 process.on('exit', () => {
@@ -109,7 +94,7 @@ function importMbTiles() {
 
   const areaId = encodeBase32(hash(`area:${tilesetId}`))
 
-  queries.upsertOfflineArea({
+  queries.upsertOfflineArea.run({
     id: areaId,
     boundingBox: JSON.stringify(mbTilesMetadata.bounds),
     name: mbTilesMetadata.name,
@@ -120,7 +105,7 @@ function importMbTiles() {
     styleId,
   })
 
-  queries.insertImport({
+  queries.insertImport.run({
     id: importId,
     totalBytes: totalBytes,
     totalResources: totalTiles,
@@ -140,13 +125,13 @@ function importMbTiles() {
     const tileHash = hash(data).toString('hex')
 
     const tilesImportTransaction = db.transaction(() => {
-      queries.upsertTileData({
+      queries.upsertTileData.run({
         tileHash,
         data,
         tilesetId,
       })
 
-      queries.upsertTile({
+      queries.upsertTile.run({
         quadKey,
         tileHash,
         tilesetId,
@@ -155,7 +140,7 @@ function importMbTiles() {
       tilesProcessed++
       bytesSoFar += data.byteLength
 
-      queries.updateImport({
+      queries.updateImport.run({
         id: importId,
         importedResources: tilesProcessed,
         importedBytes: bytesSoFar,

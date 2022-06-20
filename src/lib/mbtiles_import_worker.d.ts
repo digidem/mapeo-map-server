@@ -1,4 +1,4 @@
-import { RunResult } from 'better-sqlite3'
+import { Statement } from 'better-sqlite3'
 
 export interface WorkerData {
   dbPath: string
@@ -9,43 +9,43 @@ export interface WorkerData {
 }
 
 export interface Queries {
-  getMbTilesImportTotals: () => { bytes: number; tiles: number }
-  getMbTilesTileRows: () => IterableIterator<{
+  getMbTilesImportTotals(): { bytes: number; tiles: number }
+  getMbTilesTileRows(): IterableIterator<{
     data: Buffer
     z: number
     y: number
     x: number
   }>
-  upsertOfflineArea: (params: {
+  upsertOfflineArea: Statement<{
     id: string
     zoomLevel: string
     boundingBox: string
     name: string
     styleId: string
-  }) => RunResult
-  insertImport: (params: {
+  }>
+  insertImport: Statement<{
     id: string
     totalResources: number
     totalBytes: number
     areaId: string
     tilesetId?: string
-  }) => RunResult
-  updateImport: (params: {
+  }>
+  updateImport: Statement<{
     id: string
     importedResources: number
     importedBytes: number
     isComplete: number
-  }) => RunResult
-  upsertTileData: (params: {
+  }>
+  upsertTileData: Statement<{
     data: Buffer
     tileHash: string
     tilesetId: string
-  }) => RunResult
-  upsertTile: (params: {
+  }>
+  upsertTile: Statement<{
     quadKey: string
     tileHash: string
     tilesetId: string
-  }) => RunResult
+  }>
 }
 
 export type MessageComplete = {
