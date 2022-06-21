@@ -11,7 +11,7 @@
     "dev": "ts-node-dev --files --transpile-only --respawn --no-notify ./server.ts | pino-pretty",
     "build": "npm run clean && tsc -b",
     "clean": "tsc -b --clean",
-    "test": "TS_NODE_FILES=true NODE_OPTIONS=\"-r ts-node/register\" c8 ts-node --transpile-only node_modules/tape/bin/tape **/*.test.ts | tap-arc",
+    "test": "TS_NODE_FILES=true NODE_OPTIONS=\"-r ts-node/register\" c8 ts-node --transpile-only node_modules/.bin/tape **/*.test.ts | tap-arc",
     "posttest": "c8 report --reporter=text-lcov > ./coverage/lcov.info",
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
     "prisma:generate": "prisma generate",
