@@ -77,6 +77,8 @@ CREATE TABLE "Import" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "importedResources" INTEGER NOT NULL,
     "totalResources" INTEGER NOT NULL,
+    "importedBytes" INTEGER,
+    "totalBytes" INTEGER,
     "isComplete" BOOLEAN NOT NULL,
     "started" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "finished" DATETIME,

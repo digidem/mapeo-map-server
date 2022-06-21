@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, test } from 'tap'
+import test from 'tape'
 import path from 'path'
-import Database, { Database as DatabaseInstance } from 'better-sqlite3'
+import Database from 'better-sqlite3'
 
 import { mbTilesToTileJSON } from './mbtiles'
 import { validateTileJSON } from './tilejson'
@@ -10,20 +10,17 @@ const FIXTURE_PATH = path.resolve(
   '../fixtures/mbtiles/trails.mbtiles'
 )
 
-type TestContext = { mbTilesDb: DatabaseInstance }
-
-beforeEach((t) => {
-  t.context = {
+function createContext() {
+  const context = {
     mbTilesDb: new Database(FIXTURE_PATH, { readonly: true }),
+    cleanup: () => context.mbTilesDb.close(),
   }
-})
 
-afterEach((t) => {
-  t.context.mbTilesDb.close()
-})
+  return context
+}
 
 test('Conversion outputs spec-compliant tilejson', (t) => {
-  const { mbTilesDb } = t.context as TestContext
+  const { cleanup, mbTilesDb } = createContext()
 
   const tilejson = mbTilesToTileJSON(mbTilesDb)
 
@@ -35,6 +32,8 @@ test('Conversion outputs spec-compliant tilejson', (t) => {
   const { tiles } = tilejson
 
   t.equal(tiles.length, 0, '`tiles` field is an empty array')
+
+  cleanup()
 
   t.end()
 })

@@ -96,6 +96,8 @@ model Import {
   id                String      @id
   importedResources Int
   totalResources    Int
+  importedBytes     Int?
+  totalBytes        Int?
   isComplete        Boolean // When downloaded = total
   started           DateTime    @default(now())
   finished          DateTime?

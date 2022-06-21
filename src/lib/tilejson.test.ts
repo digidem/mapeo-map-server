@@ -1,11 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-
-import tap from 'tap'
+import test from 'tape'
 
 import { validateTileJSON } from './tilejson'
 
-tap.test('Bad tileJSON fails validation', (t) => {
+test('Bad tileJSON fails validation', (t) => {
   const dir = path.join(__dirname, '../fixtures/bad-tilejson')
   const files = fs.readdirSync(dir)
   for (const file of files) {
@@ -15,7 +14,7 @@ tap.test('Bad tileJSON fails validation', (t) => {
   t.end()
 })
 
-tap.test('Good tileJSON passes validation', (t) => {
+test('Good tileJSON passes validation', (t) => {
   const dir = path.join(__dirname, '../fixtures/good-tilejson')
   const files = fs.readdirSync(dir)
   for (const file of files) {

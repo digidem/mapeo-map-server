@@ -1,16 +1,11 @@
 import Fastify from 'fastify'
 import Etag from '@fastify/etag'
-import { afterEach, beforeEach, test } from 'tap'
+import test from 'tape'
 
 import { UpstreamRequestsManager } from './upstream_requests_manager'
 
 const PORT = 3001
 const ENDPOINT_URL = `http://localhost:${PORT}/`
-
-type TestContext = {
-  server: any
-  upstreamRequestsManager: UpstreamRequestsManager
-}
 
 function createServer() {
   const server = Fastify({ logger: false })
@@ -45,19 +40,16 @@ function createServer() {
   }
 }
 
-beforeEach(async (t) => {
+async function createContext() {
   const server = createServer()
   await server.listen(PORT)
 
-  t.context = {
+  return {
     server,
     upstreamRequestsManager: new UpstreamRequestsManager(),
+    cleanup: async () => server.close(),
   }
-})
-
-afterEach((t) => {
-  t.context.server.close()
-})
+}
 
 /**
  * This should test behaviour to avoid repeat requests:
@@ -66,7 +58,7 @@ afterEach((t) => {
  * 3. Manager does not make additional requests, fulfills with existing request
  */
 test('Repeat requests in same tick only hit server once', async (t) => {
-  const { server, upstreamRequestsManager } = t.context as TestContext
+  const { cleanup, server, upstreamRequestsManager } = await createContext()
 
   const responses = await Promise.all([
     upstreamRequestsManager.getUpstream({
@@ -94,7 +86,7 @@ test('Repeat requests in same tick only hit server once', async (t) => {
 
   t.equal(server.responses.length, 1, 'Only one request to server')
 
-  t.end()
+  cleanup()
 })
 
 /**
@@ -105,7 +97,7 @@ test('Repeat requests in same tick only hit server once', async (t) => {
  * 5. Client make subsequent request for resource *based on resource from step 1*. Response should reflect updated resource
  */
 test('Upstream resource updated when modified', async (t) => {
-  const { server, upstreamRequestsManager } = t.context as TestContext
+  const { cleanup, server, upstreamRequestsManager } = await createContext()
 
   const response1 = await upstreamRequestsManager.getUpstream({
     url: ENDPOINT_URL,
@@ -165,27 +157,30 @@ test('Upstream resource updated when modified', async (t) => {
     'On third request, server responded with updated resource'
   )
 
-  t.end()
+  cleanup()
 })
 
 /**
  * Requesting an upstream resource that hasn't been modified should reject with a not modified error
  */
 test('Upstream resource not modified', async (t) => {
-  const { server, upstreamRequestsManager } = t.context as TestContext
+  const { cleanup, server, upstreamRequestsManager } = await createContext()
 
   const response1 = await upstreamRequestsManager.getUpstream({
     url: ENDPOINT_URL,
     responseType: 'buffer',
   })
 
-  t.rejects(
-    upstreamRequestsManager.getUpstream({
+  try {
+    await upstreamRequestsManager.getUpstream({
       url: ENDPOINT_URL,
       responseType: 'buffer',
       etag: response1.etag,
     })
-  )
+    t.fail('should not reach here')
+  } catch (err) {
+    t.ok(err instanceof Error)
+  }
 
   // Need to await pending requests to revalidate to server
   await upstreamRequestsManager.allSettled()
@@ -198,7 +193,7 @@ test('Upstream resource not modified', async (t) => {
     'On second request, server says not modified'
   )
 
-  t.end()
+  cleanup()
 })
 
 // TODO: Add tests for text and json response types

@@ -1,5 +1,5 @@
 import path from 'path'
-import { Worker } from 'worker_threads'
+import { MessageChannel } from 'worker_threads'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from '@fastify/error'
 import fp from 'fastify-plugin'
@@ -7,6 +7,7 @@ import got from 'got'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
+import Piscina from 'piscina'
 
 import {
   Headers as MbTilesHeaders,
@@ -97,8 +98,8 @@ interface SourceIdToTilesetId {
 }
 
 interface Context {
+  piscina: Piscina
   db: DatabaseInstance
-  tilesetImportWorker: Worker
   upstreamRequestsManager: UpstreamRequestsManager
 }
 
@@ -156,7 +157,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { db, tilesetImportWorker, upstreamRequestsManager } = context
+  const { piscina, db, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -385,41 +386,32 @@ function createApi({
         tileset.name
       )
 
-      // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
-      // and we don't generate a style for those on tileset creation yet.
-      // Absence presents various complications when creating and updating offline area and imports in db
-      tilesetImportWorker.postMessage({
-        type: 'importMbTiles',
-        importId: generateId(),
-        mbTilesDbPath: mbTilesDb.name,
-        styleId,
-        tilesetId,
+      const importId = generateId()
+
+      const { port1, port2 } = new MessageChannel()
+
+      port2.on('message', (/** message: PortMessage */) => {
+        // TODO: do something with progress messages
       })
 
-      return new Promise((res, rej) => {
-        // TODO: What else has to be called when this occurs? e.g. terminating the import
-        tilesetImportWorker.addListener('error', (err) => {
-          rej(err)
-        })
+      await piscina.run(
+        {
+          dbPath: db.name,
+          importId,
+          mbTilesDbPath: mbTilesDb.name,
+          // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
+          // and we don't generate a style for those on tileset creation yet.
+          // Absence presents various complications when creating and updating offline area and imports in db
+          styleId,
+          tilesetId,
+          port: port1,
+        },
+        { transferList: [port1] }
+      )
 
-        tilesetImportWorker.addListener(
-          'message',
-          ({
-            soFar,
-            total,
-          }: {
-            type: 'progress'
-            importId: string
-            soFar: number
-            total: number
-          }) => {
-            if (soFar === total) {
-              tilesetImportWorker.postMessage({ type: 'importTerminate' })
-              res(tileset)
-            }
-          }
-        )
-      })
+      port2.close()
+
+      return tileset
     },
     // async getImportProgress(offlineAreaId) {
     //   const importIds: string[] = db
@@ -878,8 +870,9 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   const context = init(dbPath)
 
   fastify.addHook('onClose', async () => {
-    await context.tilesetImportWorker.terminate()
-    context.db.close()
+    const { piscina, db } = context
+    await piscina.destroy()
+    db.close()
   })
 
   fastify.decorateRequest('api', {
@@ -909,12 +902,16 @@ function init(dbPath: string): Context {
 
   migrate(db, path.resolve(__dirname, '../prisma/migrations'))
 
+  const piscina = new Piscina({
+    filename: path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
+  })
+  piscina.on('error', (error) => {
+    // TODO: Do something with this error https://github.com/piscinajs/piscina#event-error
+    console.error(error)
+  })
   return {
+    piscina,
     db,
-    tilesetImportWorker: new Worker(
-      path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
-      { workerData: { dbPath } }
-    ),
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
 }
