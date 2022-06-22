@@ -15,6 +15,7 @@ import {
 } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
+import EventSource from 'eventsource'
 
 tmp.setGracefulCleanup()
 
@@ -42,7 +43,20 @@ if (!fs.existsSync(path.resolve(__dirname, '../prisma/migrations'))) {
 assertSampleTileJSONIsValid(mapboxRasterTilejson)
 validateStyleJSON(simpleRasterStylejson)
 
-mockTileServer.listen()
+mockTileServer.listen({
+  onUnhandledRequest: (req, print) => {
+    const canIgnorePath = ['/imports/progress'].some((p) =>
+      req.url.pathname.startsWith(p)
+    )
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(req.url.hostname)
+
+    if (isLocalhost && canIgnorePath) {
+      return
+    }
+
+    print.warning()
+  },
+})
 
 test.onFinish(() => {
   mockTileServer.close()
@@ -332,7 +346,7 @@ test('POST /tilesets/import creates tileset', async (t) => {
 
   t.equal(importResponse.statusCode, 200)
 
-  const createdTileset = importResponse.json<TileJSON & { id: string }>()
+  const { tileset: createdTileset } = importResponse.json()
 
   const tilesetGetResponse = await server.inject({
     method: 'GET',
@@ -355,9 +369,9 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
     payload: { filePath: sampleMbTilesPath },
   })
 
-  const { id: createdTilesetId } = importResponse.json<
-    TileJSON & { id: string }
-  >()
+  const {
+    tileset: { id: createdTilesetId },
+  } = importResponse.json()
 
   const getStylesResponse = await server.inject({
     method: 'GET',
@@ -394,7 +408,7 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
-  t.plan(4)
+  t.plan(5)
 
   const { cleanup, sampleMbTilesPath, server } = createContext()
 
@@ -410,7 +424,10 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
   t.equal(importResponse1.statusCode, 200)
 
-  const { id: tilesetId1 } = importResponse1.json()
+  const {
+    import: { id: importId1 },
+    tileset: { id: tilesetId1 },
+  } = importResponse1.json()
 
   const tilesetGetResponse1 = await server.inject({
     method: 'GET',
@@ -425,7 +442,10 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
   t.equal(importResponse2.statusCode, 200)
 
-  const { id: tilesetId2 } = importResponse2.json()
+  const {
+    import: { id: importId2 },
+    tileset: { id: tilesetId2 },
+  } = importResponse2.json()
 
   const tilesetGetResponse2 = await server.inject({
     method: 'GET',
@@ -434,12 +454,107 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
   t.equal(tilesetGetResponse2.statusCode, 200)
 
+  t.notEqual(importId1, importId2, 'new import is created')
+
   return cleanup()
 })
 
 /**
- * /styles tests
+ * /imports tests
  */
+
+test('GET /imports/:importId returns import information', async (t) => {
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  const createImportResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json<TileJSON & { id: string }>()
+
+  const getImportInfoResponse = await server.inject({
+    method: 'GET',
+    url: `/imports/${createdImportId}`,
+  })
+
+  t.equal(getImportInfoResponse.statusCode, 200)
+
+  return cleanup()
+})
+
+test('GET /imports/progress/:importId returns import progress info (SSE)', async (t) => {
+  t.plan(3)
+
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  const createImportResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  const address = await server.listen(0)
+
+  const evtSource = new EventSource(
+    `${address}/imports/progress/${createdImportId}`
+  )
+
+  try {
+    let receivedProgressEvent = false
+    let receivedCompletedEvent = false
+
+    const completedEventMessage = await new Promise<any>((res, rej) => {
+      evtSource.onmessage = (event) => {
+        const message = JSON.parse(event.data)
+
+        if (message.importId !== createdImportId) {
+          evtSource.close()
+          rej(
+            new Error(
+              `expected import id ${createdImportId} but message has import id of ${message.importId}`
+            )
+          )
+        }
+
+        switch (message.type) {
+          case 'progress': {
+            receivedProgressEvent = true
+            break
+          }
+          case 'complete': {
+            receivedCompletedEvent = true
+            evtSource.close()
+            res(message)
+          }
+        }
+      }
+
+      evtSource.onerror = (err: any) => {
+        evtSource.close()
+        rej(new Error(err.message))
+      }
+    })
+
+    t.ok(receivedProgressEvent, 'at least 1 progress event received')
+    t.ok(receivedCompletedEvent, 'completed event received')
+
+    t.equal(completedEventMessage.soFar, completedEventMessage.total)
+  } catch (err) {
+    if (err instanceof Error) {
+      t.fail(err.message)
+    }
+  }
+
+  return cleanup()
+})
 
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
@@ -506,6 +621,8 @@ test('POST /styles when style exists returns 409', async (t) => {
   })
 
   t.equal(responsePost2.statusCode, 409)
+
+  cleanup()
 })
 
 test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
@@ -750,9 +867,9 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
     payload: { filePath: sampleMbTilesPath },
   })
 
-  const { id: createdTilesetId } = importResponse.json<
-    TileJSON & { id: string }
-  >()
+  const {
+    tileset: { id: createdTilesetId },
+  } = importResponse.json<TileJSON & { id: string }>()
 
   const getStylesResponse = await server.inject({
     method: 'GET',

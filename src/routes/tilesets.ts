@@ -17,13 +17,14 @@ const PutTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
 })
 
-const ImportMBTilesBodySchema = T.Object({
+const ImportMBTilesRequestBodySchema = T.Object({
   filePath: T.String(),
 })
 
-// const GetImportProgressParamsSchema = T.Object({
-//   tilesetId: T.String(),
-// })
+const ImportMBTilesResponseBodySchema = T.Object({
+  import: T.Object({ id: T.String() }),
+  tileset: TileJSONSchema,
+})
 
 const tilesets: FastifyPluginAsync = async function (fastify) {
   fastify.get(
@@ -117,58 +118,23 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  fastify.post<{ Body: Static<typeof ImportMBTilesBodySchema> }>(
+  fastify.post<{ Body: Static<typeof ImportMBTilesRequestBodySchema> }>(
     '/import',
     {
       schema: {
-        body: ImportMBTilesBodySchema,
+        body: ImportMBTilesRequestBodySchema,
         response: {
-          200: TileJSONSchema,
+          200: ImportMBTilesResponseBodySchema,
         },
       },
     },
     async function (request, reply) {
-      const tilejson = await request.api.importMBTiles(request.body.filePath)
-      reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
-      return tilejson
+      const result = await request.api.importMBTiles(request.body.filePath)
+      // TODO: Should this point to the import resource instead?
+      reply.header('Location', `${fastify.prefix}/${result.tileset.id}`)
+      return result
     }
   )
-
-  // fastify.get<{ Params: Static<typeof GetImportProgressParamsSchema> }>(
-  //   '/import/:tilesetId',
-  //   {
-  //     schema: {
-  //       params: GetImportProgressParamsSchema,
-  //     },
-  //   },
-  //   async function (request, reply) {
-  //     const emitter = await request.api.getImportProgress(
-  //       request.params.tilesetId
-  //     )
-
-  //     reply.raw.setHeader('Content-Type', 'text/event-stream')
-  //     reply.raw.setHeader('Connection', 'keep-alive')
-  //     reply.raw.setHeader('Cache-Control', 'no-cache,no-transform')
-  //     reply.raw.setHeader('x-no-compression', 1)
-
-  //     emitter.on('progress', ({ type, ...data }) => {
-  //       const finished = data.soFar === data.total
-
-  //       reply.raw.write(`event: ${finished ? 'finished' : type}\n`)
-
-  //       if (data) {
-  //         reply.raw.write(`data: ${JSON.stringify(data)}\n`)
-  //       }
-
-  //       reply.raw.write('\n')
-
-  //       if (finished) {
-  //         reply.raw.end()
-  //         emitter.removeAllListeners('progress')
-  //       }
-  //     })
-  //   }
-  // )
 }
 
 export default tilesets

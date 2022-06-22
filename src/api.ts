@@ -1,5 +1,5 @@
 import path from 'path'
-import { MessageChannel } from 'worker_threads'
+import { MessageChannel, MessagePort } from 'worker_threads'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from '@fastify/error'
 import fp from 'fastify-plugin'
@@ -30,8 +30,8 @@ import {
 import { getTilesetId, hash, encodeBase32, generateId } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
-// import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
+import { PortMessage } from './lib/mbtiles_import_worker'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -98,8 +98,9 @@ interface SourceIdToTilesetId {
 }
 
 interface Context {
-  piscina: Piscina
+  activeImports: Map<string, MessagePort>
   db: DatabaseInstance
+  piscina: Piscina
   upstreamRequestsManager: UpstreamRequestsManager
 }
 
@@ -108,8 +109,18 @@ export interface IdResource {
   id: string
 }
 export interface Api {
-  importMBTiles(filePath: string): Promise<TileJSON & IdResource>
-  // getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
+  importMBTiles(
+    filePath: string
+  ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
+  getImport(importId: string): Promise<{
+    id: string
+    importedResources: number
+    totalResources: number
+    importedBytes: number | null
+    totalBytes: number | null
+    isComplete: number
+  }>
+  getImportPort(importId: string): Promise<MessagePort>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
@@ -157,7 +168,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { piscina, db, upstreamRequestsManager } = context
+  const { activeImports, db, piscina, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -390,37 +401,78 @@ function createApi({
 
       const { port1, port2 } = new MessageChannel()
 
-      port2.on('message', (/** message: PortMessage */) => {
-        // TODO: do something with progress messages
+      activeImports.set(importId, port2)
+
+      piscina
+        .run(
+          {
+            dbPath: db.name,
+            importId,
+            mbTilesDbPath: mbTilesDb.name,
+            // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
+            // and we don't generate a style for those on tileset creation yet.
+            // Absence presents various complications when creating and updating offline area and imports in db
+            styleId,
+            tilesetId,
+            port: port1,
+          },
+          { transferList: [port1] }
+        )
+        .then(() => {
+          port2.close()
+          activeImports.delete(importId)
+        })
+        .catch(() => {
+          // TODO: What else should be done here?
+          activeImports.delete(importId)
+        })
+
+      return new Promise((res) => {
+        port2.on('message', handleFirstProgressMessage)
+
+        function handleFirstProgressMessage(message: PortMessage) {
+          switch (message.type) {
+            case 'progress': {
+              port2.off('message', handleFirstProgressMessage)
+              res({ import: { id: message.importId }, tileset })
+              break
+            }
+          }
+        }
       })
-
-      await piscina.run(
-        {
-          dbPath: db.name,
-          importId,
-          mbTilesDbPath: mbTilesDb.name,
-          // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
-          // and we don't generate a style for those on tileset creation yet.
-          // Absence presents various complications when creating and updating offline area and imports in db
-          styleId,
-          tilesetId,
-          port: port1,
-        },
-        { transferList: [port1] }
-      )
-
-      port2.close()
-
-      return tileset
     },
-    // async getImportProgress(offlineAreaId) {
-    //   const importIds: string[] = db
-    //     .prepare('SELECT id FROM Import WHERE areaId = ?')
-    //     .all(offlineAreaId)
-    //     .map((row: { id: string }) => row.id)
+    async getImport(importId) {
+      const importRow:
+        | {
+            id: string
+            importedResources: number
+            totalResources: number
+            importedBytes: number | null
+            totalBytes: number | null
+            isComplete: number
+          }
+        | undefined = db
+        .prepare(
+          'SELECT id, importedResources, totalResources, importedBytes, totalBytes, isComplete ' +
+            'From Import WHERE id = ?'
+        )
+        .get(importId)
 
-    //   return new ImportProgressEmitter(tilesetImportWorker, importIds)
-    // },
+      if (!importRow) {
+        throw NotFoundError(importId)
+      }
+
+      return importRow
+    },
+    async getImportPort(importId) {
+      const port = activeImports.get(importId)
+
+      if (!port) {
+        throw NotFoundError(importId)
+      }
+
+      return port
+    },
     async createTileset(tilejson) {
       const tilesetId = getTilesetId(tilejson)
 
@@ -910,8 +962,9 @@ function init(dbPath: string): Context {
     console.error(error)
   })
   return {
-    piscina,
+    activeImports: new Map(),
     db,
+    piscina,
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
 }

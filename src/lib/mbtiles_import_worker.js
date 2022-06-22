@@ -151,11 +151,20 @@ function importMbTiles({
   db.close()
   mbTilesDb.close()
 
-  // Ensure a final progress event is sent (because of throttle)
-  port.postMessage({
-    type: 'progress',
+  const baseFinalMessage = {
     importId,
     soFar: bytesSoFar,
     total: totalBytes,
+  }
+
+  // Ensure a final progress event is sent (because of throttle)
+  port.postMessage({
+    ...baseFinalMessage,
+    type: 'progress',
+  })
+
+  port.postMessage({
+    ...baseFinalMessage,
+    type: 'complete',
   })
 }
