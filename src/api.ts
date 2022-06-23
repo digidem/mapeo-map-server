@@ -452,6 +452,8 @@ function createApi({
         )
         .get(importId)
 
+      console.log('IMPORT QUERY', importRow)
+
       if (!importRow) {
         throw NotFoundError(importId)
       }
