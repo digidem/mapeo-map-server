@@ -463,7 +463,7 @@ test('POST /tilesets/import multiple times using same source file works', async 
  * /imports tests
  */
 
-test.only('GET /imports/:importId returns import information', async (t) => {
+test('GET /imports/:importId returns import information', async (t) => {
   const { cleanup, sampleMbTilesPath, server } = createContext()
 
   const createImportResponse = await server.inject({
@@ -477,8 +477,6 @@ test.only('GET /imports/:importId returns import information', async (t) => {
   const {
     import: { id: createdImportId },
   } = createImportResponse.json()
-
-  console.log({ createdImportId })
 
   const getImportInfoResponse = await server.inject({
     method: 'GET',
