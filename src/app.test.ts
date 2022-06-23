@@ -472,6 +472,8 @@ test('GET /imports/:importId returns import information', async (t) => {
     payload: { filePath: sampleMbTilesPath },
   })
 
+  t.equals(createImportResponse.statusCode, 200)
+
   const {
     import: { id: createdImportId },
   } = createImportResponse.json()
