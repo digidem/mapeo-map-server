@@ -869,7 +869,7 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 
   const {
     tileset: { id: createdTilesetId },
-  } = importResponse.json<TileJSON & { id: string }>()
+  } = importResponse.json()
 
   const getStylesResponse = await server.inject({
     method: 'GET',
