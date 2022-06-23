@@ -86,7 +86,7 @@ test('Repeat requests in same tick only hit server once', async (t) => {
 
   t.equal(server.responses.length, 1, 'Only one request to server')
 
-  cleanup()
+  return cleanup()
 })
 
 /**
@@ -157,7 +157,7 @@ test('Upstream resource updated when modified', async (t) => {
     'On third request, server responded with updated resource'
   )
 
-  cleanup()
+  return cleanup()
 })
 
 /**
@@ -193,7 +193,7 @@ test('Upstream resource not modified', async (t) => {
     'On second request, server says not modified'
   )
 
-  cleanup()
+  return cleanup()
 })
 
 // TODO: Add tests for text and json response types

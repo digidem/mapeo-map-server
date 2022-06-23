@@ -91,7 +91,7 @@ test('GET /tilesets when no tilesets exist returns an empty array', async (t) =>
 
   t.same(response.json(), [])
 
-  cleanup()
+  return cleanup()
 })
 
 test('GET /tilesets when tilesets exist returns an array of the tilesets', async (t) => {
@@ -117,7 +117,7 @@ test('GET /tilesets when tilesets exist returns an array of the tilesets', async
 
   t.same(response.json(), expectedResponse)
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /tilesets when tileset does not exist creates a tileset and returns it', async (t) => {
@@ -147,7 +147,7 @@ test('POST /tilesets when tileset does not exist creates a tileset and returns i
 
   t.equal(responseGet.statusCode, 200)
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /tilesets creates a style for the raster tileset', async (t) => {
@@ -201,7 +201,7 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
 
   t.same(responseStyleGet.json(), expectedStyle)
 
-  cleanup()
+  return cleanup()
 })
 
 test('PUT /tilesets when tileset exists returns the updated tileset', async (t) => {
@@ -229,7 +229,7 @@ test('PUT /tilesets when tileset exists returns the updated tileset', async (t) 
 
   t.equal(updatedResponse.json<TileJSON>().name, updatedFields.name)
 
-  cleanup()
+  return cleanup()
 })
 
 test('PUT /tilesets when providing an incorrect id returns 400 status code', async (t) => {
@@ -243,7 +243,7 @@ test('PUT /tilesets when providing an incorrect id returns 400 status code', asy
 
   t.equal(response.statusCode, 400)
 
-  cleanup()
+  return cleanup()
 })
 
 test('PUT /tilesets when tileset does not exist returns 404 status code', async (t) => {
@@ -257,7 +257,7 @@ test('PUT /tilesets when tileset does not exist returns 404 status code', async 
 
   t.equal(response.statusCode, 404)
 
-  cleanup()
+  return cleanup()
 })
 
 /**
@@ -273,7 +273,7 @@ test('GET /tile before tileset is created returns 404 status code', async (t) =>
 
   t.equal(response.statusCode, 404)
 
-  cleanup()
+  return cleanup()
 })
 
 test('GET /tile of png format returns a tile image', async (t) => {
@@ -303,7 +303,7 @@ test('GET /tile of png format returns a tile image', async (t) => {
 
   t.equal(typeof response.body, 'string')
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /tilesets/import fails when providing path for non-existent file', async (t) => {
@@ -318,7 +318,7 @@ test('POST /tilesets/import fails when providing path for non-existent file', as
   t.equal(importResponse.statusCode, 400)
   t.equal(importResponse.json().code, 'FST_MBTILES_IMPORT_TARGET_MISSING')
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /tilesets/import creates tileset', async (t) => {
@@ -343,7 +343,7 @@ test('POST /tilesets/import creates tileset', async (t) => {
 
   t.same(tilesetGetResponse.json(), createdTileset)
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /tilesets/import creates style for created tileset', async (t) => {
@@ -390,7 +390,7 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 
   t.ok(matchingStyle)
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
@@ -434,7 +434,7 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
   t.equal(tilesetGetResponse2.statusCode, 200)
 
-  cleanup()
+  return cleanup()
 })
 
 /**
@@ -455,7 +455,7 @@ test('POST /styles with invalid style returns 400 status code', async (t) => {
 
   t.equal(responsePost.statusCode, 400)
 
-  cleanup()
+  return cleanup()
 })
 
 // Reflects the case where a user is providing the style directly
@@ -479,7 +479,7 @@ test('POST /styles when providing an id returns resource with the same id', asyn
 
   t.equal(responsePost.json().id, expectedId)
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /styles when style exists returns 409', async (t) => {
@@ -567,7 +567,7 @@ test('POST /styles when providing valid style returns resource with id and alter
     )
   })
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /styles when required Mapbox access token is missing returns 400 status code', async (t) => {
@@ -582,7 +582,7 @@ test('POST /styles when required Mapbox access token is missing returns 400 stat
 
   t.equal(responsePost.statusCode, 400)
 
-  cleanup()
+  return cleanup()
 })
 
 test('GET /styles/:styleId when style does not exist return 404 status code', async (t) => {
@@ -597,7 +597,7 @@ test('GET /styles/:styleId when style does not exist return 404 status code', as
 
   t.equal(responseGet.statusCode, 404)
 
-  cleanup()
+  return cleanup()
 })
 
 test('GET /styles/:styleId when style exists returns style with sources pointing to offline tilesets', async (t) => {
@@ -638,7 +638,7 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
     }
   }
 
-  cleanup()
+  return cleanup()
 })
 
 test('GET /styles when no styles exist returns body with an empty array', async (t) => {
@@ -650,7 +650,7 @@ test('GET /styles when no styles exist returns body with an empty array', async 
 
   t.same(response.json(), [])
 
-  cleanup()
+  return cleanup()
 })
 
 test('GET /styles when styles exist returns array of metadata for each', async (t) => {
@@ -688,7 +688,7 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 
   t.same(responseGet.json(), expectedGetResponse)
 
-  cleanup()
+  return cleanup()
 })
 
 test('DELETE /styles/:styleId when style does not exist returns 404 status code', async (t) => {
@@ -703,7 +703,7 @@ test('DELETE /styles/:styleId when style does not exist returns 404 status code'
 
   t.equal(responseDelete.statusCode, 404)
 
-  cleanup()
+  return cleanup()
 })
 
 test('DELETE /styles/:styleId when style exists returns 204 status code and empty body', async (t) => {
@@ -736,7 +736,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
 
-  cleanup()
+  return cleanup()
 })
 
 test('DELETE /styles/:styleId works for style created from tileset import', async (t) => {
@@ -805,5 +805,5 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
 
-  cleanup()
+  return cleanup()
 })

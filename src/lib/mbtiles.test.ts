@@ -33,7 +33,5 @@ test('Conversion outputs spec-compliant tilejson', (t) => {
 
   t.equal(tiles.length, 0, '`tiles` field is an empty array')
 
-  cleanup()
-
-  t.end()
+  return cleanup()
 })
