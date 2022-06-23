@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify'
 import { Static, Type as T } from '@sinclair/typebox'
-import { on } from 'events'
+
 import { PortMessage } from '../lib/mbtiles_import_worker'
 
 const GetImportProgressParamsSchema = T.Object({

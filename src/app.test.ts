@@ -2,6 +2,7 @@ import test from 'tape'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
+import EventSource from 'eventsource'
 
 import { IdResource, Api } from './api'
 import createMapServer from './app'
@@ -15,7 +16,6 @@ import {
 } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
-import EventSource from 'eventsource'
 
 tmp.setGracefulCleanup()
 
