@@ -474,7 +474,7 @@ test('GET /imports/:importId returns import information', async (t) => {
 
   const {
     import: { id: createdImportId },
-  } = createImportResponse.json<TileJSON & { id: string }>()
+  } = createImportResponse.json()
 
   const getImportInfoResponse = await server.inject({
     method: 'GET',

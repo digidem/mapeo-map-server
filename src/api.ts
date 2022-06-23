@@ -113,7 +113,6 @@ export interface Api {
     filePath: string
   ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
   getImport(importId: string): Promise<{
-    id: string
     importedResources: number
     totalResources: number
     importedBytes: number | null
@@ -441,7 +440,6 @@ function createApi({
     async getImport(importId) {
       const importRow:
         | {
-            id: string
             importedResources: number
             totalResources: number
             importedBytes: number | null
