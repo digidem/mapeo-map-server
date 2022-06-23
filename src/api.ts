@@ -448,8 +448,7 @@ function createApi({
           }
         | undefined = db
         .prepare(
-          'SELECT id, importedResources, totalResources, importedBytes, totalBytes, isComplete ' +
-            'From Import WHERE id = ?'
+          'SELECT id, importedResources, totalResources, importedBytes, totalBytes, isComplete FROM Import WHERE id = ?'
         )
         .get(importId)
 
