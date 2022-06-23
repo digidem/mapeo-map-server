@@ -418,25 +418,22 @@ function createApi({
           },
           { transferList: [port1] }
         )
-        .then(() => {
+        .catch((err) => {
+          port2.emit('error', err)
+        })
+        .finally(() => {
           port2.close()
           activeImports.delete(importId)
         })
-        .catch(() => {
-          // TODO: What else should be done here?
-          activeImports.delete(importId)
-        })
 
-      return new Promise((res) => {
+      return new Promise((res, rej) => {
         port2.on('message', handleFirstProgressMessage)
+        port2.on('error', (err) => rej(err))
 
         function handleFirstProgressMessage(message: PortMessage) {
-          switch (message.type) {
-            case 'progress': {
-              port2.off('message', handleFirstProgressMessage)
-              res({ import: { id: message.importId }, tileset })
-              break
-            }
+          if (message.type === 'progress') {
+            port2.off('message', handleFirstProgressMessage)
+            res({ import: { id: message.importId }, tileset })
           }
         }
       })
