@@ -306,6 +306,21 @@ test('GET /tile of png format returns a tile image', async (t) => {
   cleanup()
 })
 
+test('POST /tilesets/import fails when providing path for non-existent file', async (t) => {
+  const { cleanup, server } = createContext()
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: '/foo/bar.mbtiles' },
+  })
+
+  t.equal(importResponse.statusCode, 400)
+  t.equal(importResponse.json().code, 'FST_MBTILES_IMPORT_TARGET_MISSING')
+
+  cleanup()
+})
+
 test('POST /tilesets/import creates tileset', async (t) => {
   const { cleanup, sampleMbTilesPath, server } = createContext()
 
