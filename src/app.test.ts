@@ -168,8 +168,7 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
     url: '/styles',
   })
 
-  const stylesList =
-    responseStylesListGet.json<{ id: string; name?: string; url: string }[]>()
+  const stylesList = responseStylesListGet.json()
 
   t.equal(stylesList.length, 1)
 
@@ -387,31 +386,35 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
     url: '/styles',
   })
 
-  const stylesList =
-    getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
+  const styleInfo = getStylesResponse.json()[0]
+
+  t.ok(
+    styleInfo.bytesStored !== null && styleInfo.bytesStored > 0,
+    'tiles used by style take up storage space'
+  )
 
   const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
-  const styles = await Promise.all(
-    stylesList.map(({ url }) =>
-      server
-        .inject({
-          method: 'GET',
-          url,
-        })
-        .then((response) => response.json<StyleJSON>())
-    )
-  )
+  const styleGetResponse = await server.inject({
+    method: 'GET',
+    url: styleInfo.url,
+  })
 
-  const matchingStyle = styles.find((style) =>
-    Object.values(style.sources).find((source) => {
-      if ('url' in source && source.url) {
-        return source.url === expectedSourceUrl
-      }
-    })
-  )
+  t.equal(styleGetResponse.statusCode, 200)
 
-  t.ok(matchingStyle)
+  const styleHasSourceReferringToTileset = Object.values(
+    styleGetResponse.json<StyleJSON & IdResource>().sources
+  ).some((source) => {
+    if ('url' in source && source.url) {
+      return source.url === expectedSourceUrl
+    }
+    return false
+  })
+
+  t.ok(
+    styleHasSourceReferringToTileset,
+    'style has source pointing to correct tileset'
+  )
 
   return cleanup()
 })
@@ -701,6 +704,7 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 
   const expectedStyleInfo = {
     id: expectedId,
+    bytesStored: null,
     name: expectedName,
     url: expectedUrl,
   }
@@ -784,13 +788,12 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
     url: '/styles',
   })
 
-  const stylesList =
-    getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
+  const stylesList = getStylesResponse.json()
 
   const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
-  const styles = await Promise.all(
-    stylesList.map(({ url, id }) =>
+  const styles = await Promise.all<StyleJSON & IdResource>(
+    stylesList.map(({ url, id }: { url: string; id: string }) =>
       server
         .inject({
           method: 'GET',

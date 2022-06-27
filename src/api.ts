@@ -146,7 +146,15 @@ export interface Api {
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<{ name?: string; url: string } & IdResource>>
+  listStyles(): Promise<
+    Array<
+      {
+        bytesStored: number | null
+        name: string | null
+        url: string
+      } & IdResource
+    >
+  >
 }
 
 function createApi({
@@ -796,17 +804,40 @@ function createApi({
         style: styleToSave,
       })
     },
-
     async listStyles() {
+      // `bytesStored` calculates the total bytes stored by tiles that the style references
+      // Eventually we want to get storage taken up by other resources like sprites and glyphs
       return db
         .prepare(
-          "SELECT Style.id, json_extract(stylejson, '$.name') as name FROM Style"
+          `
+          SELECT Style.id, 
+            json_extract(Style.stylejson, '$.name') as name, 
+            (
+              SELECT SUM(LENGTH(TileData.data))
+              FROM TileData
+              JOIN Tile ON Tile.tileHash = TileData.tileHash
+              JOIN Tileset ON Tileset.id = Tile.tilesetId
+              JOIN (
+                SELECT S2.id AS styleId, StyleReferencedTileset.value AS tilesetId
+                FROM Style S2, json_each(S2.sourceIdToTilesetId, '$') AS StyleReferencedTileset
+              ) AS SourceTileset ON SourceTileset.tilesetId = Tileset.id
+              JOIN Style S1 ON S1.id = SourceTileset.styleId
+              WHERE SourceTileset.styleId = Style.id
+            ) AS bytesStored
+          FROM Style;
+          `
         )
         .all()
-        .map((row: { id: string; name?: string }) => ({
-          ...row,
-          url: getStyleUrl(row.id),
-        }))
+        .map(
+          (row: {
+            id: string
+            bytesStored: number | null
+            name: string | null
+          }) => ({
+            ...row,
+            url: getStyleUrl(row.id),
+          })
+        )
     },
 
     async getStyle(id) {
