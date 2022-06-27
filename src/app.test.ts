@@ -624,7 +624,7 @@ test('POST /styles when style exists returns 409', async (t) => {
 
   t.equal(responsePost2.statusCode, 409)
 
-  cleanup()
+  return cleanup()
 })
 
 test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
