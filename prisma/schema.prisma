@@ -98,8 +98,10 @@ model Import {
   totalResources    Int
   importedBytes     Int?
   totalBytes        Int?
-  isComplete        Boolean // When downloaded = total
+  state             String // 'complete' | 'active' | 'error'
+  error             String? // error code (see lib/imports.ts)
   started           DateTime    @default(now())
+  lastUpdated       DateTime?
   finished          DateTime?
   tilesetId         String?
   importType        String // 'tileset' | 'style_resources' (stylejson, glyphs, sprites)
