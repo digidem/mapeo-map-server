@@ -458,12 +458,9 @@ function createApi({
 
           cleanup()
 
-          db.prepare<{
-            id: string
-            error: ImportError
-          }>(
-            "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = :error WHERE id = :id"
-          ).run({ id: importId, error: 'TIMEOUT' })
+          db.prepare(
+            "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = 'TIMEOUT' WHERE id = ?"
+          ).run(importId)
 
           rej(new Error('Timeout reached while waiting for worker message'))
         }
