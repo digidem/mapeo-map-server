@@ -130,7 +130,6 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     },
     async function (request, reply) {
       const result = await request.api.importMBTiles(request.body.filePath)
-      // TODO: Should this point to the import resource instead?
       reply.header('Location', `${fastify.prefix}/${result.tileset.id}`)
       return result
     }
