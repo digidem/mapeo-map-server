@@ -458,9 +458,14 @@ function createApi({
 
           cleanup()
 
-          db.prepare(
-            "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = 'TIMEOUT' WHERE id = ?"
-          ).run(importId)
+          try {
+            db.prepare(
+              "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = 'TIMEOUT' WHERE id = ?"
+            ).run(importId)
+          } catch (err) {
+            // TODO: This could potentially throw when the db is closed already. Need to properly handle/report
+            console.error(err)
+          }
 
           rej(new Error('Timeout reached while waiting for worker message'))
         }
