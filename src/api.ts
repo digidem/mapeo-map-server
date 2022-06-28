@@ -409,29 +409,28 @@ function createApi({
 
       activeImports.set(importId, port2)
 
-      piscina
-        .run(
-          {
-            dbPath: db.name,
-            importId,
-            mbTilesDbPath: mbTilesDb.name,
-            styleId,
-            tilesetId,
-            port: port1,
-          },
-          { transferList: [port1] }
-        )
-        .catch((err) => {
-          port2.emit('error', err)
-        })
-        .finally(() => {
-          port2.close()
-          activeImports.delete(importId)
-        })
-
       return new Promise((res, rej) => {
         port2.on('message', handleFirstProgressMessage)
-        port2.on('error', (err) => rej(err))
+
+        piscina
+          .run(
+            {
+              dbPath: db.name,
+              importId,
+              mbTilesDbPath: mbTilesDb.name,
+              styleId,
+              tilesetId,
+              port: port1,
+            },
+            { transferList: [port1] }
+          )
+          .catch((err) => {
+            rej(err)
+          })
+          .finally(() => {
+            port2.close()
+            activeImports.delete(importId)
+          })
 
         function handleFirstProgressMessage(message: PortMessage) {
           if (message.type === 'progress') {
