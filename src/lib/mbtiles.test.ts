@@ -1,37 +1,38 @@
 import test from 'tape'
+import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3'
 
 import { mbTilesToTileJSON } from './mbtiles'
 import { validateTileJSON } from './tilejson'
 
-const FIXTURE_PATH = path.resolve(
-  __dirname,
-  '../fixtures/mbtiles/trails.mbtiles'
-)
-
-function createContext() {
-  const context = {
-    mbTilesDb: new Database(FIXTURE_PATH, { readonly: true }),
-    cleanup: () => context.mbTilesDb.close(),
-  }
-
-  return context
-}
+const FIXTURE_DIRECTORIES_PATHS = [
+  path.resolve(__dirname, '../fixtures/mbtiles/raster/'),
+  path.resolve(__dirname, '../fixtures/mbtiles/vector/'),
+]
 
 test('Conversion outputs spec-compliant tilejson', (t) => {
-  const { cleanup, mbTilesDb } = createContext()
+  const fixturePaths = FIXTURE_DIRECTORIES_PATHS.flatMap((directoryPath) => {
+    const filenames = fs.readdirSync(directoryPath)
+    return filenames.map((name) => path.resolve(directoryPath, name))
+  })
 
-  const tilejson = mbTilesToTileJSON(mbTilesDb)
+  fixturePaths.forEach((p) => {
+    const fixtureDb = new Database(p, { readonly: true })
 
-  t.ok(
-    validateTileJSON(tilejson),
-    'Converted output complies with tilejson spec'
-  )
+    const tilejson = mbTilesToTileJSON(fixtureDb)
 
-  const { tiles } = tilejson
+    fixtureDb.close()
 
-  t.equal(tiles.length, 0, '`tiles` field is an empty array')
+    t.ok(
+      validateTileJSON(tilejson),
+      'Converted output complies with tilejson spec'
+    )
 
-  return cleanup()
+    const { tiles } = tilejson
+
+    t.equal(tiles.length, 0, '`tiles` field is an empty array')
+  })
+
+  t.end()
 })
