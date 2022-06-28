@@ -11,6 +11,7 @@ import Piscina from 'piscina'
 
 import {
   Headers as MbTilesHeaders,
+  isSupportedMBTilesFormat,
   isValidMBTilesFormat,
   mbTilesToTileJSON,
 } from './lib/mbtiles'
@@ -63,9 +64,10 @@ const MBAccessTokenRequiredError = createError(
   400
 )
 
+// Only format that is not supported right now is pbf
 const UnsupportedMBTilesFormatError = createError(
   'FST_UNSUPPORTED_MBTILES_FORMAT',
-  '`format` must be `jpg`, `png`, `pbf`, or `webp`',
+  '`format` must be `jpg`, `png`, or `webp`',
   400
 )
 
@@ -379,7 +381,12 @@ function createApi({
       mbTilesDb.close()
 
       // TODO: Should this be handled in extractMBTilesMetadata?
-      if (!(tilejson.format && isValidMBTilesFormat(tilejson.format))) {
+      const formatSupported =
+        tilejson.format &&
+        isValidMBTilesFormat(tilejson.format) &&
+        isSupportedMBTilesFormat(tilejson.format)
+
+      if (!formatSupported) {
         throw new UnsupportedMBTilesFormatError()
       }
 
@@ -408,9 +415,6 @@ function createApi({
             dbPath: db.name,
             importId,
             mbTilesDbPath: mbTilesDb.name,
-            // TODO: `style` is not guaranteed to exist since the tileset could be a vector tileset
-            // and we don't generate a style for those on tileset creation yet.
-            // Absence presents various complications when creating and updating offline area and imports in db
             styleId,
             tilesetId,
             port: port1,
