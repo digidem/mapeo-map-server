@@ -28,7 +28,27 @@ const imports: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const port = await request.api.getImportPort(request.params.importId)
+      const { importId } = request.params
+
+      const port = await request.api.getImportPort(importId)
+
+      // No port means that the import may already be completed
+      if (!port) {
+        const { state, totalBytes } = await request.api.getImport(importId)
+
+        if (state === 'complete') {
+          reply.sse({
+            data: JSON.stringify({
+              type: state,
+              importId,
+              soFar: totalBytes,
+              total: totalBytes,
+            }),
+          })
+        }
+
+        return
+      }
 
       port.on('message', onMessage)
 

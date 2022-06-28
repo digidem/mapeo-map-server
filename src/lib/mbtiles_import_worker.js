@@ -56,13 +56,16 @@ function importMbTiles({
         'zoomLevel = excluded.zoomLevel, boundingBox = excluded.boundingBox, name = excluded.name, styleId = excluded.styleId'
     ),
     insertImport: db.prepare(
-      'INSERT INTO Import (id, totalResources, totalBytes, areaId, tilesetId, importedResources, importedBytes, isComplete, importType) ' +
-        "VALUES (:id, :totalResources, :totalBytes, :areaId, :tilesetId, 0, 0, 0, 'tileset')"
+      'INSERT INTO Import (id, totalResources, totalBytes, areaId, tilesetId, state, importedResources, importedBytes, importType) ' +
+        "VALUES (:id, :totalResources, :totalBytes, :areaId, :tilesetId, 'active', 0, 0, 'tileset')"
     ),
     updateImport: db.prepare(
       'UPDATE Import SET importedResources = :importedResources, importedBytes = :importedBytes, ' +
-        'isComplete = :isComplete, finished = CURRENT_TIMESTAMP ' +
-        'WHERE id = :id'
+        'lastUpdated = CURRENT_TIMESTAMP WHERE id = :id'
+    ),
+    completeImport: db.prepare(
+      'UPDATE Import SET importedResources = :importedResources, importedBytes = :importedBytes, ' +
+        "state = 'complete', lastUpdated = CURRENT_TIMESTAMP, finished = CURRENT_TIMESTAMP WHERE id = :id"
     ),
     upsertTileData: db.prepare(
       'INSERT INTO TileData (tileHash, data, tilesetId) VALUES (:tileHash, :data, :tilesetId) ' +
@@ -127,12 +130,17 @@ function importMbTiles({
       tilesProcessed++
       bytesSoFar += data.byteLength
 
-      queries.updateImport.run({
+      const params = {
         id: importId,
         importedResources: tilesProcessed,
         importedBytes: bytesSoFar,
-        isComplete: tilesProcessed === totalTiles ? 1 : 0,
-      })
+      }
+
+      if (tilesProcessed === totalTiles) {
+        queries.completeImport.run(params)
+      } else {
+        queries.updateImport.run(params)
+      }
     })
 
     tilesImportTransaction()

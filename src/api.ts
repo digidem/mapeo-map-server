@@ -34,6 +34,12 @@ import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 import { PortMessage } from './lib/mbtiles_import_worker'
+import {
+  ImportError,
+  ImportState,
+  convertActiveToError as convertActiveImportsToErrorImports,
+  ImportRecord,
+} from './lib/imports'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -115,14 +121,8 @@ export interface Api {
   importMBTiles(
     filePath: string
   ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
-  getImport(importId: string): Promise<{
-    importedResources: number
-    totalResources: number
-    importedBytes: number | null
-    totalBytes: number | null
-    isComplete: number
-  }>
-  getImportPort(importId: string): Promise<MessagePort>
+  getImport(importId: string): Promise<ImportRecord>
+  getImportPort(importId: string): Promise<MessagePort | undefined>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
@@ -411,7 +411,8 @@ function createApi({
       activeImports.set(importId, port2)
 
       return new Promise((res, rej) => {
-        let timeoutId = createTimeout()
+        // Initially use a longer duration to account for worker startup
+        let timeoutId = createTimeout(10000)
 
         port2.on('message', handleFirstProgressMessage)
         port2.on('message', resetTimeout)
@@ -447,55 +448,53 @@ function createApi({
 
         function cleanup() {
           clearTimeout(timeoutId)
+          port2.off('message', resetTimeout)
           port2.close()
           activeImports.delete(importId)
         }
 
         function onMessageTimeout() {
           abortSignaler.emit('abort')
+
           cleanup()
+
+          db.prepare<{
+            id: string
+            error: ImportError
+          }>(
+            "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = :error WHERE id = :id"
+          ).run({ id: importId, error: 'TIMEOUT' })
+
           rej(new Error('Timeout reached while waiting for worker message'))
         }
 
-        function createTimeout() {
-          return setTimeout(onMessageTimeout, 10000)
+        function createTimeout(durationMs: number) {
+          return setTimeout(onMessageTimeout, durationMs)
         }
 
         function resetTimeout() {
           clearTimeout(timeoutId)
-          timeoutId = createTimeout()
+          // Use shorter duration since worker should be up and running at this point
+          timeoutId = createTimeout(5000)
         }
       })
     },
     async getImport(importId) {
-      const importRow:
-        | {
-            importedResources: number
-            totalResources: number
-            importedBytes: number | null
-            totalBytes: number | null
-            isComplete: number
-          }
-        | undefined = db
+      const row: ImportRecord | undefined = db
         .prepare(
-          'SELECT id, importedResources, totalResources, importedBytes, totalBytes, isComplete FROM Import WHERE id = ?'
+          'SELECT state, error, importedResources, totalResources, importedBytes, totalBytes, ' +
+            'started, finished, lastUpdated FROM Import WHERE id = ?'
         )
         .get(importId)
 
-      if (!importRow) {
+      if (!row) {
         throw NotFoundError(importId)
       }
 
-      return importRow
+      return row
     },
     async getImportPort(importId) {
-      const port = activeImports.get(importId)
-
-      if (!port) {
-        throw NotFoundError(importId)
-      }
-
-      return port
+      return activeImports.get(importId)
     },
     async createTileset(tilejson) {
       const tilesetId = getTilesetId(tilejson)
@@ -977,6 +976,10 @@ function init(dbPath: string): Context {
   db.pragma('journal_mode = WAL')
 
   migrate(db, path.resolve(__dirname, '../prisma/migrations'))
+
+  // Any import with an `active` state on startup most likely failed due to the server process stopping
+  // so we update these import records to have an error state
+  convertActiveImportsToErrorImports(db)
 
   const piscina = new Piscina({
     filename: path.resolve(__dirname, './lib/mbtiles_import_worker.js'),

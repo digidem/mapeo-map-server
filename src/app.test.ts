@@ -367,7 +367,6 @@ test('POST /tilesets/import creates tileset', async (t) => {
     payload: { filePath: sampleMbTilesPath },
   })
 
-  console.log(importResponse)
   t.equal(importResponse.statusCode, 200)
 
   const { tileset: createdTileset } = importResponse.json()
@@ -513,7 +512,7 @@ test('GET /imports/:importId returns import information', async (t) => {
 })
 
 test('GET /imports/progress/:importId returns import progress info (SSE)', async (t) => {
-  t.plan(3)
+  t.plan(5)
 
   const { cleanup, sampleMbTilesPath, server } = createContext()
 
@@ -535,6 +534,7 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
 
   try {
     let receivedProgressEvent = false
+    let receivedFinalProgressEvent = false
     let receivedCompletedEvent = false
 
     const completedEventMessage = await new Promise<any>((res, rej) => {
@@ -553,6 +553,11 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
         switch (message.type) {
           case 'progress': {
             receivedProgressEvent = true
+
+            if (message.soFar === message.total) {
+              receivedFinalProgressEvent = true
+            }
+
             break
           }
           case 'complete': {
@@ -570,14 +575,82 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
     })
 
     t.ok(receivedProgressEvent, 'at least 1 progress event received')
+    t.ok(receivedFinalProgressEvent, 'received final progress event')
     t.ok(receivedCompletedEvent, 'completed event received')
 
     t.equal(completedEventMessage.soFar, completedEventMessage.total)
+
+    const importGetResponse = await server.inject({
+      method: 'GET',
+      url: `/imports/${createdImportId}`,
+    })
+
+    t.equal(
+      importGetResponse.json().state,
+      'complete',
+      'import successfully recorded as complete in db'
+    )
   } catch (err) {
     if (err instanceof Error) {
       t.fail(err.message)
     }
   }
+
+  return cleanup()
+})
+
+test('GET /imports/progress/:importId when import is already completed returns single complete event (SSE)', async (t) => {
+  t.plan(1)
+
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  const createImportResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  const address = await server.listen(0)
+
+  function createEventSource() {
+    return new EventSource(`${address}/imports/progress/${createdImportId}`)
+  }
+
+  let evtSource = createEventSource()
+
+  // Wait for the import to complete before attempting actual test
+  const expectedMessage = await new Promise((res) => {
+    evtSource.onmessage = (event) => {
+      const message = JSON.parse(event.data)
+
+      if (message.type === 'complete') {
+        evtSource.close()
+        res(message)
+      }
+    }
+  })
+
+  // Conduct actual test
+  evtSource = createEventSource()
+
+  const message = await new Promise((res) => {
+    evtSource.onmessage = (event) => {
+      const m = JSON.parse(event.data)
+
+      if (m.type !== 'complete') {
+        t.fail(`Expected first message of "${m.type}" to be "complete"`)
+      }
+
+      evtSource.close()
+      res(m)
+    }
+  })
+
+  t.same(message, expectedMessage)
 
   return cleanup()
 })

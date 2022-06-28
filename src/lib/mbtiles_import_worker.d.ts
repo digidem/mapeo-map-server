@@ -35,7 +35,11 @@ export interface Queries {
     id: string
     importedResources: number
     importedBytes: number
-    isComplete: number
+  }>
+  completeImport: Statement<{
+    id: string
+    importedResources: number
+    importedBytes: number
   }>
   upsertTileData: Statement<{
     data: Buffer
