@@ -41,7 +41,6 @@ export type ImportRecord =
   | ErrorImportRecord
 
 export function convertActiveToError(db: Database) {
-  // TODO: Should we set `finished` to Import.lastUpdated instead here?
   db.prepare(
     "UPDATE Import SET state = 'error', error = 'UNKNOWN', finished = CURRENT_TIMESTAMP WHERE state = 'active'"
   ).run()
