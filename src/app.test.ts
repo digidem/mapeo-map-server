@@ -367,6 +367,7 @@ test('POST /tilesets/import creates tileset', async (t) => {
     payload: { filePath: sampleMbTilesPath },
   })
 
+  console.log(importResponse)
   t.equal(importResponse.statusCode, 200)
 
   const { tileset: createdTileset } = importResponse.json()

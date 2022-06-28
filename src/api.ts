@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events'
 import path from 'path'
 import { MessageChannel, MessagePort } from 'worker_threads'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
@@ -410,7 +411,15 @@ function createApi({
       activeImports.set(importId, port2)
 
       return new Promise((res, rej) => {
+        let timeoutId = createTimeout()
+
         port2.on('message', handleFirstProgressMessage)
+        port2.on('message', resetTimeout)
+
+        // Can use a normal event emitter that emits an `abort` event as the abort signaler for Piscina,
+        // which allows us to not have to worry about globals or relying on polyfills
+        // https://github.com/piscinajs/piscina#cancelable-tasks
+        const abortSignaler = new EventEmitter()
 
         piscina
           .run(
@@ -422,21 +431,39 @@ function createApi({
               tilesetId,
               port: port1,
             },
-            { transferList: [port1] }
+            { signal: abortSignaler, transferList: [port1] }
           )
           .catch((err) => {
             rej(err)
           })
-          .finally(() => {
-            port2.close()
-            activeImports.delete(importId)
-          })
+          .finally(cleanup)
 
         function handleFirstProgressMessage(message: PortMessage) {
           if (message.type === 'progress') {
             port2.off('message', handleFirstProgressMessage)
             res({ import: { id: message.importId }, tileset })
           }
+        }
+
+        function cleanup() {
+          clearTimeout(timeoutId)
+          port2.close()
+          activeImports.delete(importId)
+        }
+
+        function onMessageTimeout() {
+          abortSignaler.emit('abort')
+          cleanup()
+          rej(new Error('Timeout reached while waiting for worker message'))
+        }
+
+        function createTimeout() {
+          return setTimeout(onMessageTimeout, 10000)
+        }
+
+        function resetTimeout() {
+          clearTimeout(timeoutId)
+          timeoutId = createTimeout()
         }
       })
     },
