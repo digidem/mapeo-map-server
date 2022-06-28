@@ -136,10 +136,10 @@ function importMbTiles({
         importedBytes: bytesSoFar,
       }
 
+      queries.updateImport.run(params)
+
       if (tilesProcessed === totalTiles) {
         queries.completeImport.run(params)
-      } else {
-        queries.updateImport.run(params)
       }
     })
 
