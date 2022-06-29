@@ -15,6 +15,7 @@ import {
 } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
+import Database from 'better-sqlite3'
 
 tmp.setGracefulCleanup()
 
@@ -463,6 +464,84 @@ test('POST /tilesets/import multiple times using same source file works', async 
   return cleanup()
 })
 
+test('POST /tilesets/import storage used by tiles is roughly equivalent to that of source', async (t) => {
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  function getMbTilesByteCount() {
+    const mbTilesDb = new Database(sampleMbTilesPath, { readonly: true })
+
+    const count = mbTilesDb
+      .prepare('SELECT SUM(LENGTH(tile_data)) as byteCount FROM tiles')
+      .get().byteCount
+
+    mbTilesDb.close()
+
+    return count
+  }
+
+  // Completely arbitrary proportion of original source's count where it's not suspiciously too low,
+  // to account for a potentially incomplete/faulty import
+  const minimumProportion = 0.8
+  const roughlyExpectedCount = getMbTilesByteCount()
+
+  await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const { bytesStored } = await server
+    .inject({
+      method: 'GET',
+      url: '/styles',
+    })
+    .then((resp) => resp.json()[0])
+
+  t.ok(
+    bytesStored >= roughlyExpectedCount * minimumProportion &&
+      bytesStored <= roughlyExpectedCount
+  )
+
+  return cleanup()
+})
+
+// TODO: This may eventually become a failing test if styles that share tiles reuse new ones that are stored
+test('POST /tilesets/import subsequent imports do not affect storage calculation for existing styles', async (t) => {
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  async function requestImport() {
+    return await server.inject({
+      method: 'POST',
+      url: '/tilesets/import',
+      payload: { filePath: sampleMbTilesPath },
+    })
+  }
+
+  await requestImport()
+
+  const style1Before = await server
+    .inject({
+      method: 'GET',
+      url: '/styles',
+    })
+    .then((resp) => resp.json()[0])
+
+  // TODO: Would be helpful to use a different fixture for this import
+  await requestImport()
+
+  const style1After = await server
+    .inject({
+      method: 'GET',
+      url: '/styles',
+    })
+    .then((resp) =>
+      resp.json().find((s: { id: string }) => s.id === style1Before.id)
+    )
+
+  t.equal(style1Before.bytesStored, style1After.bytesStored)
+
+  return cleanup()
+})
 /**
  * /styles tests
  */
