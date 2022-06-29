@@ -815,12 +815,10 @@ function createApi({
             (
               SELECT SUM(LENGTH(TileData.data))
               FROM TileData
-              JOIN Tile ON Tile.tileHash = TileData.tileHash
-              JOIN Tileset ON Tileset.id = Tile.tilesetId
               JOIN (
                 SELECT S2.id AS styleId, StyleReferencedTileset.value AS tilesetId
                 FROM Style S2, json_each(S2.sourceIdToTilesetId, '$') AS StyleReferencedTileset
-              ) AS SourceTileset ON SourceTileset.tilesetId = Tileset.id
+              ) AS SourceTileset ON SourceTileset.tilesetId = TileData.tilesetId
               JOIN Style S1 ON S1.id = SourceTileset.styleId
               WHERE SourceTileset.styleId = Style.id
             ) AS bytesStored
