@@ -16,6 +16,7 @@ import {
 } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
+import { FastifyInstance, FastifyServerOptions } from 'fastify'
 
 tmp.setGracefulCleanup()
 
@@ -72,12 +73,19 @@ function createContext() {
     './fixtures/mbtiles/raster/countries-png.mbtiles'
   )
 
+  const createServer = (
+    fastifyOpts: FastifyServerOptions = { logger: false }
+  ) => createMapServer(fastifyOpts, { dbPath })
+
+  const server = createServer()
+
   const context = {
-    server: createMapServer({ logger: false }, { dbPath }),
+    cleanup: (s = server) => s.close(),
+    createServer,
+    server,
     sampleMbTilesPath: mbTilesPath,
     sampleTileJSON: mapboxRasterTilejson,
     sampleStyleJSON: simpleRasterStylejson,
-    cleanup: () => context.server.close(),
   }
 
   return context
@@ -653,6 +661,47 @@ test('GET /imports/progress/:importId when import is already completed returns s
   t.same(message, expectedMessage)
 
   return cleanup()
+})
+
+test.only('GET /imports/:importId on failed import returns import with error state', async (t) => {
+  const {
+    cleanup,
+    createServer,
+    sampleMbTilesPath,
+    server: server1,
+  } = createContext()
+
+  const createImportResponse = await server1.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  // Close the server to simulate it going down, ideally before the import finishes
+  // Theoretically a race condition can occur where the import does finish in time,
+  // which would cause this test to fail
+  await server1.close()
+
+  const server2 = createServer()
+
+  const getImportResponse = await server2.inject({
+    method: 'GET',
+    url: `/imports/${createdImportId}`,
+  })
+
+  t.equal(getImportResponse.statusCode, 200)
+
+  const impt = getImportResponse.json()
+
+  t.equal(impt.state, 'error')
+  t.equal(impt.error, 'UNKNOWN')
+  t.ok(impt.finished)
+
+  return cleanup(server2)
 })
 
 // TODO: Add styles tests for:
