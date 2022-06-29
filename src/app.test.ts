@@ -704,7 +704,7 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 
   const expectedStyleInfo = {
     id: expectedId,
-    bytesStored: null,
+    bytesStored: 0,
     name: expectedName,
     url: expectedUrl,
   }

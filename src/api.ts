@@ -149,7 +149,7 @@ export interface Api {
   listStyles(): Promise<
     Array<
       {
-        bytesStored: number | null
+        bytesStored: number
         name: string | null
         url: string
       } & IdResource
@@ -835,6 +835,7 @@ function createApi({
             name: string | null
           }) => ({
             ...row,
+            bytesStored: row.bytesStored || 0,
             url: getStyleUrl(row.id),
           })
         )
