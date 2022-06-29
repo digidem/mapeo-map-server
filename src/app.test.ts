@@ -663,7 +663,7 @@ test('GET /imports/progress/:importId when import is already completed returns s
   return cleanup()
 })
 
-test.only('GET /imports/:importId on failed import returns import with error state', async (t) => {
+test('GET /imports/:importId on failed import returns import with error state', async (t) => {
   const {
     cleanup,
     createServer,
