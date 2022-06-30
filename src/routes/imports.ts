@@ -47,7 +47,7 @@ const imports: FastifyPluginAsync = async function (fastify) {
           })
         }
 
-        return
+        return reply
       }
 
       port.on('message', onMessage)
@@ -59,6 +59,8 @@ const imports: FastifyPluginAsync = async function (fastify) {
       function onMessage(message: PortMessage) {
         reply.sse({ data: JSON.stringify(message) })
       }
+
+      return reply
     }
   )
 }
