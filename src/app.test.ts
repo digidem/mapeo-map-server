@@ -2,12 +2,15 @@ import test from 'tape'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
+import Database from 'better-sqlite3'
 import EventSource from 'eventsource'
+import { FastifyServerOptions } from 'fastify'
 
 import { IdResource, Api } from './api'
 import createMapServer from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleRasterStylejson from './fixtures/good-stylejson/good-simple-raster.json'
+import { MessageComplete } from './lib/mbtiles_import_worker'
 import {
   DEFAULT_RASTER_SOURCE_ID,
   DEFAULT_RASTER_LAYER_ID,
@@ -16,8 +19,6 @@ import {
 } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
-import Database from 'better-sqlite3'
-import { FastifyServerOptions } from 'fastify'
 
 tmp.setGracefulCleanup()
 
@@ -90,6 +91,26 @@ function createContext() {
   }
 
   return context
+}
+
+async function waitForImportCompletion(endpoint: string) {
+  return new Promise<MessageComplete>((res, rej) => {
+    const evtSource = new EventSource(endpoint)
+
+    evtSource.onmessage = (event) => {
+      const message = JSON.parse(event.data)
+
+      if (message.type === 'complete') {
+        evtSource.close()
+        res(message)
+      }
+    }
+
+    evtSource.onerror = (err) => {
+      evtSource.close()
+      rej(err as any)
+    }
+  })
 }
 
 /**
@@ -526,21 +547,9 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 
   const address = await server.listen(0)
 
-  // Wait for the import to complete before attempting actual test
-  await new Promise<void>((res) => {
-    const evtSource = new EventSource(
-      `${address}/imports/progress/${createdImportId}`
-    )
-
-    evtSource.onmessage = (event) => {
-      const message = JSON.parse(event.data)
-
-      if (message.type === 'complete') {
-        evtSource.close()
-        res()
-      }
-    }
-  })
+  await waitForImportCompletion(
+    `${address}/imports/progress/${createdImportId}`
+  )
 
   const { bytesStored } = await server
     .inject({
@@ -575,20 +584,9 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
       })
       .then((resp) => resp.json())
 
-    await new Promise<void>((res) => {
-      const evtSource = new EventSource(
-        `${address}/imports/progress/${createdImportId}`
-      )
-
-      evtSource.onmessage = (event) => {
-        const message = JSON.parse(event.data)
-
-        if (message.type === 'complete') {
-          evtSource.close()
-          res(message)
-        }
-      }
-    })
+    return await waitForImportCompletion(
+      `${address}/imports/progress/${createdImportId}`
+    )
   }
 
   await requestImport()
@@ -616,6 +614,7 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
 
   return cleanup()
 })
+
 /**
  * /imports tests
  */
@@ -782,27 +781,13 @@ test('GET /imports/progress/:importId when import is already completed returns s
   } = createImportResponse.json()
 
   const address = await server.listen(0)
-
-  function createEventSource() {
-    return new EventSource(`${address}/imports/progress/${createdImportId}`)
-  }
-
-  let evtSource = createEventSource()
+  const progressEndpoint = `${address}/imports/progress/${createdImportId}`
 
   // Wait for the import to complete before attempting actual test
-  const expectedMessage = await new Promise((res) => {
-    evtSource.onmessage = (event) => {
-      const message = JSON.parse(event.data)
-
-      if (message.type === 'complete') {
-        evtSource.close()
-        res(message)
-      }
-    }
-  })
+  const expectedMessage = await waitForImportCompletion(progressEndpoint)
 
   // Conduct actual test
-  evtSource = createEventSource()
+  const evtSource = new EventSource(progressEndpoint)
 
   const message = await new Promise((res) => {
     evtSource.onmessage = (event) => {
