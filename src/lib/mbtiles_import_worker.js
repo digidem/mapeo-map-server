@@ -156,9 +156,6 @@ function importMbTiles({
     }
   }
 
-  db.close()
-  mbTilesDb.close()
-
   const baseFinalMessage = {
     importId,
     soFar: bytesSoFar,
@@ -175,4 +172,7 @@ function importMbTiles({
     ...baseFinalMessage,
     type: 'complete',
   })
+
+  db.close()
+  mbTilesDb.close()
 }
