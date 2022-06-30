@@ -419,6 +419,7 @@ function createApi({
       activeImports.set(importId, port2)
 
       return new Promise((res, rej) => {
+        let workerDone = false
         // Initially use a longer duration to account for worker startup
         let timeoutId = createTimeout(10000)
 
@@ -445,7 +446,10 @@ function createApi({
           .catch((err) => {
             rej(err)
           })
-          .finally(cleanup)
+          .finally(() => {
+            cleanup()
+            workerDone = true
+          })
 
         function handleFirstProgressMessage(message: PortMessage) {
           if (message.type === 'progress') {
@@ -462,9 +466,11 @@ function createApi({
         }
 
         function onMessageTimeout() {
-          abortSignaler.emit('abort')
+          if (workerDone) return
 
           cleanup()
+
+          abortSignaler.emit('abort')
 
           try {
             db.prepare(
