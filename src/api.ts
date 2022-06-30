@@ -1,5 +1,6 @@
+import { EventEmitter } from 'events'
 import path from 'path'
-import { MessageChannel } from 'worker_threads'
+import { MessageChannel, MessagePort } from 'worker_threads'
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
 import createError from '@fastify/error'
 import fp from 'fastify-plugin'
@@ -31,8 +32,14 @@ import {
 import { getTilesetId, hash, encodeBase32, generateId } from './lib/utils'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
-// import { ImportProgressEmitter } from './lib/import_progress_emitter'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
+import { PortMessage } from './lib/mbtiles_import_worker'
+import {
+  ImportError,
+  ImportState,
+  convertActiveToError as convertActiveImportsToErrorImports,
+  ImportRecord,
+} from './lib/imports'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -100,8 +107,9 @@ interface SourceIdToTilesetId {
 }
 
 interface Context {
-  piscina: Piscina
+  activeImports: Map<string, MessagePort>
   db: DatabaseInstance
+  piscina: Piscina
   upstreamRequestsManager: UpstreamRequestsManager
 }
 
@@ -110,8 +118,11 @@ export interface IdResource {
   id: string
 }
 export interface Api {
-  importMBTiles(filePath: string): Promise<TileJSON & IdResource>
-  // getImportProgress(tilesetId: string): Promise<ImportProgressEmitter>
+  importMBTiles(
+    filePath: string
+  ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
+  getImport(importId: string): Promise<ImportRecord>
+  getImportPort(importId: string): Promise<MessagePort | undefined>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
@@ -159,7 +170,7 @@ function createApi({
   fastify: FastifyInstance
 }): Api {
   const { hostname, protocol } = request
-  const { piscina, db, upstreamRequestsManager } = context
+  const { activeImports, db, piscina, upstreamRequestsManager } = context
   const apiUrl = `${protocol}://${hostname}`
 
   function getTileUrl(tilesetId: string): string {
@@ -397,34 +408,96 @@ function createApi({
 
       const { port1, port2 } = new MessageChannel()
 
-      port2.on('message', (/** message: PortMessage */) => {
-        // TODO: do something with progress messages
+      activeImports.set(importId, port2)
+
+      return new Promise((res, rej) => {
+        // Initially use a longer duration to account for worker startup
+        let timeoutId = createTimeout(10000)
+
+        port2.on('message', handleFirstProgressMessage)
+        port2.on('message', resetTimeout)
+
+        // Can use a normal event emitter that emits an `abort` event as the abort signaler for Piscina,
+        // which allows us to not have to worry about globals or relying on polyfills
+        // https://github.com/piscinajs/piscina#cancelable-tasks
+        const abortSignaler = new EventEmitter()
+
+        piscina
+          .run(
+            {
+              dbPath: db.name,
+              importId,
+              mbTilesDbPath: mbTilesDb.name,
+              styleId,
+              tilesetId,
+              port: port1,
+            },
+            { signal: abortSignaler, transferList: [port1] }
+          )
+          .catch((err) => {
+            rej(err)
+          })
+          .finally(cleanup)
+
+        function handleFirstProgressMessage(message: PortMessage) {
+          if (message.type === 'progress') {
+            port2.off('message', handleFirstProgressMessage)
+            res({ import: { id: message.importId }, tileset })
+          }
+        }
+
+        function cleanup() {
+          clearTimeout(timeoutId)
+          port2.off('message', resetTimeout)
+          port2.close()
+          activeImports.delete(importId)
+        }
+
+        function onMessageTimeout() {
+          abortSignaler.emit('abort')
+
+          cleanup()
+
+          try {
+            db.prepare(
+              "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = 'TIMEOUT' WHERE id = ?"
+            ).run(importId)
+          } catch (err) {
+            // TODO: This could potentially throw when the db is closed already. Need to properly handle/report
+            console.error(err)
+          }
+
+          rej(new Error('Timeout reached while waiting for worker message'))
+        }
+
+        function createTimeout(durationMs: number) {
+          return setTimeout(onMessageTimeout, durationMs)
+        }
+
+        function resetTimeout() {
+          clearTimeout(timeoutId)
+          // Use shorter duration since worker should be up and running at this point
+          timeoutId = createTimeout(5000)
+        }
       })
-
-      await piscina.run(
-        {
-          dbPath: db.name,
-          importId,
-          mbTilesDbPath: mbTilesDb.name,
-          styleId,
-          tilesetId,
-          port: port1,
-        },
-        { transferList: [port1] }
-      )
-
-      port2.close()
-
-      return tileset
     },
-    // async getImportProgress(offlineAreaId) {
-    //   const importIds: string[] = db
-    //     .prepare('SELECT id FROM Import WHERE areaId = ?')
-    //     .all(offlineAreaId)
-    //     .map((row: { id: string }) => row.id)
+    async getImport(importId) {
+      const row: ImportRecord | undefined = db
+        .prepare(
+          'SELECT state, error, importedResources, totalResources, importedBytes, totalBytes, ' +
+            'started, finished, lastUpdated FROM Import WHERE id = ?'
+        )
+        .get(importId)
 
-    //   return new ImportProgressEmitter(tilesetImportWorker, importIds)
-    // },
+      if (!row) {
+        throw NotFoundError(importId)
+      }
+
+      return row
+    },
+    async getImportPort(importId) {
+      return activeImports.get(importId)
+    },
     async createTileset(tilejson) {
       const tilesetId = getTilesetId(tilejson)
 
@@ -906,6 +979,10 @@ function init(dbPath: string): Context {
 
   migrate(db, path.resolve(__dirname, '../prisma/migrations'))
 
+  // Any import with an `active` state on startup most likely failed due to the server process stopping
+  // so we update these import records to have an error state
+  convertActiveImportsToErrorImports(db)
+
   const piscina = new Piscina({
     filename: path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
   })
@@ -914,8 +991,9 @@ function init(dbPath: string): Context {
     console.error(error)
   })
   return {
-    piscina,
+    activeImports: new Map(),
     db,
+    piscina,
     upstreamRequestsManager: new UpstreamRequestsManager(),
   }
 }

@@ -35,7 +35,11 @@ export interface Queries {
     id: string
     importedResources: number
     importedBytes: number
-    isComplete: number
+  }>
+  completeImport: Statement<{
+    id: string
+    importedResources: number
+    importedBytes: number
   }>
   upsertTileData: Statement<{
     data: Buffer
@@ -56,5 +60,12 @@ export type MessageProgress = {
   total: number
 }
 
+export type MessageComplete = {
+  type: 'complete'
+  importId: string
+  soFar: number
+  total: number
+}
+
 // Message types received by the port (main thread)
-export type PortMessage = MessageProgress
+export type PortMessage = MessageProgress | MessageComplete
