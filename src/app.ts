@@ -1,5 +1,6 @@
 import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
 import fastifySwagger from '@fastify/swagger'
+import { FastifySSEPlugin } from 'fastify-sse-v2'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
 import api, { MapServerOptions } from './api'
@@ -12,6 +13,8 @@ function createServer(
   const fastify = createFastify(fastifyOpts)
 
   fastify.register(api, mapServerOpts)
+
+  fastify.register(FastifySSEPlugin)
 
   fastify.register(fastifySwagger, {
     swagger: {

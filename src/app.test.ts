@@ -2,6 +2,7 @@ import test from 'tape'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
+import EventSource from 'eventsource'
 
 import { IdResource, Api } from './api'
 import createMapServer from './app'
@@ -16,6 +17,7 @@ import {
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
 import Database from 'better-sqlite3'
+import { FastifyServerOptions } from 'fastify'
 
 tmp.setGracefulCleanup()
 
@@ -43,7 +45,20 @@ if (!fs.existsSync(path.resolve(__dirname, '../prisma/migrations'))) {
 assertSampleTileJSONIsValid(mapboxRasterTilejson)
 validateStyleJSON(simpleRasterStylejson)
 
-mockTileServer.listen()
+mockTileServer.listen({
+  onUnhandledRequest: (req, print) => {
+    const canIgnorePath = ['/imports/progress'].some((p) =>
+      req.url.pathname.startsWith(p)
+    )
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(req.url.hostname)
+
+    if (isLocalhost && canIgnorePath) {
+      return
+    }
+
+    print.warning()
+  },
+})
 
 test.onFinish(() => {
   mockTileServer.close()
@@ -59,12 +74,19 @@ function createContext() {
     './fixtures/mbtiles/raster/countries-png.mbtiles'
   )
 
+  const createServer = (
+    fastifyOpts: FastifyServerOptions = { logger: false }
+  ) => createMapServer(fastifyOpts, { dbPath })
+
+  const server = createServer()
+
   const context = {
-    server: createMapServer({ logger: false }, { dbPath }),
+    cleanup: (s = server) => s.close(),
+    createServer,
+    server,
     sampleMbTilesPath: mbTilesPath,
     sampleTileJSON: mapboxRasterTilejson,
     sampleStyleJSON: simpleRasterStylejson,
-    cleanup: () => context.server.close(),
   }
 
   return context
@@ -355,7 +377,7 @@ test('POST /tilesets/import creates tileset', async (t) => {
 
   t.equal(importResponse.statusCode, 200)
 
-  const createdTileset = importResponse.json<TileJSON & { id: string }>()
+  const { tileset: createdTileset } = importResponse.json()
 
   const tilesetGetResponse = await server.inject({
     method: 'GET',
@@ -378,9 +400,9 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
     payload: { filePath: sampleMbTilesPath },
   })
 
-  const { id: createdTilesetId } = importResponse.json<
-    TileJSON & { id: string }
-  >()
+  const {
+    tileset: { id: createdTilesetId },
+  } = importResponse.json()
 
   const getStylesResponse = await server.inject({
     method: 'GET',
@@ -421,7 +443,7 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
-  t.plan(4)
+  t.plan(5)
 
   const { cleanup, sampleMbTilesPath, server } = createContext()
 
@@ -437,7 +459,10 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
   t.equal(importResponse1.statusCode, 200)
 
-  const { id: tilesetId1 } = importResponse1.json()
+  const {
+    import: { id: importId1 },
+    tileset: { id: tilesetId1 },
+  } = importResponse1.json()
 
   const tilesetGetResponse1 = await server.inject({
     method: 'GET',
@@ -452,7 +477,10 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
   t.equal(importResponse2.statusCode, 200)
 
-  const { id: tilesetId2 } = importResponse2.json()
+  const {
+    import: { id: importId2 },
+    tileset: { id: tilesetId2 },
+  } = importResponse2.json()
 
   const tilesetGetResponse2 = await server.inject({
     method: 'GET',
@@ -460,6 +488,8 @@ test('POST /tilesets/import multiple times using same source file works', async 
   })
 
   t.equal(tilesetGetResponse2.statusCode, 200)
+
+  t.notEqual(importId1, importId2, 'new import is created')
 
   return cleanup()
 })
@@ -484,10 +514,32 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
   const minimumProportion = 0.8
   const roughlyExpectedCount = getMbTilesByteCount()
 
-  await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
+  const {
+    import: { id: createdImportId },
+  } = await server
+    .inject({
+      method: 'POST',
+      url: '/tilesets/import',
+      payload: { filePath: sampleMbTilesPath },
+    })
+    .then((resp) => resp.json())
+
+  const address = await server.listen(0)
+
+  // Wait for the import to complete before attempting actual test
+  await new Promise<void>((res) => {
+    const evtSource = new EventSource(
+      `${address}/imports/progress/${createdImportId}`
+    )
+
+    evtSource.onmessage = (event) => {
+      const message = JSON.parse(event.data)
+
+      if (message.type === 'complete') {
+        evtSource.close()
+        res()
+      }
+    }
   })
 
   const { bytesStored } = await server
@@ -509,11 +561,33 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 test('POST /tilesets/import subsequent imports do not affect storage calculation for existing styles', async (t) => {
   const { cleanup, sampleMbTilesPath, server } = createContext()
 
+  const address = await server.listen(0)
+
+  // Creates and waits for import to finish
   async function requestImport() {
-    return await server.inject({
-      method: 'POST',
-      url: '/tilesets/import',
-      payload: { filePath: sampleMbTilesPath },
+    const {
+      import: { id: createdImportId },
+    } = await server
+      .inject({
+        method: 'POST',
+        url: '/tilesets/import',
+        payload: { filePath: sampleMbTilesPath },
+      })
+      .then((resp) => resp.json())
+
+    await new Promise<void>((res) => {
+      const evtSource = new EventSource(
+        `${address}/imports/progress/${createdImportId}`
+      )
+
+      evtSource.onmessage = (event) => {
+        const message = JSON.parse(event.data)
+
+        if (message.type === 'complete') {
+          evtSource.close()
+          res(message)
+        }
+      }
     })
   }
 
@@ -543,8 +617,251 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
   return cleanup()
 })
 /**
- * /styles tests
+ * /imports tests
  */
+
+test('GET /imports/:importId returns 404 error when import does not exist', async (t) => {
+  const { cleanup, server } = createContext()
+
+  const getImportInfoResponse = await server.inject({
+    method: 'GET',
+    url: `/imports/abc123`,
+  })
+
+  t.equal(getImportInfoResponse.statusCode, 404)
+
+  return cleanup()
+})
+
+test('GET /imports/progress/:importId returns 404 error when import does not exist', async (t) => {
+  const { cleanup, server } = createContext()
+
+  const address = await server.listen(0)
+
+  const error = await new Promise((res) => {
+    const evtSource = new EventSource(`${address}/imports/progress/abc123`)
+
+    evtSource.onerror = (err) => {
+      evtSource.close()
+      res(err)
+    }
+  })
+
+  // @ts-ignore
+  t.equal(error?.status, 404)
+
+  return cleanup()
+})
+
+test('GET /imports/:importId returns import information', async (t) => {
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  const createImportResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  t.equals(createImportResponse.statusCode, 200)
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  const getImportInfoResponse = await server.inject({
+    method: 'GET',
+    url: `/imports/${createdImportId}`,
+  })
+
+  t.equal(getImportInfoResponse.statusCode, 200)
+
+  return cleanup()
+})
+
+test('GET /imports/progress/:importId returns import progress info (SSE)', async (t) => {
+  t.plan(5)
+
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  const createImportResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  const address = await server.listen(0)
+
+  const evtSource = new EventSource(
+    `${address}/imports/progress/${createdImportId}`
+  )
+
+  try {
+    let receivedProgressEvent = false
+    let receivedFinalProgressEvent = false
+    let receivedCompletedEvent = false
+
+    const completedEventMessage = await new Promise<any>((res, rej) => {
+      evtSource.onmessage = (event) => {
+        const message = JSON.parse(event.data)
+
+        if (message.importId !== createdImportId) {
+          evtSource.close()
+          rej(
+            new Error(
+              `expected import id ${createdImportId} but message has import id of ${message.importId}`
+            )
+          )
+        }
+
+        switch (message.type) {
+          case 'progress': {
+            receivedProgressEvent = true
+
+            if (message.soFar === message.total) {
+              receivedFinalProgressEvent = true
+            }
+
+            break
+          }
+          case 'complete': {
+            receivedCompletedEvent = true
+            evtSource.close()
+            res(message)
+          }
+        }
+      }
+
+      evtSource.onerror = (err: any) => {
+        evtSource.close()
+        rej(new Error(err.message))
+      }
+    })
+
+    t.ok(receivedProgressEvent, 'at least 1 progress event received')
+    t.ok(receivedFinalProgressEvent, 'received final progress event')
+    t.ok(receivedCompletedEvent, 'completed event received')
+
+    t.equal(completedEventMessage.soFar, completedEventMessage.total)
+
+    const importGetResponse = await server.inject({
+      method: 'GET',
+      url: `/imports/${createdImportId}`,
+    })
+
+    t.equal(
+      importGetResponse.json().state,
+      'complete',
+      'import successfully recorded as complete in db'
+    )
+  } catch (err) {
+    if (err instanceof Error) {
+      t.fail(err.message)
+    }
+  }
+
+  return cleanup()
+})
+
+test('GET /imports/progress/:importId when import is already completed returns single complete event (SSE)', async (t) => {
+  t.plan(1)
+
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  const createImportResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  const address = await server.listen(0)
+
+  function createEventSource() {
+    return new EventSource(`${address}/imports/progress/${createdImportId}`)
+  }
+
+  let evtSource = createEventSource()
+
+  // Wait for the import to complete before attempting actual test
+  const expectedMessage = await new Promise((res) => {
+    evtSource.onmessage = (event) => {
+      const message = JSON.parse(event.data)
+
+      if (message.type === 'complete') {
+        evtSource.close()
+        res(message)
+      }
+    }
+  })
+
+  // Conduct actual test
+  evtSource = createEventSource()
+
+  const message = await new Promise((res) => {
+    evtSource.onmessage = (event) => {
+      const m = JSON.parse(event.data)
+
+      if (m.type !== 'complete') {
+        t.fail(`Expected first message of "${m.type}" to be "complete"`)
+      }
+
+      evtSource.close()
+      res(m)
+    }
+  })
+
+  t.same(message, expectedMessage)
+
+  return cleanup()
+})
+
+test('GET /imports/:importId on failed import returns import with error state', async (t) => {
+  const {
+    cleanup,
+    createServer,
+    sampleMbTilesPath,
+    server: server1,
+  } = createContext()
+
+  const createImportResponse = await server1.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleMbTilesPath },
+  })
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  // Close the server to simulate it going down, ideally before the import finishes
+  // Theoretically a race condition can occur where the import does finish in time,
+  // which would cause this test to fail
+  await server1.close()
+
+  const server2 = createServer()
+
+  const getImportResponse = await server2.inject({
+    method: 'GET',
+    url: `/imports/${createdImportId}`,
+  })
+
+  t.equal(getImportResponse.statusCode, 200)
+
+  const impt = getImportResponse.json()
+
+  t.equal(impt.state, 'error')
+  t.equal(impt.error, 'UNKNOWN')
+  t.ok(impt.finished)
+
+  return cleanup(server2)
+})
 
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
@@ -858,9 +1175,9 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
     payload: { filePath: sampleMbTilesPath },
   })
 
-  const { id: createdTilesetId } = importResponse.json<
-    TileJSON & { id: string }
-  >()
+  const {
+    tileset: { id: createdTilesetId },
+  } = importResponse.json()
 
   const getStylesResponse = await server.inject({
     method: 'GET',
