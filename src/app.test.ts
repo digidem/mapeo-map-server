@@ -494,6 +494,39 @@ test('POST /tilesets/import multiple times using same source file works', async 
  * /imports tests
  */
 
+test('GET /imports/:importId returns 404 error when import does not exist', async (t) => {
+  const { cleanup, server } = createContext()
+
+  const getImportInfoResponse = await server.inject({
+    method: 'GET',
+    url: `/imports/abc123`,
+  })
+
+  t.equal(getImportInfoResponse.statusCode, 404)
+
+  return cleanup()
+})
+
+test('GET /imports/progress/:importId returns 404 error when import does not exist', async (t) => {
+  const { cleanup, server } = createContext()
+
+  const address = await server.listen(0)
+
+  const error = await new Promise((res) => {
+    const evtSource = new EventSource(`${address}/imports/progress/abc123`)
+
+    evtSource.onerror = (err) => {
+      evtSource.close()
+      res(err)
+    }
+  })
+
+  // @ts-ignore
+  t.equal(error?.status, 404)
+
+  return cleanup()
+})
+
 test('GET /imports/:importId returns import information', async (t) => {
   const { cleanup, sampleMbTilesPath, server } = createContext()
 
