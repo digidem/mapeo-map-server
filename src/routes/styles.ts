@@ -32,7 +32,7 @@ function validateStyle(style: unknown): asserts style is StyleJSON {
 const styles: FastifyPluginAsync = async function (fastify) {
   fastify.get<{
     Reply: {
-      bytesStored: number | null
+      bytesStored: number
       id: string
       name: string | null
       url: string
