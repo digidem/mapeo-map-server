@@ -35,11 +35,10 @@ import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 import { PortMessage } from './lib/mbtiles_import_worker'
 import {
-  ImportError,
-  ImportState,
   convertActiveToError as convertActiveImportsToErrorImports,
   ImportRecord,
 } from './lib/imports'
+import { Sprite } from './lib/sprites'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -158,6 +157,23 @@ export interface Api {
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
   listStyles(): Promise<Array<{ name?: string; url: string } & IdResource>>
+  createSprite(info: Sprite): Promise<Sprite & IdResource>
+  getSprite(
+    id: string,
+    pixelDensity: number,
+    allowFallback?: boolean
+  ): Promise<Sprite & IdResource>
+  updateSprite(
+    id: string,
+    pixelDensity: number,
+    options: {
+      layout: string
+      data: Buffer
+      etag?: string
+      upstreamUrl?: string
+    }
+  ): Promise<Sprite & IdResource>
+  deleteSprite(id: string, pixelDensity: number): Promise<void>
 }
 
 function createApi({
@@ -236,6 +252,16 @@ function createApi({
       db
         .prepare('SELECT COUNT(*) AS count FROM Style WHERE id = ?')
         .get(styleId).count > 0
+    )
+  }
+
+  function spriteExists(spriteId: string, pixelDensity: number) {
+    return (
+      db
+        .prepare<{ spriteId: string; pixelDensity: number }>(
+          'SELECT COUNT(*) AS count FROM Style WHERE id = :spriteId AND pixelDensity = :pixelDensity'
+        )
+        .get({ spriteId, pixelDensity }).count > 0
     )
   }
 
@@ -937,6 +963,69 @@ function createApi({
       })
 
       deleteStyleTransaction()
+    },
+    async createSprite(info: Sprite) {
+      if (spriteExists(info.id, info.pixelDensity)) {
+        throw new AlreadyExistsError(info.id)
+      }
+
+      db.prepare<Sprite>(
+        'INSERT INTO Sprite (id, pixelDensity, data, layout, etag, upstreamUrl) ' +
+          'VALUES (:id, :pixelDensity, :data, :layout, :etag, :upstreamUrl)'
+      ).run(info)
+
+      return info
+    },
+    // if `allowFallback` is true, may return highest available pixel density that's less than the requested one
+    async getSprite(id, pixelDensity, allowFallback = false) {
+      const row: Sprite | undefined = db
+        .prepare<{ id: string; pixelDensity: number }>(
+          `SELECT * FROM Sprite WHERE id = :id AND pixelDensity ${
+            allowFallback ? '<=' : '='
+          } :pixelDensity`
+        )
+        .get({
+          id,
+          pixelDensity,
+        })
+
+      if (!row) {
+        throw new NotFoundError(id)
+      }
+
+      return row
+    },
+    async deleteSprite(id, pixelDensity) {
+      if (!spriteExists(id, pixelDensity)) {
+        throw new NotFoundError(id)
+      }
+
+      db.prepare<{ id: string; pixelDensity: number }>(
+        'DELETE FROM Sprite WHERE id = :id AND pixelDensity = :pixelDensity'
+      ).run({
+        id,
+        pixelDensity,
+      })
+    },
+    async updateSprite(id, pixelDensity, options) {
+      if (!spriteExists(id, pixelDensity)) {
+        throw new NotFoundError(id)
+      }
+
+      const spriteToSave: Sprite = {
+        ...options,
+        etag: options.etag || null,
+        upstreamUrl: options.upstreamUrl || null,
+        id,
+        pixelDensity,
+      }
+
+      db.prepare<Sprite>(
+        'UPDATE Sprite SET data = :data, layout = :layout, etag = :etag, upstreamUrl = :upstreamUrl ' +
+          'WHERE id = :id AND pixelDensity = :pixelDensity'
+      ).run(spriteToSave)
+
+      return spriteToSave
     },
   }
   return api
