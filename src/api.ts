@@ -29,10 +29,23 @@ import {
   createRasterStyle,
   uncompositeStyle,
 } from './lib/stylejson'
-import { getTilesetId, hash, encodeBase32, generateId } from './lib/utils'
+import {
+  getTilesetId,
+  hash,
+  encodeBase32,
+  generateId,
+  isRejectedPromiseResult,
+} from './lib/utils'
 import { migrate } from './lib/migrations'
-import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
-import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
+import {
+  UpstreamRequestsManager,
+  UpstreamResponse,
+} from './lib/upstream_requests_manager'
+import {
+  isMapboxURL,
+  normalizeSourceURL,
+  normalizeSpriteURL,
+} from './lib/mapbox_urls'
 import { PortMessage } from './lib/mbtiles_import_worker'
 import {
   convertActiveToError as convertActiveImportsToErrorImports,
@@ -384,6 +397,83 @@ function createApi({
     }
 
     return sourceIdToTilesetId
+  }
+
+  async function createOfflineSprites({
+    accessToken,
+    upstreamSpriteUrl,
+  }: {
+    accessToken?: string
+    upstreamSpriteUrl: string
+  }) {
+    if (isMapboxURL(upstreamSpriteUrl) && !accessToken) {
+      throw new MBAccessTokenRequiredError()
+    }
+
+    // Download the sprite layout and image for both 1x and 2x pixel densities
+    const upstreamRequests1x = Promise.all([
+      upstreamRequestsManager.getUpstream({
+        url: normalizeSpriteURL(upstreamSpriteUrl, '', '.json', accessToken),
+        responseType: 'json',
+      }),
+      upstreamRequestsManager.getUpstream({
+        url: normalizeSpriteURL(upstreamSpriteUrl, '', '.png', accessToken),
+        responseType: 'buffer',
+      }),
+    ])
+
+    const upstreamRequests2x = Promise.all([
+      upstreamRequestsManager.getUpstream({
+        url: normalizeSpriteURL(upstreamSpriteUrl, '2x', '.json', accessToken),
+        responseType: 'json',
+      }),
+      upstreamRequestsManager.getUpstream({
+        url: normalizeSpriteURL(upstreamSpriteUrl, '2x', '.png', accessToken),
+        responseType: 'buffer',
+      }),
+    ])
+
+    const [responses1x, responses2x] = await Promise.allSettled([
+      upstreamRequests1x,
+      upstreamRequests2x,
+    ])
+
+    const spriteId = generateId()
+
+    // TODO: Throw an error if either of the 1x requests failed i.e. responses1x.status === 'rejected'
+
+    if (responses1x.status === 'fulfilled') {
+      const [layoutAssetResponse, imageAssetResponse] = responses1x.value
+      await saveSprite(layoutAssetResponse, imageAssetResponse, 1)
+    }
+
+    if (responses2x.status === 'fulfilled') {
+      const [layoutAssetResponse, imageAssetResponse] = responses2x.value
+      await saveSprite(layoutAssetResponse, imageAssetResponse, 2)
+    }
+
+    return spriteId
+
+    async function saveSprite(
+      layoutResponse: UpstreamResponse<'json'>,
+      imageResponse: UpstreamResponse<'buffer'>,
+      pixelDensity: number
+    ) {
+      const layout = JSON.stringify(layoutResponse.data)
+      // TODO: Which etag do we want to use between the layout and image responses?
+      const etag = layoutResponse.etag || null
+
+      const sprite = {
+        id: spriteId,
+        data: imageResponse.data,
+        etag,
+        layout,
+        pixelDensity,
+        upstreamUrl: upstreamSpriteUrl,
+      }
+
+      await api.createSprite(sprite)
+    }
   }
 
   const api: Api = {
@@ -847,17 +937,28 @@ function createApi({
 
       const styleToSave: StyleJSON = await uncompositeStyle(style)
 
+      let spriteId: string | undefined
+
+      if (styleToSave.sprite) {
+        spriteId = await createOfflineSprites({
+          accessToken,
+          upstreamSpriteUrl: styleToSave.sprite,
+        })
+      }
+
       db.prepare<{
         id: string
         stylejson: string
+        spriteId?: string
         etag?: string
         upstreamUrl?: string
         sourceIdToTilesetId: string
       }>(
-        'INSERT INTO Style (id, stylejson, etag, upstreamUrl, sourceIdToTilesetId) VALUES (:id, :stylejson, :etag, :upstreamUrl, :sourceIdToTilesetId)'
+        'INSERT INTO Style (id, stylejson, spriteId, etag, upstreamUrl, sourceIdToTilesetId) VALUES (:id, :stylejson, :spriteId, :etag, :upstreamUrl, :sourceIdToTilesetId)'
       ).run({
         id: styleId,
         stylejson: JSON.stringify(styleToSave),
+        spriteId,
         etag,
         upstreamUrl,
         sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
@@ -982,7 +1083,7 @@ function createApi({
         .prepare<{ id: string; pixelDensity: number }>(
           `SELECT * FROM Sprite WHERE id = :id AND pixelDensity ${
             allowFallback ? '<=' : '='
-          } :pixelDensity`
+          } :pixelDensity LIMIT 1`
         )
         .get({
           id,

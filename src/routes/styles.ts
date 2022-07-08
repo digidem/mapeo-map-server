@@ -1,9 +1,16 @@
 import { FastifyPluginAsync } from 'fastify'
 import createError from '@fastify/error'
 import got from 'got'
+import { Static, Type as T } from '@sinclair/typebox'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
+import { parseSpriteUrlName } from '../lib/sprites'
+
+const GetSpriteParamsSchema = T.Object({
+  styleId: T.String(),
+  spriteInfo: T.String(), // contains desired sprite id (and maybe pixel density)
+})
 
 const InvalidStyleError = createError(
   'FST_INVALID_STYLE',
@@ -124,6 +131,50 @@ const styles: FastifyPluginAsync = async function (fastify) {
     async function (request, reply) {
       await request.api.deleteStyle(request.params.id)
       reply.code(204).send()
+    }
+  )
+
+  /**
+   * Mapbox SDKs will send requests to json and png endpoints for a corresponding sprite url
+   * https://docs.mapbox.com/mapbox-gl-js/style-spec/sprite/#loading-sprite-files
+   */
+
+  fastify.get<{
+    Params: Static<typeof GetSpriteParamsSchema>
+  }>(
+    '/:styleId/sprites/:spriteInfo.png',
+    {
+      schema: {
+        params: GetSpriteParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id, pixelDensity } = parseSpriteUrlName(request.params.spriteInfo)
+
+      // TODO: Will the sprite id match the style id? Is the styleId param necessary in that case?
+      const { data } = await request.api.getSprite(id, pixelDensity, true)
+
+      reply.header('Content-Type', 'image/png')
+      reply.send(data)
+    }
+  )
+
+  fastify.get<{
+    Params: Static<typeof GetSpriteParamsSchema>
+  }>(
+    '/:styleId/sprites/:spriteInfo.json',
+    {
+      schema: {
+        params: GetSpriteParamsSchema,
+      },
+    },
+    async (request) => {
+      const { id, pixelDensity } = parseSpriteUrlName(request.params.spriteInfo)
+
+      // TODO: Will the sprite id match the style id? Is the styleId param necessary in that case?
+      const { layout } = await request.api.getSprite(id, pixelDensity, true)
+
+      return layout
     }
   )
 }
