@@ -51,7 +51,7 @@ import {
   convertActiveToError as convertActiveImportsToErrorImports,
   ImportRecord,
 } from './lib/imports'
-import { Sprite } from './lib/sprites'
+import { Sprite, SpriteIndex } from './lib/sprites'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -105,6 +105,12 @@ const MBTilesInvalidMetadataError = createError(
 const UpstreamJsonValidationError = createError(
   'FST_UPSTREAM_VALIDATION',
   'JSON validation failed for upstream resource from %s: %s',
+  500
+)
+
+const FailedUpstreamFetchError = createError(
+  'FST_UPSTREAM_FETCH',
+  'Failed to fetch upstream resources from %s',
   500
 )
 
@@ -166,7 +172,10 @@ export interface Api {
       upstreamUrl?: string
     }
   ): Promise<{ style: StyleJSON } & IdResource>
-  updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
+  updateStyle(
+    id: string,
+    options: { accessToken?: string; style: StyleJSON }
+  ): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
   listStyles(): Promise<
@@ -216,8 +225,8 @@ function createApi({
     return `${apiUrl}/styles/${styleId}`
   }
 
-  function getSpriteUrl(styleId: string): string {
-    return `${apiUrl}/sprites/${styleId}`
+  function getSpriteUrl(styleId: string, spriteId: string): string {
+    return `${getStyleUrl(styleId)}/sprites/${spriteId}`
   }
 
   function getGlyphsUrl(styleId: string): string {
@@ -226,10 +235,14 @@ function createApi({
 
   function addOfflineUrls({
     sourceIdToTilesetId,
+    spriteId,
     style,
+    styleId,
   }: {
     sourceIdToTilesetId: SourceIdToTilesetId
+    spriteId?: string
     style: StyleJSON
+    styleId: string
   }): StyleJSON {
     const updatedSources: StyleJSON['sources'] = {}
 
@@ -247,10 +260,11 @@ function createApi({
       }
     }
 
-    // TODO: Remap glyphs and sprite URLs to map server
+    // TODO: Remap glyphs URL to map server
     return {
       ...style,
       sources: updatedSources,
+      sprite: spriteId ? getSpriteUrl(styleId, spriteId) : undefined,
     }
   }
 
@@ -401,13 +415,19 @@ function createApi({
     return sourceIdToTilesetId
   }
 
-  async function createOfflineSprites({
+  async function fetchUpstreamSprites({
     accessToken,
     upstreamSpriteUrl,
   }: {
     accessToken?: string
     upstreamSpriteUrl: string
-  }) {
+  }): Promise<{
+    id: string
+    sprites: Map<
+      number,
+      { data: Buffer; etag?: string; layout: SpriteIndex } | Error
+    >
+  }> {
     if (isMapboxURL(upstreamSpriteUrl) && !accessToken) {
       throw new MBAccessTokenRequiredError()
     }
@@ -440,41 +460,40 @@ function createApi({
       upstreamRequests2x,
     ])
 
+    // TODO: Deterministically generate this using a hash of the layout response?
     const spriteId = generateId()
 
-    // TODO: Throw an error if either of the 1x requests failed i.e. responses1x.status === 'rejected'
+    const upstreamSprites: Awaited<
+      ReturnType<typeof fetchUpstreamSprites>
+    >['sprites'] = new Map()
 
-    if (responses1x.status === 'fulfilled') {
-      const [layoutAssetResponse, imageAssetResponse] = responses1x.value
-      await saveSprite(layoutAssetResponse, imageAssetResponse, 1)
+    upstreamSprites.set(1, extractSpriteInfo(responses1x))
+    upstreamSprites.set(2, extractSpriteInfo(responses2x))
+
+    return {
+      id: spriteId,
+      sprites: upstreamSprites,
     }
 
-    if (responses2x.status === 'fulfilled') {
-      const [layoutAssetResponse, imageAssetResponse] = responses2x.value
-      await saveSprite(layoutAssetResponse, imageAssetResponse, 2)
-    }
-
-    return spriteId
-
-    async function saveSprite(
-      layoutResponse: UpstreamResponse<'json'>,
-      imageResponse: UpstreamResponse<'buffer'>,
-      pixelDensity: number
+    function extractSpriteInfo(
+      settledResponseResult: PromiseSettledResult<
+        [UpstreamResponse<'json'>, UpstreamResponse<'buffer'>]
+      >
     ) {
-      const layout = JSON.stringify(layoutResponse.data)
-      // TODO: Which etag do we want to use between the layout and image responses?
-      const etag = layoutResponse.etag || null
+      if (settledResponseResult.status === 'fulfilled') {
+        const [layoutAssetResponse, imageAssetResponse] =
+          settledResponseResult.value
 
-      const sprite = {
-        id: spriteId,
-        data: imageResponse.data,
-        etag,
-        layout,
-        pixelDensity,
-        upstreamUrl: upstreamSpriteUrl,
+        return {
+          // TODO: Validate that the JSON here conforms to the SpriteIndexSchema
+          // Throw UpstreamJsonValidationError if so
+          layout: layoutAssetResponse.data as SpriteIndex,
+          data: imageAssetResponse.data,
+          etag: layoutAssetResponse.etag,
+        }
+      } else {
+        return new Error(settledResponseResult.reason)
       }
-
-      await api.createSprite(sprite)
     }
   }
 
@@ -932,21 +951,54 @@ function createApi({
         )
       }
 
+      let spriteId: string | undefined
+
+      if (style.sprite) {
+        let spriteId: string | undefined
+        let upstreamSprites:
+          | Awaited<ReturnType<typeof fetchUpstreamSprites>>['sprites']
+          | undefined
+        try {
+          const result = await fetchUpstreamSprites({
+            accessToken,
+            upstreamSpriteUrl: style.sprite,
+          })
+
+          if (
+            [...result.sprites.values()].every((info) => info instanceof Error)
+          ) {
+            throw new FailedUpstreamFetchError(style.sprite)
+          }
+
+          spriteId = result.id
+          upstreamSprites = result.sprites
+        } catch (err) {
+          // This will either be an error about the accesstoken or the inability to fetch any sprites upstream
+          throw err
+        }
+
+        // TODO: Wrap in transaction?
+        for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
+          // TODO: Should we report the error here?
+          if (spriteInfo instanceof Error) continue
+
+          await api.createSprite({
+            id: spriteId,
+            data: spriteInfo.data,
+            etag: spriteInfo.etag || null,
+            layout: JSON.stringify(spriteInfo.layout),
+            pixelDensity,
+            upstreamUrl: style.sprite,
+          })
+        }
+      }
+
       const sourceIdToTilesetId = await createOfflineSources({
         accessToken,
         sources: style.sources,
       })
 
       const styleToSave: StyleJSON = await uncompositeStyle(style)
-
-      let spriteId: string | undefined
-
-      if (styleToSave.sprite) {
-        spriteId = await createOfflineSprites({
-          accessToken,
-          upstreamSpriteUrl: styleToSave.sprite,
-        })
-      }
 
       db.prepare<{
         id: string
@@ -956,7 +1008,8 @@ function createApi({
         upstreamUrl?: string
         sourceIdToTilesetId: string
       }>(
-        'INSERT INTO Style (id, stylejson, spriteId, etag, upstreamUrl, sourceIdToTilesetId) VALUES (:id, :stylejson, :spriteId, :etag, :upstreamUrl, :sourceIdToTilesetId)'
+        'INSERT INTO Style (id, stylejson, spriteId, etag, upstreamUrl, sourceIdToTilesetId) ' +
+          'VALUES (:id, :stylejson, :spriteId, :etag, :upstreamUrl, :sourceIdToTilesetId)'
       ).run({
         id: styleId,
         stylejson: JSON.stringify(styleToSave),
@@ -969,14 +1022,14 @@ function createApi({
       return {
         style: addOfflineUrls({
           sourceIdToTilesetId,
+          spriteId,
           style: styleToSave,
+          styleId,
         }),
         id: styleId,
       }
     },
-
-    // TODO: May need to accept an access token
-    async updateStyle(id, style) {
+    async updateStyle(id, { accessToken, style }) {
       if (!styleExists(id)) {
         throw new NotFoundError(id)
       }
@@ -986,6 +1039,11 @@ function createApi({
       })
 
       const styleToSave: StyleJSON = await uncompositeStyle(style)
+
+      // TODO: What's the strategy for updating sprites in this case?
+      // Do we do it eagerly i.e. fetch the upstream sprites, delete old ones, create new ones?
+      // Or do we attempt to update existing sprites if possible, keeping in mind that sprite ids may eventually be
+      // deterministically generated as a hash of the sprite content (currently they're not)?
 
       db.prepare<{
         id: string
@@ -1002,13 +1060,14 @@ function createApi({
       return addOfflineUrls({
         sourceIdToTilesetId,
         style: styleToSave,
+        styleId: id,
       })
     },
 
     async listStyles() {
       return db
         .prepare(
-          "SELECT Style.id, spriteId, json_extract(stylejson, '$.name') as name FROM Style"
+          "SELECT Style.id, json_extract(stylejson, '$.name') as name FROM Style"
         )
         .all()
         .map((row: { id: string; name: string | null }) => ({
@@ -1023,10 +1082,11 @@ function createApi({
             id: string
             stylejson: string
             sourceIdToTilesetId: string
+            spriteId: string | null
           }
         | undefined = db
         .prepare(
-          'SELECT id, stylejson, sourceIdToTilesetId FROM Style WHERE id = ?'
+          'SELECT id, stylejson, sourceIdToTilesetId, spriteId FROM Style WHERE id = ?'
         )
         .get(id)
 
@@ -1046,7 +1106,9 @@ function createApi({
 
       return addOfflineUrls({
         sourceIdToTilesetId,
+        spriteId: row.spriteId || undefined,
         style,
+        styleId: id,
       })
     },
     async deleteStyle(id: string) {
