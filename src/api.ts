@@ -973,7 +973,7 @@ function createApi({
           spriteId = result.id
           upstreamSprites = result.sprites
         } catch (err) {
-          // This will either be an error about the accesstoken or the inability to fetch any sprites upstream
+          // This will either be an error about the access token or the inability to fetch any sprites upstream
           throw err
         }
 
