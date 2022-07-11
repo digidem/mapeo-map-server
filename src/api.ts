@@ -1116,7 +1116,7 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      // TODO Delete any orphaned tilesets. Also how do we handle glpyhs here?
+      // TODO Delete any orphaned tilesets. Also how do we handle glyphs here?
       const deleteStyleTransaction = db.transaction(() => {
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
