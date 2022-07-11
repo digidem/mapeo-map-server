@@ -33,12 +33,6 @@ export const SpriteIndexSchema = T.Record(
 
 export type SpriteIndex = Static<typeof SpriteIndexSchema>
 
-const REQUESTABLE_FORMATS = ['json', 'png']
-
-export function isRequestableFormat(format: string) {
-  return REQUESTABLE_FORMATS.includes(format)
-}
-
 // TODO: Rename to something clearer
 export function parseSpriteUrlName(input: string): {
   id: string
