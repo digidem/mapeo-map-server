@@ -1116,14 +1116,15 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      // TODO
-      // - Delete any orphaned tilesets and sprites
-      // - How to handle glpyhs here?
+      // TODO Delete any orphaned tilesets. Also how do we handle glpyhs here?
       const deleteStyleTransaction = db.transaction(() => {
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
         db.prepare('DELETE FROM OfflineArea WHERE styleId = ?').run(id)
+        db.prepare(
+          'DELETE FROM Sprite WHERE Sprite.id IN (SELECT spriteId FROM Style WHERE Style.id = ?)'
+        ).run(id)
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
       })
 
