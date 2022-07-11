@@ -169,7 +169,9 @@ export interface Api {
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<Array<{ name?: string; url: string } & IdResource>>
+  listStyles(): Promise<
+    Array<{ name: string | null; url: string } & IdResource>
+  >
   createSprite(info: Sprite): Promise<Sprite & IdResource>
   getSprite(
     id: string,
@@ -1006,10 +1008,10 @@ function createApi({
     async listStyles() {
       return db
         .prepare(
-          "SELECT Style.id, json_extract(stylejson, '$.name') as name FROM Style"
+          "SELECT Style.id, spriteId, json_extract(stylejson, '$.name') as name FROM Style"
         )
         .all()
-        .map((row: { id: string; name?: string }) => ({
+        .map((row: { id: string; name: string | null }) => ({
           ...row,
           url: getStyleUrl(row.id),
         }))

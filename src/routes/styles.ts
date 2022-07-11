@@ -5,10 +5,7 @@ import { Static, Type as T } from '@sinclair/typebox'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
-import {
-  parseSpriteUrlName,
-  SpriteIndexSchema,
-} from '../lib/sprites'
+import { parseSpriteUrlName, SpriteIndexSchema } from '../lib/sprites'
 
 const GetSpriteParamsSchema = T.Object({
   styleId: T.String(),
@@ -40,7 +37,7 @@ function validateStyle(style: unknown): asserts style is StyleJSON {
 }
 
 const styles: FastifyPluginAsync = async function (fastify) {
-  fastify.get<{ Reply: { id: string; name?: string; url: string }[] }>(
+  fastify.get<{ Reply: { id: string; name: string | null; url: string }[] }>(
     '/',
     async function (request) {
       return request.api.listStyles()
