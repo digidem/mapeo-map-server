@@ -1,3 +1,5 @@
+import { Static, Type as T } from '@sinclair/typebox'
+
 export interface Sprite {
   id: string
   data: Buffer
@@ -6,6 +8,29 @@ export interface Sprite {
   etag: string | null
   upstreamUrl: string | null
 }
+
+// https://docs.mapbox.com/mapbox-gl-js/style-spec/sprite/#index-file
+export const SpriteIndexSchema = T.Record(
+  T.String(),
+  T.Object({
+    width: T.Number(),
+    height: T.Number(),
+    x: T.Number(),
+    y: T.Number(),
+    pixelRatio: T.Number(),
+    content: T.Optional(
+      T.Tuple([T.Number(), T.Number(), T.Number(), T.Number()])
+    ),
+    stretchX: T.Optional(
+      T.Array(T.Tuple([T.Number(), T.Number()]), { maxItems: 2 })
+    ),
+    stretchY: T.Optional(
+      T.Array(T.Tuple([T.Number(), T.Number()]), { maxItems: 2 })
+    ),
+  })
+)
+
+export type SpriteIndex = Static<typeof SpriteIndexSchema>
 
 const REQUESTABLE_FORMATS = ['json', 'png']
 

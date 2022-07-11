@@ -5,7 +5,10 @@ import { Static, Type as T } from '@sinclair/typebox'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
-import { parseSpriteUrlName } from '../lib/sprites'
+import {
+  parseSpriteUrlName,
+  SpriteIndexSchema,
+} from '../lib/sprites'
 
 const GetSpriteParamsSchema = T.Object({
   styleId: T.String(),
@@ -166,6 +169,9 @@ const styles: FastifyPluginAsync = async function (fastify) {
     {
       schema: {
         params: GetSpriteParamsSchema,
+        response: {
+          200: SpriteIndexSchema,
+        },
       },
     },
     async (request) => {
@@ -174,7 +180,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       // TODO: Will the sprite id match the style id? Is the styleId param necessary in that case?
       const { layout } = await request.api.getSprite(id, pixelDensity, true)
 
-      return layout
+      return JSON.parse(layout)
     }
   )
 }
