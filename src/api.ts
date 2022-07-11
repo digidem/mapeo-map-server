@@ -486,7 +486,7 @@ function createApi({
 
         return {
           // TODO: Validate that the JSON here conforms to the SpriteIndexSchema
-          // Throw UpstreamJsonValidationError if so
+          // Throw UpstreamJsonValidationError if it doesn't
           layout: layoutAssetResponse.data as SpriteIndex,
           data: imageAssetResponse.data,
           etag: layoutAssetResponse.etag,
