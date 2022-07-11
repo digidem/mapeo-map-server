@@ -1,5 +1,6 @@
 import { Static, Type as T } from '@sinclair/typebox'
 
+// This is the 1-to-1 representation of the database schema record as defined in schema.prisma
 export interface Sprite {
   id: string
   data: Buffer
