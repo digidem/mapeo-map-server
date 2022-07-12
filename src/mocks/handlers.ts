@@ -1,5 +1,8 @@
 import { rest } from 'msw'
+import fs from 'fs'
 import { createHash } from 'crypto'
+import path from 'path'
+
 import { TileJSON } from '../lib/tilejson'
 
 export const handlers = [
@@ -80,6 +83,50 @@ export const handlers = [
       ctx.body(JSON.stringify(tilejson))
     )
   }),
+  rest.get(
+    'https://api.mapbox.com/styles/v1/:username/:styleId/:name.:format',
+    async (req, res, ctx) => {
+      const { username, name, format } = req.params
+
+      const pixelDensity = parseInt((name as string).split('@')[1], 10) || 1
+
+      const densitySuffix = pixelDensity === 1 ? '' : `@${pixelDensity}x`
+
+      const relativeFixturePathWithoutExtension = `../fixtures/sprites/${username}/sprite${densitySuffix}`
+
+      if (format === 'json') {
+        const spritejson = fs.readFileSync(
+          path.join(__dirname, `${relativeFixturePathWithoutExtension}.json`),
+          'utf8'
+        )
+
+        const etag = createETag(spritejson)
+
+        return res(
+          ctx.set({ 'Content-Type': 'application/json', Etag: etag }),
+          ctx.body(spritejson)
+        )
+      }
+
+      if (format === 'png') {
+        const imageBuffer = fs.readFileSync(
+          path.resolve(__dirname, `${relativeFixturePathWithoutExtension}.png`)
+        )
+
+        const etag = createETag(imageBuffer)
+
+        return res(
+          ctx.set({
+            'Content-Type': 'image/png',
+            'Last-Modified': new Date().toUTCString(),
+            'Content-Length': imageBuffer.byteLength.toString(),
+            ETag: etag,
+          }),
+          ctx.body(imageBuffer)
+        )
+      }
+    }
+  ),
 ]
 
 // An adjusted version of https://github.com/jshttp/etag/blob/4664b6e53c85a56521076f9c5004dd9626ae10c8/index.js#L39

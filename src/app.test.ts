@@ -1005,13 +1005,13 @@ test('DELETE /styles/:styleId when style does not exist returns 404 status code'
 })
 
 test('DELETE /styles/:styleId when style exists returns 204 status code and empty body', async (t) => {
-  const { cleanup, server } = createContext()
+  const { sampleStyleJSON, cleanup, server } = createContext()
 
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
     payload: {
-      style: simpleRasterStylejson,
+      style: sampleStyleJSON,
       accessToken: DUMMY_MB_ACCESS_TOKEN,
     },
   })
@@ -1102,6 +1102,207 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
   })
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
+
+  return cleanup()
+})
+
+test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 when sprite does not exit', async (t) => {
+  const { cleanup, server } = createContext()
+
+  const getSpriteImageResponse = await server.inject({
+    method: 'GET',
+    url: '/styles/abc123/sprites/abc123.png',
+  })
+
+  t.equal(getSpriteImageResponse.statusCode, 404)
+
+  const getSpriteLayoutResponse = await server.inject({
+    method: 'GET',
+    url: '/styles/abc123/sprites/abc123.json',
+  })
+
+  t.equal(getSpriteLayoutResponse.statusCode, 404)
+
+  return cleanup()
+})
+test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns correct sprite asset', async (t) => {
+  const { sampleStyleJSON, cleanup, server } = createContext()
+
+  const styleWithSprite = {
+    ...sampleStyleJSON,
+    sprite: 'mapbox://sprites/terrastories/test',
+  }
+
+  const createStyleResponse = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: {
+      style: styleWithSprite,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  const {
+    style: { sprite },
+  } = createStyleResponse.json()
+
+  t.ok(sprite)
+
+  const spriteEndpointPath = new URL(sprite).pathname
+
+  function createSpriteEndpoint(pixelDensity: number, format: string) {
+    return `${spriteEndpointPath}${
+      pixelDensity > 1 ? `@${pixelDensity}x` : ''
+    }.${format}`
+  }
+
+  const existingPixelDensities = [1, 2]
+
+  for (const density of existingPixelDensities) {
+    const getSpriteImageResponse = await server.inject({
+      method: 'GET',
+      url: createSpriteEndpoint(density, 'png'),
+    })
+
+    t.equal(getSpriteImageResponse.statusCode, 200)
+    t.equal(getSpriteImageResponse.headers['content-type'], 'image/png')
+    t.ok(
+      parseInt(
+        getSpriteImageResponse.headers['content-length']?.toString() || '',
+        10
+      ) > 0
+    )
+
+    const getSpriteLayoutResponse = await server.inject({
+      method: 'GET',
+      url: createSpriteEndpoint(density, 'json'),
+    })
+
+    t.equal(getSpriteLayoutResponse.statusCode, 200)
+    t.ok(getSpriteLayoutResponse.json())
+  }
+
+  return cleanup()
+})
+
+test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an available fallback asset', async (t) => {
+  const { sampleStyleJSON, cleanup, server } = createContext()
+
+  const styleWithSprite = {
+    ...sampleStyleJSON,
+    sprite: 'mapbox://sprites/terrastories/test',
+  }
+
+  const createStyleResponse = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: {
+      style: styleWithSprite,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  const {
+    style: { sprite },
+  } = createStyleResponse.json()
+
+  t.ok(sprite)
+
+  const spriteEndpointPath = new URL(sprite).pathname
+
+  const getSpriteImage2xResponse = await server.inject({
+    method: 'GET',
+    url: `${spriteEndpointPath}@2x.png`,
+  })
+
+  const getSpriteImage3xResponse = await server.inject({
+    method: 'GET',
+    url: `${spriteEndpointPath}@3x.png`,
+  })
+
+  t.equal(getSpriteImage3xResponse.statusCode, 200)
+  t.equal(getSpriteImage3xResponse.headers['content-type'], 'image/png')
+  t.ok(
+    parseInt(
+      getSpriteImage3xResponse.headers['content-length']?.toString() || '',
+      10
+    ) > 0
+  )
+
+  t.equal(getSpriteImage3xResponse.body, getSpriteImage2xResponse.body)
+
+  const getSpriteLayout1xResponse = await server.inject({
+    method: 'GET',
+    url: `${spriteEndpointPath}@2x.json`,
+  })
+
+  const getSpriteLayout3xResponse = await server.inject({
+    method: 'GET',
+    url: `${spriteEndpointPath}@3x.json`,
+  })
+
+  t.equal(getSpriteLayout3xResponse.statusCode, 200)
+  t.deepEqual(
+    getSpriteLayout3xResponse.json(),
+    getSpriteLayout1xResponse.json()
+  )
+
+  return cleanup()
+})
+
+test.only('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
+  const { sampleStyleJSON, cleanup, server } = createContext()
+
+  const styleWithSprite = {
+    ...sampleStyleJSON,
+    sprite: 'mapbox://sprites/terrastories/test',
+  }
+
+  const createStyleResponse = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: {
+      style: styleWithSprite,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.equal(createStyleResponse.statusCode, 200)
+
+  const {
+    id: styleId,
+    style: { sprite },
+  } = createStyleResponse.json()
+
+  const spriteEndpointPath = new URL(sprite).pathname
+
+  await server.inject({
+    method: 'DELETE',
+    url: `/styles/${styleId}`,
+  })
+
+  function createSpriteEndpoint(pixelDensity: number, format: string) {
+    return `${spriteEndpointPath}${
+      pixelDensity > 1 ? `@${pixelDensity}x` : ''
+    }.${format}`
+  }
+
+  const pixelDensities = [1, 2]
+
+  for (const density of pixelDensities) {
+    const getSpriteImageResponse = await server.inject({
+      method: 'GET',
+      url: createSpriteEndpoint(density, 'png'),
+    })
+
+    const getSpriteLayoutResponse = await server.inject({
+      method: 'GET',
+      url: createSpriteEndpoint(density, 'json'),
+    })
+
+    t.equal(getSpriteImageResponse.statusCode, 404)
+    t.equal(getSpriteLayoutResponse.statusCode, 404)
+  }
 
   return cleanup()
 })
