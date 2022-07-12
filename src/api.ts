@@ -287,7 +287,7 @@ function createApi({
     return (
       db
         .prepare<{ spriteId: string; pixelDensity: number }>(
-          'SELECT COUNT(*) AS count FROM Style WHERE id = :spriteId AND pixelDensity = :pixelDensity'
+          'SELECT COUNT(*) AS count FROM Sprite WHERE id = :spriteId AND pixelDensity = :pixelDensity'
         )
         .get({ spriteId, pixelDensity }).count > 0
     )
@@ -442,11 +442,11 @@ function createApi({
 
     const upstreamRequests2x = Promise.all([
       upstreamRequestsManager.getUpstream({
-        url: normalizeSpriteURL(upstreamSpriteUrl, '2x', '.json', accessToken),
+        url: normalizeSpriteURL(upstreamSpriteUrl, '@2x', '.json', accessToken),
         responseType: 'json',
       }),
       upstreamRequestsManager.getUpstream({
-        url: normalizeSpriteURL(upstreamSpriteUrl, '2x', '.png', accessToken),
+        url: normalizeSpriteURL(upstreamSpriteUrl, '@2x', '.png', accessToken),
         responseType: 'buffer',
       }),
     ])
@@ -966,6 +966,8 @@ function createApi({
             accessToken,
             upstreamSpriteUrl: style.sprite,
           })
+
+          console.log(result)
 
           if (
             [...result.sprites.values()].every((info) => info instanceof Error)
