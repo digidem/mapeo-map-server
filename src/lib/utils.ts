@@ -10,7 +10,7 @@ export function hash(data: string | Buffer): Buffer {
 }
 
 /**
- * Generate a random ID
+ * Generate a rand om ID
  */
 export function generateId(): string {
   return encodeBase32(randomBytes(16))

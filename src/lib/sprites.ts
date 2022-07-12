@@ -1,4 +1,7 @@
 import { Static, Type as T } from '@sinclair/typebox'
+import Ajv from 'ajv/dist/2019'
+
+import { encodeBase32, hash } from './utils'
 
 // This is the 1-to-1 representation of the database schema record as defined in schema.prisma
 export interface Sprite {
@@ -33,6 +36,10 @@ export const SpriteIndexSchema = T.Record(
 
 export type SpriteIndex = Static<typeof SpriteIndexSchema>
 
+const ajv = new Ajv()
+
+export const validateSpriteIndex = ajv.compile<SpriteIndex>(SpriteIndexSchema)
+
 // TODO: Rename to something clearer
 export function parseSpriteUrlName(input: string): {
   id: string
@@ -48,4 +55,30 @@ export function parseSpriteUrlName(input: string): {
     id: match ? input.split(match, 1)[0] : input,
     pixelDensity: pixelDensity ? parseInt(pixelDensity, 10) : 1,
   }
+}
+
+export type UpstreamSpriteResponse =
+  | { data: Buffer; etag?: string; layout: SpriteIndex }
+  | Error
+
+function generateSpriteHashComponent(
+  spriteInfo: UpstreamSpriteResponse
+): Buffer {
+  if (spriteInfo instanceof Error) return Buffer.from('')
+
+  return Buffer.concat([
+    hash(spriteInfo.data),
+    hash(JSON.stringify(spriteInfo.layout)),
+  ])
+}
+
+// 1. Generate a hash derived from each sprite's image and layout responses
+// 2. Generate a hash derived from each sprite hash
+// 3. Encode to base 32
+export function generateSpriteId(
+  ...spriteResponses: Array<UpstreamSpriteResponse>
+) {
+  return encodeBase32(
+    hash(Buffer.concat(spriteResponses.map(generateSpriteHashComponent)))
+  )
 }

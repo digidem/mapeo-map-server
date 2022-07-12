@@ -29,13 +29,7 @@ import {
   createRasterStyle,
   uncompositeStyle,
 } from './lib/stylejson'
-import {
-  getTilesetId,
-  hash,
-  encodeBase32,
-  generateId,
-  isRejectedPromiseResult,
-} from './lib/utils'
+import { getTilesetId, hash, encodeBase32, generateId } from './lib/utils'
 import { migrate } from './lib/migrations'
 import {
   UpstreamRequestsManager,
@@ -51,7 +45,12 @@ import {
   convertActiveToError as convertActiveImportsToErrorImports,
   ImportRecord,
 } from './lib/imports'
-import { Sprite, SpriteIndex } from './lib/sprites'
+import {
+  Sprite,
+  UpstreamSpriteResponse,
+  generateSpriteId,
+  validateSpriteIndex,
+} from './lib/sprites'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -423,10 +422,7 @@ function createApi({
     upstreamSpriteUrl: string
   }): Promise<{
     id: string
-    sprites: Map<
-      number,
-      { data: Buffer; etag?: string; layout: SpriteIndex } | Error
-    >
+    sprites: Map<number, UpstreamSpriteResponse> // Map of pixel density to the response result
   }> {
     if (isMapboxURL(upstreamSpriteUrl) && !accessToken) {
       throw new MBAccessTokenRequiredError()
@@ -460,34 +456,41 @@ function createApi({
       upstreamRequests2x,
     ])
 
-    // TODO: Deterministically generate this using a hash of the layout response?
-    const spriteId = generateId()
+    const extractedSprite1x = processUpstreamSpriteResponse(responses1x)
+    const extractedSprite2x = processUpstreamSpriteResponse(responses2x)
+
+    const spriteId = generateSpriteId(extractedSprite1x, extractedSprite2x)
 
     const upstreamSprites: Awaited<
       ReturnType<typeof fetchUpstreamSprites>
     >['sprites'] = new Map()
 
-    upstreamSprites.set(1, extractSpriteInfo(responses1x))
-    upstreamSprites.set(2, extractSpriteInfo(responses2x))
+    upstreamSprites.set(1, extractedSprite1x)
+    upstreamSprites.set(2, extractedSprite2x)
 
     return {
       id: spriteId,
       sprites: upstreamSprites,
     }
 
-    function extractSpriteInfo(
+    function processUpstreamSpriteResponse(
       settledResponseResult: PromiseSettledResult<
         [UpstreamResponse<'json'>, UpstreamResponse<'buffer'>]
       >
-    ) {
+    ): UpstreamSpriteResponse {
       if (settledResponseResult.status === 'fulfilled') {
         const [layoutAssetResponse, imageAssetResponse] =
           settledResponseResult.value
 
+        if (!validateSpriteIndex(layoutAssetResponse.data)) {
+          return new UpstreamJsonValidationError(
+            upstreamSpriteUrl,
+            validateSpriteIndex.errors
+          )
+        }
+
         return {
-          // TODO: Validate that the JSON here conforms to the SpriteIndexSchema
-          // Throw UpstreamJsonValidationError if it doesn't
-          layout: layoutAssetResponse.data as SpriteIndex,
+          layout: layoutAssetResponse.data,
           data: imageAssetResponse.data,
           etag: layoutAssetResponse.etag,
         }
