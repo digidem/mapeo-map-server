@@ -966,8 +966,6 @@ function createApi({
             upstreamSpriteUrl: style.sprite,
           })
 
-          console.log(result)
-
           if (
             [...result.sprites.values()].every((info) => info instanceof Error)
           ) {
