@@ -30,12 +30,16 @@ function validateStyle(style: unknown): asserts style is StyleJSON {
 }
 
 const styles: FastifyPluginAsync = async function (fastify) {
-  fastify.get<{ Reply: { id: string; name?: string; url: string }[] }>(
-    '/',
-    async function (request) {
-      return request.api.listStyles()
-    }
-  )
+  fastify.get<{
+    Reply: {
+      bytesStored: number
+      id: string
+      name: string | null
+      url: string
+    }[]
+  }>('/', async function (request) {
+    return request.api.listStyles()
+  })
 
   fastify.post<{
     Body: { accessToken?: string } & (

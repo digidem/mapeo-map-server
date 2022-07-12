@@ -2,12 +2,15 @@ import test from 'tape'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
+import Database from 'better-sqlite3'
 import EventSource from 'eventsource'
+import { FastifyServerOptions } from 'fastify'
 
 import { IdResource, Api } from './api'
 import createMapServer from './app'
 import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
 import simpleRasterStylejson from './fixtures/good-stylejson/good-simple-raster.json'
+import { MessageComplete } from './lib/mbtiles_import_worker'
 import {
   DEFAULT_RASTER_SOURCE_ID,
   DEFAULT_RASTER_LAYER_ID,
@@ -16,7 +19,6 @@ import {
 } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
 import { server as mockTileServer } from './mocks/server'
-import { FastifyInstance, FastifyServerOptions } from 'fastify'
 
 tmp.setGracefulCleanup()
 
@@ -91,12 +93,29 @@ function createContext() {
   return context
 }
 
+async function waitForImportCompletion(endpoint: string) {
+  return new Promise<MessageComplete>((res, rej) => {
+    const evtSource = new EventSource(endpoint)
+
+    evtSource.onmessage = (event) => {
+      const message = JSON.parse(event.data)
+
+      if (message.type === 'complete') {
+        evtSource.close()
+        res(message)
+      }
+    }
+
+    evtSource.onerror = (err) => {
+      evtSource.close()
+      rej(err as any)
+    }
+  })
+}
+
 /**
  * /tilesets tests
  */
-
-// TODO: Add tilesets tests for:
-// - POST /tilesets/import (import progress)
 
 test('GET /tilesets when no tilesets exist returns an empty array', async (t) => {
   const { server, cleanup } = createContext()
@@ -190,8 +209,7 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
     url: '/styles',
   })
 
-  const stylesList =
-    responseStylesListGet.json<{ id: string; name?: string; url: string }[]>()
+  const stylesList = responseStylesListGet.json()
 
   t.equal(stylesList.length, 1)
 
@@ -285,6 +303,7 @@ test('PUT /tilesets when tileset does not exist returns 404 status code', async 
 /**
  * /tile tests
  */
+
 test('GET /tile before tileset is created returns 404 status code', async (t) => {
   const { cleanup, server } = createContext()
 
@@ -409,31 +428,35 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
     url: '/styles',
   })
 
-  const stylesList =
-    getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
+  const styleInfo = getStylesResponse.json()[0]
+
+  t.ok(
+    styleInfo.bytesStored !== null && styleInfo.bytesStored > 0,
+    'tiles used by style take up storage space'
+  )
 
   const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
-  const styles = await Promise.all(
-    stylesList.map(({ url }) =>
-      server
-        .inject({
-          method: 'GET',
-          url,
-        })
-        .then((response) => response.json<StyleJSON>())
-    )
-  )
+  const styleGetResponse = await server.inject({
+    method: 'GET',
+    url: styleInfo.url,
+  })
 
-  const matchingStyle = styles.find((style) =>
-    Object.values(style.sources).find((source) => {
-      if ('url' in source && source.url) {
-        return source.url === expectedSourceUrl
-      }
-    })
-  )
+  t.equal(styleGetResponse.statusCode, 200)
 
-  t.ok(matchingStyle)
+  const styleHasSourceReferringToTileset = Object.values(
+    styleGetResponse.json<StyleJSON & IdResource>().sources
+  ).some((source) => {
+    if ('url' in source && source.url) {
+      return source.url === expectedSourceUrl
+    }
+    return false
+  })
+
+  t.ok(
+    styleHasSourceReferringToTileset,
+    'style has source pointing to correct tileset'
+  )
 
   return cleanup()
 })
@@ -486,6 +509,106 @@ test('POST /tilesets/import multiple times using same source file works', async 
   t.equal(tilesetGetResponse2.statusCode, 200)
 
   t.notEqual(importId1, importId2, 'new import is created')
+
+  return cleanup()
+})
+
+test('POST /tilesets/import storage used by tiles is roughly equivalent to that of source', async (t) => {
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  function getMbTilesByteCount() {
+    const mbTilesDb = new Database(sampleMbTilesPath, { readonly: true })
+
+    const count = mbTilesDb
+      .prepare('SELECT SUM(LENGTH(tile_data)) as byteCount FROM tiles')
+      .get().byteCount
+
+    mbTilesDb.close()
+
+    return count
+  }
+
+  // Completely arbitrary proportion of original source's count where it's not suspiciously too low,
+  // to account for a potentially incomplete/faulty import
+  const minimumProportion = 0.8
+  const roughlyExpectedCount = getMbTilesByteCount()
+
+  const {
+    import: { id: createdImportId },
+  } = await server
+    .inject({
+      method: 'POST',
+      url: '/tilesets/import',
+      payload: { filePath: sampleMbTilesPath },
+    })
+    .then((resp) => resp.json())
+
+  const address = await server.listen(0)
+
+  await waitForImportCompletion(
+    `${address}/imports/progress/${createdImportId}`
+  )
+
+  const { bytesStored } = await server
+    .inject({
+      method: 'GET',
+      url: '/styles',
+    })
+    .then((resp) => resp.json()[0])
+
+  t.ok(
+    bytesStored >= roughlyExpectedCount * minimumProportion &&
+      bytesStored <= roughlyExpectedCount
+  )
+
+  return cleanup()
+})
+
+// TODO: This may eventually become a failing test if styles that share tiles reuse new ones that are stored
+test('POST /tilesets/import subsequent imports do not affect storage calculation for existing styles', async (t) => {
+  const { cleanup, sampleMbTilesPath, server } = createContext()
+
+  const address = await server.listen(0)
+
+  // Creates and waits for import to finish
+  async function requestImport() {
+    const {
+      import: { id: createdImportId },
+    } = await server
+      .inject({
+        method: 'POST',
+        url: '/tilesets/import',
+        payload: { filePath: sampleMbTilesPath },
+      })
+      .then((resp) => resp.json())
+
+    return await waitForImportCompletion(
+      `${address}/imports/progress/${createdImportId}`
+    )
+  }
+
+  await requestImport()
+
+  const style1Before = await server
+    .inject({
+      method: 'GET',
+      url: '/styles',
+    })
+    .then((resp) => resp.json()[0])
+
+  // TODO: Would be helpful to use a different fixture for this import
+  await requestImport()
+
+  const style1After = await server
+    .inject({
+      method: 'GET',
+      url: '/styles',
+    })
+    .then((resp) =>
+      resp.json().find((s: { id: string }) => s.id === style1Before.id)
+    )
+
+  t.equal(style1Before.bytesStored, style1After.bytesStored)
 
   return cleanup()
 })
@@ -656,27 +779,13 @@ test('GET /imports/progress/:importId when import is already completed returns s
   } = createImportResponse.json()
 
   const address = await server.listen(0)
-
-  function createEventSource() {
-    return new EventSource(`${address}/imports/progress/${createdImportId}`)
-  }
-
-  let evtSource = createEventSource()
+  const progressEndpoint = `${address}/imports/progress/${createdImportId}`
 
   // Wait for the import to complete before attempting actual test
-  const expectedMessage = await new Promise((res) => {
-    evtSource.onmessage = (event) => {
-      const message = JSON.parse(event.data)
-
-      if (message.type === 'complete') {
-        evtSource.close()
-        res(message)
-      }
-    }
-  })
+  const expectedMessage = await waitForImportCompletion(progressEndpoint)
 
   // Conduct actual test
-  evtSource = createEventSource()
+  const evtSource = new EventSource(progressEndpoint)
 
   const message = await new Promise((res) => {
     evtSource.onmessage = (event) => {
@@ -974,6 +1083,7 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 
   const expectedStyleInfo = {
     id: expectedId,
+    bytesStored: 0,
     name: expectedName,
     url: expectedUrl,
   }
@@ -1057,13 +1167,12 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
     url: '/styles',
   })
 
-  const stylesList =
-    getStylesResponse.json<{ name?: string; id: string; url: string }[]>()
+  const stylesList = getStylesResponse.json()
 
   const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
-  const styles = await Promise.all(
-    stylesList.map(({ url, id }) =>
+  const styles = await Promise.all<StyleJSON & IdResource>(
+    stylesList.map(({ url, id }: { url: string; id: string }) =>
       server
         .inject({
           method: 'GET',
