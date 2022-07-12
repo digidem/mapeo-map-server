@@ -38,6 +38,8 @@ export type SpriteIndex = Static<typeof SpriteIndexSchema>
 
 const ajv = new Ajv()
 
+ajv.addKeyword('kind').addKeyword('modifier')
+
 export const validateSpriteIndex = ajv.compile<SpriteIndex>(SpriteIndexSchema)
 
 // TODO: Rename to something clearer
