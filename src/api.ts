@@ -1037,27 +1037,80 @@ function createApi({
         throw new NotFoundError(id)
       }
 
+      const existingSpriteId: string | undefined = db
+        .prepare('SELECT spriteId FROM Style WHERE id = ?')
+        .get(id)?.spriteId
+
+      let newSpriteId: string | undefined
+      let upstreamSprites:
+        | Awaited<ReturnType<typeof fetchUpstreamSprites>>['sprites']
+        | undefined
+
+      if (style.sprite) {
+        try {
+          const result = await fetchUpstreamSprites({
+            accessToken,
+            upstreamSpriteUrl: style.sprite,
+          })
+
+          if (
+            [...result.sprites.values()].every((info) => info instanceof Error)
+          ) {
+            throw new FailedUpstreamFetchError(style.sprite)
+          }
+
+          newSpriteId = result.id
+          upstreamSprites = result.sprites
+        } catch (err) {
+          // This will either be an error about the access token or the inability to fetch any sprites upstream
+          throw err
+        }
+      }
+
+      const spriteDidUpdate = existingSpriteId !== newSpriteId
+
+      // Attempt to create new sprites first, then delete old ones
+      if (spriteDidUpdate) {
+        if (newSpriteId && upstreamSprites) {
+          for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
+            // TODO: Should we report the error here?
+            if (spriteInfo instanceof Error) continue
+
+            await api.createSprite({
+              id: newSpriteId,
+              data: spriteInfo.data,
+              etag: spriteInfo.etag || null,
+              layout: JSON.stringify(spriteInfo.layout),
+              pixelDensity,
+              upstreamUrl: style.sprite || null,
+            })
+          }
+        }
+
+        if (existingSpriteId) {
+          db.prepare('DELETE FROM Sprite WHERE id = ?').run(existingSpriteId)
+        }
+      }
+
       const sourceIdToTilesetId = await createOfflineSources({
         sources: style.sources,
       })
 
       const styleToSave: StyleJSON = await uncompositeStyle(style)
 
-      // TODO: What's the strategy for updating sprites in this case?
-      // Do we do it eagerly i.e. fetch the upstream sprites, delete old ones, create new ones?
-      // Or do we attempt to update existing sprites if possible, keeping in mind that sprite ids may eventually be
-      // deterministically generated as a hash of the sprite content (currently they're not)?
-
       db.prepare<{
         id: string
         sourceIdToTilesetId: string
+        spriteId?: string
         stylejson: string
       }>(
-        'UPDATE Style SET stylejson = :stylejson, sourceIdToTilesetId = :sourceIdToTilesetId WHERE id = :id'
+        'UPDATE Style SET stylejson = :stylejson, sourceIdToTilesetId = :sourceIdToTilesetId, spriteId = :spriteId ' +
+          'WHERE id = :id'
       ).run({
         id,
         sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
         stylejson: JSON.stringify(styleToSave),
+        spriteId: spriteDidUpdate ? newSpriteId : existingSpriteId,
       })
 
       return addOfflineUrls({
