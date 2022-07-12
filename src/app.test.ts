@@ -1250,7 +1250,7 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an a
   return cleanup()
 })
 
-test.only('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
+test('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
   const { sampleStyleJSON, cleanup, server } = createContext()
 
   const styleWithSprite = {
