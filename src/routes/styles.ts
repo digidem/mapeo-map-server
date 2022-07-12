@@ -172,7 +172,6 @@ const styles: FastifyPluginAsync = async function (fastify) {
     async (request) => {
       const { id, pixelDensity } = parseSpriteUrlName(request.params.spriteInfo)
 
-      // TODO: Will the sprite id match the style id? Is the styleId param necessary in that case?
       const { layout } = await request.api.getSprite(id, pixelDensity, true)
 
       return JSON.parse(layout)
