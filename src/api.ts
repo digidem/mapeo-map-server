@@ -957,7 +957,6 @@ function createApi({
       let spriteId: string | undefined
 
       if (style.sprite) {
-        let spriteId: string | undefined
         let upstreamSprites:
           | Awaited<ReturnType<typeof fetchUpstreamSprites>>['sprites']
           | undefined
