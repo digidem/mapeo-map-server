@@ -1215,7 +1215,7 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
   return cleanup()
 })
 
-test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 when sprite does not exit', async (t) => {
+test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 when sprite does not exist', async (t) => {
   const { cleanup, server } = createContext()
 
   const getSpriteImageResponse = await server.inject({
