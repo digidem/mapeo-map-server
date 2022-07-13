@@ -46,8 +46,7 @@ ajv.addKeyword('kind').addKeyword('modifier')
 
 export const validateSpriteIndex = ajv.compile<SpriteIndex>(SpriteIndexSchema)
 
-// TODO: Rename to something clearer
-export function parseSpriteUrlName(input: string): {
+export function parseSpriteName(input: string): {
   id: string
   pixelDensity: number
 } {
@@ -59,7 +58,7 @@ export function parseSpriteUrlName(input: string): {
 
   return {
     id: match ? input.split(match, 1)[0] : input,
-    pixelDensity: pixelDensity ? parseInt(pixelDensity, 10) : 1,
+    pixelDensity: pixelDensity ? parseFloat(pixelDensity) : 1,
   }
 }
 

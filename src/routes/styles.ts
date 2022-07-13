@@ -9,7 +9,7 @@ import {
   SpriteIndexSchema,
   UpstreamSpriteResponse,
   generateSpriteId,
-  parseSpriteUrlName,
+  parseSpriteName,
 } from '../lib/sprites'
 
 const GetSpriteParamsSchema = T.Object({
@@ -199,7 +199,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       },
     },
     async (request, reply) => {
-      const { id, pixelDensity } = parseSpriteUrlName(request.params.spriteInfo)
+      const { id, pixelDensity } = parseSpriteName(request.params.spriteInfo)
       const { data } = await request.api.getSprite(id, pixelDensity, true)
 
       reply.header('Content-Type', 'image/png')
@@ -220,7 +220,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       },
     },
     async (request) => {
-      const { id, pixelDensity } = parseSpriteUrlName(request.params.spriteInfo)
+      const { id, pixelDensity } = parseSpriteName(request.params.spriteInfo)
 
       const { layout } = await request.api.getSprite(id, pixelDensity, true)
 
