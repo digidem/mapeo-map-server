@@ -985,7 +985,6 @@ function createApi({
           throw err
         }
 
-        // TODO: Wrap in transaction?
         for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
           // TODO: Should we report the error here?
           if (spriteInfo instanceof Error) continue
