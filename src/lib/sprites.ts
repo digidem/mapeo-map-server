@@ -13,6 +13,10 @@ export interface Sprite {
   upstreamUrl: string | null
 }
 
+export type UpstreamSpriteResponse =
+  | { data: Buffer; etag?: string; layout: SpriteIndex }
+  | Error
+
 // https://docs.mapbox.com/mapbox-gl-js/style-spec/sprite/#index-file
 export const SpriteIndexSchema = T.Record(
   T.String(),
@@ -59,28 +63,6 @@ export function parseSpriteUrlName(input: string): {
   }
 }
 
-export type UpstreamSpriteResponse =
-  | { data: Buffer; etag?: string; layout: SpriteIndex }
-  | Error
-
-function generateSpriteHashComponent(
-  spriteInfo: UpstreamSpriteResponse
-): Buffer {
-  if (spriteInfo instanceof Error) return Buffer.from('')
-
-  return Buffer.concat([
-    hash(spriteInfo.data),
-    hash(JSON.stringify(spriteInfo.layout)),
-  ])
-}
-
-// 1. Generate a hash derived from each sprite's image and layout responses
-// 2. Generate a hash derived from each sprite hash
-// 3. Encode to base 32
-export function generateSpriteId(
-  ...spriteResponses: Array<UpstreamSpriteResponse>
-) {
-  return encodeBase32(
-    hash(Buffer.concat(spriteResponses.map(generateSpriteHashComponent)))
-  )
+export function generateSpriteId(upstreamSpriteUrl: string) {
+  return encodeBase32(hash(upstreamSpriteUrl))
 }

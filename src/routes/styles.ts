@@ -5,7 +5,12 @@ import { Static, Type as T } from '@sinclair/typebox'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
-import { parseSpriteUrlName, SpriteIndexSchema } from '../lib/sprites'
+import {
+  SpriteIndexSchema,
+  UpstreamSpriteResponse,
+  generateSpriteId,
+  parseSpriteUrlName,
+} from '../lib/sprites'
 
 const GetSpriteParamsSchema = T.Object({
   styleId: T.String(),
@@ -22,6 +27,12 @@ const InvalidRequestBodyError = createError(
   'FST_INVALID_REQUEST_BODY',
   'Invalid request body: %s',
   400
+)
+
+const FailedUpstreamFetchError = createError(
+  'FST_UPSTREAM_FETCH',
+  'Failed to fetch upstream resources from %s',
+  500
 )
 
 function createInvalidStyleError(err: unknown) {
@@ -98,7 +109,23 @@ const styles: FastifyPluginAsync = async function (fastify) {
 
     validateStyle(style)
 
-    // TODO: Should we catch the missing access token issue before calling this? i.e. check if `url` or any of `style.sources` are Mapbox urls
+    let upstreamSprites: Map<number, UpstreamSpriteResponse> | undefined
+
+    if (style.sprite) {
+      upstreamSprites = await request.api.fetchUpstreamSprites(
+        style.sprite,
+        accessToken
+      )
+
+      if (
+        [...upstreamSprites.values()].every((info) => info instanceof Error)
+      ) {
+        throw new FailedUpstreamFetchError(style.sprite)
+      }
+    }
+
+    // TODO: Should we catch the missing access token issue before calling this?
+    // i.e. check if `url` or any of `style.sources` are Mapbox urls
     // `createStyle` will catch these but may save resources in the db before that occurs
     const result = await request.api.createStyle(style, {
       accessToken,
@@ -106,6 +133,25 @@ const styles: FastifyPluginAsync = async function (fastify) {
       id,
       upstreamUrl,
     })
+
+    const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
+
+    if (spriteId && style.sprite && upstreamSprites) {
+      for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
+        // TODO: Should we report the error here?
+        if (spriteInfo instanceof Error) continue
+
+        // TODO: Wrap in try/catch in the case that the sprite already exists?
+        await request.api.createSprite({
+          id: spriteId,
+          data: spriteInfo.data,
+          etag: spriteInfo.etag || null,
+          layout: JSON.stringify(spriteInfo.layout),
+          pixelDensity,
+          upstreamUrl: style.sprite,
+        })
+      }
+    }
 
     reply.header('Location', `${fastify.prefix}/${id}`)
 

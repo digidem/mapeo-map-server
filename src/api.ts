@@ -107,12 +107,6 @@ const UpstreamJsonValidationError = createError(
   500
 )
 
-const FailedUpstreamFetchError = createError(
-  'FST_UPSTREAM_FETCH',
-  'Failed to fetch upstream resources from %s',
-  500
-)
-
 const ParseError = createError('PARSE_ERROR', 'Cannot properly parse data', 500)
 
 export interface MapServerOptions {
@@ -171,10 +165,7 @@ export interface Api {
       upstreamUrl?: string
     }
   ): Promise<{ style: StyleJSON } & IdResource>
-  updateStyle(
-    id: string,
-    options: { accessToken?: string; style: StyleJSON }
-  ): Promise<StyleJSON>
+  updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
   listStyles(): Promise<
@@ -203,6 +194,12 @@ export interface Api {
     }
   ): Promise<Sprite & IdResource>
   deleteSprite(id: string, pixelDensity: number): Promise<void>
+  fetchUpstreamSprites(
+    upstreamSpriteUrl: string,
+    accessToken?: string
+  ): Promise<
+    Map<number, UpstreamSpriteResponse> // Map of pixel density to the response result
+  >
 }
 
 function createApi({
@@ -418,92 +415,6 @@ function createApi({
     }
 
     return sourceIdToTilesetId
-  }
-
-  async function fetchUpstreamSprites({
-    accessToken,
-    upstreamSpriteUrl,
-  }: {
-    accessToken?: string
-    upstreamSpriteUrl: string
-  }): Promise<{
-    id: string
-    sprites: Map<number, UpstreamSpriteResponse> // Map of pixel density to the response result
-  }> {
-    if (isMapboxURL(upstreamSpriteUrl) && !accessToken) {
-      throw new MBAccessTokenRequiredError()
-    }
-
-    // Download the sprite layout and image for both 1x and 2x pixel densities
-    const upstreamRequests1x = Promise.all([
-      upstreamRequestsManager.getUpstream({
-        url: normalizeSpriteURL(upstreamSpriteUrl, '', '.json', accessToken),
-        responseType: 'json',
-      }),
-      upstreamRequestsManager.getUpstream({
-        url: normalizeSpriteURL(upstreamSpriteUrl, '', '.png', accessToken),
-        responseType: 'buffer',
-      }),
-    ])
-
-    const upstreamRequests2x = Promise.all([
-      upstreamRequestsManager.getUpstream({
-        url: normalizeSpriteURL(upstreamSpriteUrl, '@2x', '.json', accessToken),
-        responseType: 'json',
-      }),
-      upstreamRequestsManager.getUpstream({
-        url: normalizeSpriteURL(upstreamSpriteUrl, '@2x', '.png', accessToken),
-        responseType: 'buffer',
-      }),
-    ])
-
-    const [responses1x, responses2x] = await Promise.allSettled([
-      upstreamRequests1x,
-      upstreamRequests2x,
-    ])
-
-    const extractedSprite1x = processUpstreamSpriteResponse(responses1x)
-    const extractedSprite2x = processUpstreamSpriteResponse(responses2x)
-
-    const spriteId = generateSpriteId(extractedSprite1x, extractedSprite2x)
-
-    const upstreamSprites: Awaited<
-      ReturnType<typeof fetchUpstreamSprites>
-    >['sprites'] = new Map()
-
-    upstreamSprites.set(1, extractedSprite1x)
-    upstreamSprites.set(2, extractedSprite2x)
-
-    return {
-      id: spriteId,
-      sprites: upstreamSprites,
-    }
-
-    function processUpstreamSpriteResponse(
-      settledResponseResult: PromiseSettledResult<
-        [UpstreamResponse<'json'>, UpstreamResponse<'buffer'>]
-      >
-    ): UpstreamSpriteResponse {
-      if (settledResponseResult.status === 'fulfilled') {
-        const [layoutAssetResponse, imageAssetResponse] =
-          settledResponseResult.value
-
-        if (!validateSpriteIndex(layoutAssetResponse.data)) {
-          return new UpstreamJsonValidationError(
-            upstreamSpriteUrl,
-            validateSpriteIndex.errors
-          )
-        }
-
-        return {
-          layout: layoutAssetResponse.data,
-          data: imageAssetResponse.data,
-          etag: layoutAssetResponse.etag,
-        }
-      } else {
-        return new Error(settledResponseResult.reason)
-      }
-    }
   }
 
   const api: Api = {
@@ -960,45 +871,7 @@ function createApi({
         )
       }
 
-      let spriteId: string | undefined
-
-      if (style.sprite) {
-        let upstreamSprites:
-          | Awaited<ReturnType<typeof fetchUpstreamSprites>>['sprites']
-          | undefined
-        try {
-          const result = await fetchUpstreamSprites({
-            accessToken,
-            upstreamSpriteUrl: style.sprite,
-          })
-
-          if (
-            [...result.sprites.values()].every((info) => info instanceof Error)
-          ) {
-            throw new FailedUpstreamFetchError(style.sprite)
-          }
-
-          spriteId = result.id
-          upstreamSprites = result.sprites
-        } catch (err) {
-          // This will either be an error about the access token or the inability to fetch any sprites upstream
-          throw err
-        }
-
-        for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
-          // TODO: Should we report the error here?
-          if (spriteInfo instanceof Error) continue
-
-          await api.createSprite({
-            id: spriteId,
-            data: spriteInfo.data,
-            etag: spriteInfo.etag || null,
-            layout: JSON.stringify(spriteInfo.layout),
-            pixelDensity,
-            upstreamUrl: style.sprite,
-          })
-        }
-      }
+      const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
 
       const sourceIdToTilesetId = await createOfflineSources({
         accessToken,
@@ -1027,78 +900,25 @@ function createApi({
       })
 
       return {
+        id: styleId,
         style: addOfflineUrls({
           sourceIdToTilesetId,
           spriteId,
           style: styleToSave,
           styleId,
         }),
-        id: styleId,
       }
     },
-    async updateStyle(id, { accessToken, style }) {
+    async updateStyle(id, style) {
       if (!styleExists(id)) {
         throw new NotFoundError(id)
-      }
-
-      const existingSpriteId: string | undefined = db
-        .prepare('SELECT spriteId FROM Style WHERE id = ?')
-        .get(id)?.spriteId
-
-      let newSpriteId: string | undefined
-      let upstreamSprites:
-        | Awaited<ReturnType<typeof fetchUpstreamSprites>>['sprites']
-        | undefined
-
-      if (style.sprite) {
-        try {
-          const result = await fetchUpstreamSprites({
-            accessToken,
-            upstreamSpriteUrl: style.sprite,
-          })
-
-          if (
-            [...result.sprites.values()].every((info) => info instanceof Error)
-          ) {
-            throw new FailedUpstreamFetchError(style.sprite)
-          }
-
-          newSpriteId = result.id
-          upstreamSprites = result.sprites
-        } catch (err) {
-          // This will either be an error about the access token or the inability to fetch any sprites upstream
-          throw err
-        }
-      }
-
-      const spriteDidUpdate = existingSpriteId !== newSpriteId
-
-      // Attempt to create new sprites first, then delete old ones
-      if (spriteDidUpdate) {
-        if (newSpriteId && upstreamSprites) {
-          for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
-            // TODO: Should we report the error here?
-            if (spriteInfo instanceof Error) continue
-
-            await api.createSprite({
-              id: newSpriteId,
-              data: spriteInfo.data,
-              etag: spriteInfo.etag || null,
-              layout: JSON.stringify(spriteInfo.layout),
-              pixelDensity,
-              upstreamUrl: style.sprite || null,
-            })
-          }
-        }
-
-        if (existingSpriteId) {
-          db.prepare('DELETE FROM Sprite WHERE id = ?').run(existingSpriteId)
-        }
       }
 
       const sourceIdToTilesetId = await createOfflineSources({
         sources: style.sources,
       })
+
+      const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
 
       const styleToSave: StyleJSON = await uncompositeStyle(style)
 
@@ -1113,12 +933,13 @@ function createApi({
       ).run({
         id,
         sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
+        spriteId,
         stylejson: JSON.stringify(styleToSave),
-        spriteId: spriteDidUpdate ? newSpriteId : existingSpriteId,
       })
 
       return addOfflineUrls({
         sourceIdToTilesetId,
+        spriteId,
         style: styleToSave,
         styleId: id,
       })
@@ -1274,6 +1095,86 @@ function createApi({
       ).run(spriteToSave)
 
       return spriteToSave
+    },
+    async fetchUpstreamSprites(upstreamSpriteUrl, accessToken) {
+      if (isMapboxURL(upstreamSpriteUrl) && !accessToken) {
+        throw new MBAccessTokenRequiredError()
+      }
+
+      // Download the sprite layout and image for both 1x and 2x pixel densities
+      const upstreamRequests1x = Promise.all([
+        upstreamRequestsManager.getUpstream({
+          url: normalizeSpriteURL(upstreamSpriteUrl, '', '.json', accessToken),
+          responseType: 'json',
+        }),
+        upstreamRequestsManager.getUpstream({
+          url: normalizeSpriteURL(upstreamSpriteUrl, '', '.png', accessToken),
+          responseType: 'buffer',
+        }),
+      ])
+
+      const upstreamRequests2x = Promise.all([
+        upstreamRequestsManager.getUpstream({
+          url: normalizeSpriteURL(
+            upstreamSpriteUrl,
+            '@2x',
+            '.json',
+            accessToken
+          ),
+          responseType: 'json',
+        }),
+        upstreamRequestsManager.getUpstream({
+          url: normalizeSpriteURL(
+            upstreamSpriteUrl,
+            '@2x',
+            '.png',
+            accessToken
+          ),
+          responseType: 'buffer',
+        }),
+      ])
+
+      const [responses1x, responses2x] = await Promise.allSettled([
+        upstreamRequests1x,
+        upstreamRequests2x,
+      ])
+
+      const extractedSprite1x = processUpstreamSpriteResponse(responses1x)
+      const extractedSprite2x = processUpstreamSpriteResponse(responses2x)
+
+      const upstreamSprites: Awaited<ReturnType<Api['fetchUpstreamSprites']>> =
+        new Map()
+
+      upstreamSprites.set(1, extractedSprite1x)
+      upstreamSprites.set(2, extractedSprite2x)
+
+      return upstreamSprites
+
+      function processUpstreamSpriteResponse(
+        settledResponseResult: PromiseSettledResult<
+          [UpstreamResponse<'json'>, UpstreamResponse<'buffer'>]
+        >
+      ): UpstreamSpriteResponse {
+        if (settledResponseResult.status === 'fulfilled') {
+          const [layoutAssetResponse, imageAssetResponse] =
+            settledResponseResult.value
+
+          if (!validateSpriteIndex(layoutAssetResponse.data)) {
+            return new UpstreamJsonValidationError(
+              upstreamSpriteUrl,
+              validateSpriteIndex.errors
+            )
+          }
+
+          return {
+            layout: layoutAssetResponse.data,
+            data: imageAssetResponse.data,
+            etag: layoutAssetResponse.etag,
+          }
+        } else {
+          return new Error(settledResponseResult.reason)
+        }
+      }
     },
   }
   return api
