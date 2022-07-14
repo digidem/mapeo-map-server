@@ -109,7 +109,7 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const tilejson = await request.api.putTileset(
+      const tilejson = request.api.putTileset(
         request.params.tilesetId,
         request.body
       )

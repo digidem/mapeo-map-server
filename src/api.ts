@@ -122,7 +122,7 @@ export interface Api {
   getImport(importId: string): ImportRecord
   getImportPort(importId: string): MessagePort | undefined
   createTileset(tileset: TileJSON): TileJSON & IdResource
-  putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
+  putTileset(id: string, tileset: TileJSON): TileJSON & IdResource
   listTilesets(): Promise<Array<TileJSON & IdResource>>
   getTileset(id: string): Promise<TileJSON & IdResource>
   getTile(opts: {
@@ -358,7 +358,7 @@ function createApi({
         api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
-        // await api.putTileset(tilesetId, tilejson)
+        // api.putTileset(tilesetId, tilejson)
       }
       sourceIdToTilesetId[sourceId] = tilesetId
     }
@@ -544,7 +544,7 @@ function createApi({
       }
     },
 
-    async putTileset(id, tilejson) {
+    putTileset(id, tilejson) {
       if (id !== tilejson.id) {
         throw new MismatchedIdError(id, tilejson.id)
       }
