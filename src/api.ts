@@ -155,14 +155,12 @@ export interface Api {
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
   deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<
-    Array<
-      {
-        bytesStored: number
-        name: string | null
-        url: string
-      } & IdResource
-    >
+  listStyles(): Array<
+    {
+      bytesStored: number
+      name: string | null
+      url: string
+    } & IdResource
   >
 }
 
@@ -884,7 +882,7 @@ function createApi({
         style: styleToSave,
       })
     },
-    async listStyles() {
+    listStyles() {
       // `bytesStored` calculates the total bytes stored by tiles that the style references
       // Eventually we want to get storage taken up by other resources like sprites and glyphs
       return db
