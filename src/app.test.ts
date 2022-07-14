@@ -18,7 +18,7 @@ import {
   validate as validateStyleJSON,
 } from './lib/stylejson'
 import { TileJSON, validateTileJSON } from './lib/tilejson'
-import { server as mockTileServer } from './mocks/server'
+import { server as mockServer } from './mocks/server'
 
 tmp.setGracefulCleanup()
 
@@ -46,7 +46,7 @@ if (!fs.existsSync(path.resolve(__dirname, '../prisma/migrations'))) {
 assertSampleTileJSONIsValid(mapboxRasterTilejson)
 validateStyleJSON(simpleRasterStylejson)
 
-mockTileServer.listen({
+mockServer.listen({
   onUnhandledRequest: (req, print) => {
     const canIgnorePath = ['/imports/progress'].some((p) =>
       req.url.pathname.startsWith(p)
@@ -1339,6 +1339,6 @@ test('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
 
 // Keep this as the last test in this file
 test('e2e tests cleanup', (t) => {
-  mockTileServer.close()
+  mockServer.close()
   t.end()
 })
