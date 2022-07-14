@@ -1,4 +1,4 @@
-import test from 'tape'
+import test, { Test } from 'tape'
 import tmp from 'tmp'
 import path from 'path'
 import fs from 'fs'
@@ -65,7 +65,7 @@ test.onFinish(() => {
   mockTileServer.close()
 })
 
-function createContext() {
+function createContext(t: Test) {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
   const dbPath = path.resolve(dataDir, 'test.db')
@@ -80,6 +80,8 @@ function createContext() {
   ) => createMapServer(fastifyOpts, { dbPath })
 
   const server = createServer()
+
+  t.teardown(() => server.close())
 
   const context = {
     createServer,
@@ -117,9 +119,7 @@ async function waitForImportCompletion(endpoint: string) {
  */
 
 test('GET /tilesets when no tilesets exist returns an empty array', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const response = await server.inject({ method: 'GET', url: '/tilesets' })
 
@@ -135,9 +135,7 @@ test('GET /tilesets when no tilesets exist returns an empty array', async (t) =>
 })
 
 test('GET /tilesets when tilesets exist returns an array of the tilesets', async (t) => {
-  const { sampleTileJSON, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleTileJSON, server } = createContext(t)
 
   await server.inject({
     method: 'POST',
@@ -161,9 +159,7 @@ test('GET /tilesets when tilesets exist returns an array of the tilesets', async
 })
 
 test('POST /tilesets when tileset does not exist creates a tileset and returns it', async (t) => {
-  const { sampleTileJSON, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleTileJSON, server } = createContext(t)
 
   const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
   const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
@@ -191,9 +187,7 @@ test('POST /tilesets when tileset does not exist creates a tileset and returns i
 })
 
 test('POST /tilesets creates a style for the raster tileset', async (t) => {
-  const { sampleTileJSON, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleTileJSON, server } = createContext(t)
 
   const responseTilesetsPost = await server.inject({
     method: 'POST',
@@ -244,9 +238,7 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
 })
 
 test('PUT /tilesets when tileset exists returns the updated tileset', async (t) => {
-  const { sampleTileJSON, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleTileJSON, server } = createContext(t)
 
   const initialResponse = await server.inject({
     method: 'POST',
@@ -272,9 +264,7 @@ test('PUT /tilesets when tileset exists returns the updated tileset', async (t) 
 })
 
 test('PUT /tilesets when providing an incorrect id returns 400 status code', async (t) => {
-  const { sampleTileJSON, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleTileJSON, server } = createContext(t)
 
   const response = await server.inject({
     method: 'PUT',
@@ -286,9 +276,7 @@ test('PUT /tilesets when providing an incorrect id returns 400 status code', asy
 })
 
 test('PUT /tilesets when tileset does not exist returns 404 status code', async (t) => {
-  const { sampleTileJSON, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleTileJSON, server } = createContext(t)
 
   const response = await server.inject({
     method: 'PUT',
@@ -304,9 +292,7 @@ test('PUT /tilesets when tileset does not exist returns 404 status code', async 
  */
 
 test('GET /tile before tileset is created returns 404 status code', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const response = await server.inject({
     method: 'GET',
@@ -317,9 +303,7 @@ test('GET /tile before tileset is created returns 404 status code', async (t) =>
 })
 
 test('GET /tile of png format returns a tile image', async (t) => {
-  const { sampleTileJSON, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleTileJSON, server } = createContext(t)
 
   // Create initial tileset
   const initialResponse = await server.inject({
@@ -347,9 +331,7 @@ test('GET /tile of png format returns a tile image', async (t) => {
 })
 
 test('POST /tilesets/import fails when providing path for non-existent file', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -362,9 +344,7 @@ test('POST /tilesets/import fails when providing path for non-existent file', as
 })
 
 test('POST /tilesets/import fails when provided vector tiles format', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const unsupportedFixturePath = path.resolve(
     __dirname,
@@ -385,9 +365,7 @@ test('POST /tilesets/import fails when provided vector tiles format', async (t) 
 })
 
 test('POST /tilesets/import creates tileset', async (t) => {
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -410,9 +388,7 @@ test('POST /tilesets/import creates tileset', async (t) => {
 })
 
 test('POST /tilesets/import creates style for created tileset', async (t) => {
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -463,9 +439,7 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
   t.plan(5)
 
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   async function requestImport() {
     return await server.inject({
@@ -513,9 +487,7 @@ test('POST /tilesets/import multiple times using same source file works', async 
 })
 
 test('POST /tilesets/import storage used by tiles is roughly equivalent to that of source', async (t) => {
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   function getMbTilesByteCount() {
     const mbTilesDb = new Database(sampleMbTilesPath, { readonly: true })
@@ -565,9 +537,7 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 
 // TODO: This may eventually become a failing test if styles that share tiles reuse new ones that are stored
 test('POST /tilesets/import subsequent imports do not affect storage calculation for existing styles', async (t) => {
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   const address = await server.listen(0)
 
@@ -617,9 +587,7 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
  */
 
 test('GET /imports/:importId returns 404 error when import does not exist', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const getImportInfoResponse = await server.inject({
     method: 'GET',
@@ -630,9 +598,7 @@ test('GET /imports/:importId returns 404 error when import does not exist', asyn
 })
 
 test('GET /imports/progress/:importId returns 404 error when import does not exist', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const address = await server.listen(0)
 
@@ -650,9 +616,7 @@ test('GET /imports/progress/:importId returns 404 error when import does not exi
 })
 
 test('GET /imports/:importId returns import information', async (t) => {
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   const createImportResponse = await server.inject({
     method: 'POST',
@@ -677,9 +641,7 @@ test('GET /imports/:importId returns import information', async (t) => {
 test('GET /imports/progress/:importId returns import progress info (SSE)', async (t) => {
   t.plan(5)
 
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   const createImportResponse = await server.inject({
     method: 'POST',
@@ -765,9 +727,7 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
 test('GET /imports/progress/:importId when import is already completed returns single complete event (SSE)', async (t) => {
   t.plan(1)
 
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   const createImportResponse = await server.inject({
     method: 'POST',
@@ -805,9 +765,7 @@ test('GET /imports/progress/:importId when import is already completed returns s
 })
 
 test('GET /imports/:importId on failed import returns import with error state', async (t) => {
-  const { createServer, sampleMbTilesPath, server: server1 } = createContext()
-
-  t.teardown(() => server1.close())
+  const { createServer, sampleMbTilesPath, server: server1 } = createContext(t)
 
   const createImportResponse = await server1.inject({
     method: 'POST',
@@ -846,9 +804,7 @@ test('GET /imports/:importId on failed import returns import with error state', 
 // - POST /styles (style via url)
 
 test('POST /styles with invalid style returns 400 status code', async (t) => {
-  const { server, sampleStyleJSON } = createContext()
-
-  t.teardown(() => server.close())
+  const { server, sampleStyleJSON } = createContext(t)
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -862,9 +818,7 @@ test('POST /styles with invalid style returns 400 status code', async (t) => {
 // Reflects the case where a user is providing the style directly
 // We'd enforce at the application level that they provide an `id` field in their body
 test('POST /styles when providing an id returns resource with the same id', async (t) => {
-  const { server, sampleStyleJSON } = createContext()
-
-  t.teardown(() => server.close())
+  const { server, sampleStyleJSON } = createContext(t)
 
   const expectedId = 'example-style-id'
 
@@ -884,9 +838,7 @@ test('POST /styles when providing an id returns resource with the same id', asyn
 })
 
 test('POST /styles when style exists returns 409', async (t) => {
-  const { server, sampleStyleJSON } = createContext()
-
-  t.teardown(() => server.close())
+  const { server, sampleStyleJSON } = createContext(t)
 
   const payload = {
     style: sampleStyleJSON,
@@ -912,9 +864,7 @@ test('POST /styles when style exists returns 409', async (t) => {
 })
 
 test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
-  const { server, sampleStyleJSON } = createContext()
-
-  t.teardown(() => server.close())
+  const { server, sampleStyleJSON } = createContext(t)
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -974,9 +924,7 @@ test('POST /styles when providing valid style returns resource with id and alter
 })
 
 test('POST /styles when required Mapbox access token is missing returns 400 status code', async (t) => {
-  const { server, sampleStyleJSON } = createContext()
-
-  t.teardown(() => server.close())
+  const { server, sampleStyleJSON } = createContext(t)
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -989,9 +937,7 @@ test('POST /styles when required Mapbox access token is missing returns 400 stat
 })
 
 test('GET /styles/:styleId when style does not exist return 404 status code', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const id = 'nonexistent-id'
 
@@ -1004,9 +950,7 @@ test('GET /styles/:styleId when style does not exist return 404 status code', as
 })
 
 test('GET /styles/:styleId when style exists returns style with sources pointing to offline tilesets', async (t) => {
-  const { server, sampleStyleJSON } = createContext()
-
-  t.teardown(() => server.close())
+  const { server, sampleStyleJSON } = createContext(t)
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -1045,9 +989,7 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
 })
 
 test('GET /styles when no styles exist returns body with an empty array', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const response = await server.inject({ method: 'GET', url: '/styles' })
 
@@ -1057,9 +999,7 @@ test('GET /styles when no styles exist returns body with an empty array', async 
 })
 
 test('GET /styles when styles exist returns array of metadata for each', async (t) => {
-  const { server, sampleStyleJSON } = createContext()
-
-  t.teardown(() => server.close())
+  const { server, sampleStyleJSON } = createContext(t)
 
   const expectedName = 'My Style'
 
@@ -1096,9 +1036,7 @@ test('GET /styles when styles exist returns array of metadata for each', async (
 })
 
 test('DELETE /styles/:styleId when style does not exist returns 404 status code', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const id = 'nonexistent-id'
 
@@ -1111,9 +1049,7 @@ test('DELETE /styles/:styleId when style does not exist returns 404 status code'
 })
 
 test('DELETE /styles/:styleId when style exists returns 204 status code and empty body', async (t) => {
-  const { server } = createContext()
-
-  t.teardown(() => server.close())
+  const { server } = createContext(t)
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -1146,9 +1082,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
 test('DELETE /styles/:styleId works for style created from tileset import', async (t) => {
   t.plan(3)
 
-  const { sampleMbTilesPath, server } = createContext()
-
-  t.teardown(() => server.close())
+  const { sampleMbTilesPath, server } = createContext(t)
 
   const importResponse = await server.inject({
     method: 'POST',

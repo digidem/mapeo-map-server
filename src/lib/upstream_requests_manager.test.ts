@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
 import Etag from '@fastify/etag'
-import test from 'tape'
+import test, { Test } from 'tape'
 
 import { UpstreamRequestsManager } from './upstream_requests_manager'
 
@@ -40,8 +40,11 @@ function createServer() {
   }
 }
 
-async function createContext() {
+async function createContext(t: Test) {
   const server = createServer()
+
+  t.teardown(() => server.close())
+
   await server.listen(PORT)
 
   return {
@@ -57,9 +60,7 @@ async function createContext() {
  * 3. Manager does not make additional requests, fulfills with existing request
  */
 test('Repeat requests in same tick only hit server once', async (t) => {
-  const { server, upstreamRequestsManager } = await createContext()
-
-  t.teardown(() => server.close())
+  const { server, upstreamRequestsManager } = await createContext(t)
 
   const responses = await Promise.all([
     upstreamRequestsManager.getUpstream({
@@ -96,9 +97,7 @@ test('Repeat requests in same tick only hit server once', async (t) => {
  * 5. Client make subsequent request for resource *based on resource from step 1*. Response should reflect updated resource
  */
 test('Upstream resource updated when modified', async (t) => {
-  const { server, upstreamRequestsManager } = await createContext()
-
-  t.teardown(() => server.close())
+  const { server, upstreamRequestsManager } = await createContext(t)
 
   const response1 = await upstreamRequestsManager.getUpstream({
     url: ENDPOINT_URL,
@@ -163,9 +162,7 @@ test('Upstream resource updated when modified', async (t) => {
  * Requesting an upstream resource that hasn't been modified should reject with a not modified error
  */
 test('Upstream resource not modified', async (t) => {
-  const { server, upstreamRequestsManager } = await createContext()
-
-  t.teardown(() => server.close())
+  const { server, upstreamRequestsManager } = await createContext(t)
 
   const response1 = await upstreamRequestsManager.getUpstream({
     url: ENDPOINT_URL,
