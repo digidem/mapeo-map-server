@@ -177,12 +177,12 @@ export interface Api {
       } & IdResource
     >
   >
-  createSprite(info: Sprite): Promise<Sprite & IdResource>
+  createSprite(info: Sprite): Sprite & IdResource
   getSprite(
     id: string,
     pixelDensity: number,
     allowFallback?: boolean
-  ): Promise<Sprite & IdResource>
+  ): Sprite & IdResource
   updateSprite(
     id: string,
     pixelDensity: number,
@@ -192,8 +192,8 @@ export interface Api {
       etag?: string
       upstreamUrl?: string
     }
-  ): Promise<Sprite & IdResource>
-  deleteSprite(id: string, pixelDensity: number): Promise<void>
+  ): Sprite & IdResource
+  deleteSprite(id: string, pixelDensity: number): void
   fetchUpstreamSprites(
     upstreamSpriteUrl: string,
     accessToken?: string
@@ -1033,7 +1033,7 @@ function createApi({
 
       deleteStyleTransaction()
     },
-    async createSprite(info: Sprite) {
+    createSprite(info: Sprite) {
       if (spriteExists(info.id, info.pixelDensity)) {
         throw new AlreadyExistsError(info.id)
       }
@@ -1046,7 +1046,7 @@ function createApi({
       return info
     },
     // if `allowFallback` is true, may return highest available pixel density that's less than the requested one
-    async getSprite(id, pixelDensity, allowFallback = false) {
+    getSprite(id, pixelDensity, allowFallback = false) {
       const row: Sprite | undefined = db
         .prepare<{ id: string; pixelDensity: number }>(
           `SELECT * FROM Sprite WHERE id = :id AND pixelDensity ${
@@ -1064,7 +1064,7 @@ function createApi({
 
       return row
     },
-    async deleteSprite(id, pixelDensity) {
+    deleteSprite(id, pixelDensity) {
       if (!spriteExists(id, pixelDensity)) {
         throw new NotFoundError(id)
       }
@@ -1076,7 +1076,7 @@ function createApi({
         pixelDensity,
       })
     },
-    async updateSprite(id, pixelDensity, options) {
+    updateSprite(id, pixelDensity, options) {
       if (!spriteExists(id, pixelDensity)) {
         throw new NotFoundError(id)
       }

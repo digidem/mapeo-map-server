@@ -142,7 +142,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
         if (spriteInfo instanceof Error) continue
 
         // TODO: Wrap in try/catch in the case that the sprite already exists?
-        await request.api.createSprite({
+        request.api.createSprite({
           id: spriteId,
           data: spriteInfo.data,
           etag: spriteInfo.etag || null,
@@ -200,7 +200,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     },
     async (request, reply) => {
       const { id, pixelDensity } = parseSpriteName(request.params.spriteInfo)
-      const { data } = await request.api.getSprite(id, pixelDensity, true)
+      const { data } = request.api.getSprite(id, pixelDensity, true)
 
       reply.header('Content-Type', 'image/png')
       reply.send(data)
@@ -222,7 +222,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     async (request) => {
       const { id, pixelDensity } = parseSpriteName(request.params.spriteInfo)
 
-      const { layout } = await request.api.getSprite(id, pixelDensity, true)
+      const { layout } = request.api.getSprite(id, pixelDensity, true)
 
       return JSON.parse(layout)
     }
