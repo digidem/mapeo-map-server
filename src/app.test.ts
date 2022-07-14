@@ -61,10 +61,6 @@ mockTileServer.listen({
   },
 })
 
-test.onFinish(() => {
-  mockTileServer.close()
-})
-
 function createContext(t: Test) {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
@@ -1143,4 +1139,10 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
   })
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
+})
+
+// Keep this as the last test in this file
+test('e2e tests cleanup', (t) => {
+  mockTileServer.close()
+  t.end()
 })
