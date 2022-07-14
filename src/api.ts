@@ -121,7 +121,7 @@ export interface Api {
   ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
   getImport(importId: string): ImportRecord
   getImportPort(importId: string): MessagePort | undefined
-  createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
+  createTileset(tileset: TileJSON): TileJSON & IdResource
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
   getTileset(id: string): Promise<TileJSON & IdResource>
@@ -355,7 +355,7 @@ function createApi({
       const tilesetId = getTilesetId(tilejson)
 
       if (!tilesetExists(tilesetId)) {
-        await api.createTileset(tilejson)
+        api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
         // await api.putTileset(tilesetId, tilejson)
@@ -403,7 +403,7 @@ function createApi({
 
       const tilesetId = getTilesetId(tilejson)
 
-      const tileset = await api.createTileset(tilejson)
+      const tileset = api.createTileset(tilejson)
 
       const { id: styleId } = await api.createStyleForTileset(
         tileset.id,
@@ -510,7 +510,7 @@ function createApi({
     getImportPort(importId) {
       return activeImports.get(importId)
     },
-    async createTileset(tilejson) {
+    createTileset(tilejson) {
       const tilesetId = getTilesetId(tilejson)
 
       if (tilesetExists(tilesetId)) {
