@@ -138,7 +138,7 @@ export interface Api {
     y: number
     data: Buffer
     etag?: string
-  }): Promise<void>
+  }): void
   createStyleForTileset(
     tilesetId: string,
     nameForStyle?: string
@@ -692,8 +692,8 @@ function createApi({
           })
 
           if (response) {
-            api
-              .putTile({
+            try {
+              api.putTile({
                 tilesetId,
                 zoom,
                 x,
@@ -701,7 +701,10 @@ function createApi({
                 data: response.data,
                 etag: response.etag,
               })
-              .catch(noop)
+            } catch (_err) {
+              // TODO: Handle error here?
+              noop()
+            }
 
             return { data: response.data, etag: response.etag }
           }
@@ -732,7 +735,7 @@ function createApi({
       }
     },
 
-    async putTile({ tilesetId, zoom, x, y, data, etag }) {
+    putTile({ tilesetId, zoom, x, y, data, etag }) {
       const upstreamTileUrl = getUpstreamTileUrl({
         tilesetId,
         zoom,
