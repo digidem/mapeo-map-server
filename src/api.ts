@@ -154,7 +154,7 @@ export interface Api {
   ): Promise<{ style: StyleJSON } & IdResource>
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
   getStyle(id: string): Promise<StyleJSON>
-  deleteStyle(id: string): Promise<void>
+  deleteStyle(id: string): void
   listStyles(): Array<
     {
       bytesStored: number
@@ -949,7 +949,7 @@ function createApi({
         style,
       })
     },
-    async deleteStyle(id: string) {
+    deleteStyle(id: string) {
       if (!styleExists(id)) {
         throw new NotFoundError(id)
       }
