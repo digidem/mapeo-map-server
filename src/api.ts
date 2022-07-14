@@ -124,7 +124,7 @@ export interface Api {
   createTileset(tileset: TileJSON): TileJSON & IdResource
   putTileset(id: string, tileset: TileJSON): TileJSON & IdResource
   listTilesets(): Array<TileJSON & IdResource>
-  getTileset(id: string): Promise<TileJSON & IdResource>
+  getTileset(id: string): TileJSON & IdResource
   getTile(opts: {
     tilesetId: string
     zoom: number
@@ -607,7 +607,7 @@ function createApi({
       return tilesets
     },
 
-    async getTileset(id) {
+    getTileset(id) {
       const row:
         | { tilejson: string; etag?: string; upstreamUrl?: string }
         | undefined = db
