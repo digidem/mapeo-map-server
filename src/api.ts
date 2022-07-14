@@ -123,7 +123,7 @@ export interface Api {
   getImportPort(importId: string): MessagePort | undefined
   createTileset(tileset: TileJSON): TileJSON & IdResource
   putTileset(id: string, tileset: TileJSON): TileJSON & IdResource
-  listTilesets(): Promise<Array<TileJSON & IdResource>>
+  listTilesets(): Array<TileJSON & IdResource>
   getTileset(id: string): Promise<TileJSON & IdResource>
   getTile(opts: {
     tilesetId: string
@@ -585,7 +585,7 @@ function createApi({
       return result
     },
 
-    async listTilesets() {
+    listTilesets() {
       const tilesets: (TileJSON & IdResource)[] = []
 
       db.prepare('SELECT id, tilejson FROM Tileset')
