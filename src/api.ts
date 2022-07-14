@@ -142,7 +142,7 @@ export interface Api {
   createStyleForTileset(
     tilesetId: string,
     nameForStyle?: string
-  ): Promise<{ id: string; style: StyleJSON }>
+  ): { style: StyleJSON } & IdResource
   createStyle(
     style: StyleJSON,
     options?: {
@@ -367,7 +367,7 @@ function createApi({
   }
 
   const api: Api = {
-    async importMBTiles(filePath: string) {
+    importMBTiles(filePath: string) {
       const filePathWithExtension =
         path.extname(filePath) === '.mbtiles' ? filePath : filePath + '.mbtiles'
 
@@ -405,7 +405,7 @@ function createApi({
 
       const tileset = api.createTileset(tilejson)
 
-      const { id: styleId } = await api.createStyleForTileset(
+      const { id: styleId } = api.createStyleForTileset(
         tileset.id,
         tileset.name
       )
@@ -786,7 +786,7 @@ function createApi({
       transaction()
     },
     // TODO: Ideally could consolidate with createStyle
-    async createStyleForTileset(tilesetId, nameForStyle) {
+    createStyleForTileset(tilesetId, nameForStyle) {
       const styleId = encodeBase32(hash(`style:${tilesetId}`))
 
       // TODO: Come up with better default name?
