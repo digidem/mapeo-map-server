@@ -321,7 +321,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
 })
 
 test('DELETE /styles/:styleId works for style created from tileset import', async (t) => {
-  t.plan(3)
+  t.plan(4)
 
   const server = createServer(t)
 
@@ -384,4 +384,11 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
   })
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
+
+  const tilesetResponseGet = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${createdTilesetId}`,
+  })
+
+  t.equal(tilesetResponseGet.statusCode, 404, 'tileset is properly deleted')
 })

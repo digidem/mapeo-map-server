@@ -955,14 +955,43 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      // TODO
-      // - Delete any orphaned tilesets and sprites
-      // - How to handle glpyhs here?
+      // TODO: How to handle glpyhs here?
       const deleteStyleTransaction = db.transaction(() => {
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
         db.prepare('DELETE FROM OfflineArea WHERE styleId = ?').run(id)
+        db.prepare(
+          'DELETE FROM Sprite WHERE Sprite.id IN (SELECT spriteId FROM Style WHERE Style.id = ?)'
+        ).run(id)
+
+        // Create a view of tileset ids that only have one style reference
+        // based on the `sourceToTilesetId` column in the style table.
+        // This is used to determine which tilesets are okay to delete
+        // since they're only referenced by a single style.
+        db.prepare(
+          `
+            CREATE VIEW DeletableTilesetIds AS
+            SELECT SourceToTilesetIdOuter.value AS tilesetId, Style.id AS styleId
+            FROM Style, json_each(Style.sourceIdToTilesetId, '$') AS SourceToTilesetIdOuter
+            JOIN (
+              SELECT SourceToTilesetIdInner.value AS tilesetId, COUNT(SourceToTilesetIdInner.value) AS freq
+              FROM Style, json_each(Style.sourceIdToTilesetId, '$') AS SourceToTilesetIdInner
+              GROUP BY SourceToTilesetIdInner.value
+            ) AS TilesetIdFreq ON SourceToTilesetIdOuter.value = TilesetIdFreq.tilesetId
+            WHERE freq = 1;
+          `
+        ).run()
+        db.prepare(
+          'DELETE FROM Tile WHERE Tile.tilesetId ' +
+            'IN (SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?)'
+        ).run(id)
+        db.prepare(
+          'DELETE FROM Tileset WHERE Tileset.id ' +
+            'IN (SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?)'
+        ).run(id)
+        db.prepare('DROP VIEW DeletableTilesetIds').run()
+
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
       })
 
