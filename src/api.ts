@@ -35,8 +35,6 @@ import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 import { PortMessage } from './lib/mbtiles_import_worker'
 import {
-  ImportError,
-  ImportState,
   convertActiveToError as convertActiveImportsToErrorImports,
   ImportRecord,
 } from './lib/imports'
@@ -122,7 +120,7 @@ export interface Api {
     filePath: string
   ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
   getImport(importId: string): ImportRecord
-  getImportPort(importId: string): Promise<MessagePort | undefined>
+  getImportPort(importId: string): MessagePort | undefined
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
   listTilesets(): Promise<Array<TileJSON & IdResource>>
@@ -509,7 +507,7 @@ function createApi({
 
       return row
     },
-    async getImportPort(importId) {
+    getImportPort(importId) {
       return activeImports.get(importId)
     },
     async createTileset(tilejson) {
