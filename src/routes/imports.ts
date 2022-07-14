@@ -34,7 +34,7 @@ const imports: FastifyPluginAsync = async function (fastify) {
 
       // No port means that the import may already be completed
       if (!port) {
-        const { state, totalBytes } = await request.api.getImport(importId)
+        const { state, totalBytes } = request.api.getImport(importId)
 
         if (state === 'complete') {
           reply.sse({

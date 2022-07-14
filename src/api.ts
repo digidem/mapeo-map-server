@@ -121,7 +121,7 @@ export interface Api {
   importMBTiles(
     filePath: string
   ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
-  getImport(importId: string): Promise<ImportRecord>
+  getImport(importId: string): ImportRecord
   getImportPort(importId: string): Promise<MessagePort | undefined>
   createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
   putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
@@ -495,7 +495,7 @@ function createApi({
         }
       })
     },
-    async getImport(importId) {
+    getImport(importId) {
       const row: ImportRecord | undefined = db
         .prepare(
           'SELECT state, error, importedResources, totalResources, importedBytes, totalBytes, ' +
