@@ -153,7 +153,7 @@ export interface Api {
     }
   ): Promise<{ style: StyleJSON } & IdResource>
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
-  getStyle(id: string): Promise<StyleJSON>
+  getStyle(id: string): StyleJSON
   deleteStyle(id: string): void
   listStyles(): Array<
     {
@@ -917,7 +917,7 @@ function createApi({
         )
     },
 
-    async getStyle(id) {
+    getStyle(id) {
       const row:
         | {
             id: string
