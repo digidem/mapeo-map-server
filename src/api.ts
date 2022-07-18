@@ -982,14 +982,24 @@ function createApi({
             WHERE freq = 1;
           `
         ).run()
+
         db.prepare(
           'DELETE FROM Tile WHERE Tile.tilesetId ' +
             'IN (SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?)'
         ).run(id)
+
+        // TODO: This statement seems to cause issues
+        // https://github.com/WiseLibs/better-sqlite3/issues/842
         db.prepare(
           'DELETE FROM Tileset WHERE Tileset.id ' +
             'IN (SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?)'
         ).run(id)
+
+        db.prepare(
+          'DELETE FROM TileData WHERE TileData.tilesetId ' +
+            'IN (SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?)'
+        ).run(id)
+
         db.prepare('DROP VIEW DeletableTilesetIds').run()
 
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
