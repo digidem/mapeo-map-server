@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "ts-node-dev --files --transpile-only --respawn --no-notify ./server.ts | pino-pretty",
     "build": "npm run clean && tsc -b",
-    "clean": "tsc -b --clean",
+    "clean": "rm -rf ./dist",
     "test": "npm run build && npm run test-only",
     "test-only": "c8 node_modules/.bin/tape \"test/**/*.test.js\" | tap-arc",
     "posttest": "c8 report --reporter=text-lcov > ./coverage/lcov.info",
