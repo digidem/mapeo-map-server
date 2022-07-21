@@ -1,30 +1,31 @@
-import test, { Test } from 'tape'
-import tmp from 'tmp'
-import path from 'path'
-import fs from 'fs'
-import Database from 'better-sqlite3'
-import EventSource from 'eventsource'
-import { FastifyServerOptions } from 'fastify'
+const test = require('tape')
+const tmp = require('tmp')
+const path = require('path')
+const fs = require('fs')
+const Database = require('better-sqlite3')
+const EventSource = require('eventsource')
 
-import { IdResource, Api } from './api'
-import createMapServer from './app'
-import mapboxRasterTilejson from './fixtures/good-tilejson/mapbox_raster_tilejson.json'
-import simpleRasterStylejson from './fixtures/good-stylejson/good-simple-raster.json'
-import { MessageComplete } from './lib/mbtiles_import_worker'
-import {
-  DEFAULT_RASTER_SOURCE_ID,
+const {
+  createServer: createMapServer,
   DEFAULT_RASTER_LAYER_ID,
-  StyleJSON,
-  validate as validateStyleJSON,
-} from './lib/stylejson'
-import { TileJSON, validateTileJSON } from './lib/tilejson'
-import { server as mockServer } from './mocks/server'
+  DEFAULT_RASTER_SOURCE_ID,
+  validateStyleJSON,
+  validateTileJSON,
+} = require('../..')
+
+const mapboxRasterTilejson = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
+const simpleRasterStylejson = require('../fixtures/good-stylejson/good-simple-raster.json')
+const { server: mockServer } = require('../mocks/server')
 
 tmp.setGracefulCleanup()
 
 const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
 
-function assertSampleTileJSONIsValid(data: unknown): asserts data is TileJSON {
+/**
+ * @param {unknown} data
+ * @returns {asserts data is TileJSON}
+ */
+function assertSampleTileJSONIsValid(data) {
   if (!validateTileJSON(data)) {
     const message = `Sample input does not conform to TileJSON schema spec: ${JSON.stringify(
       validateTileJSON.errors,
@@ -37,7 +38,7 @@ function assertSampleTileJSONIsValid(data: unknown): asserts data is TileJSON {
 }
 
 // Check if prisma/migrations directory exists in project
-if (!fs.existsSync(path.resolve(__dirname, '../prisma/migrations'))) {
+if (!fs.existsSync(path.resolve(__dirname, '../../prisma/migrations'))) {
   throw new Error(
     'Could not find prisma migrations directory. Make sure you run `npm run prisma:migrate-dev -- --name MIGRATION_NAME_HERE` first!'
   )
@@ -61,19 +62,22 @@ mockServer.listen({
   },
 })
 
-function createContext(t: Test) {
+/**
+ * @param {import('tape').Test} t
+ */
+function createContext(t) {
   const { name: dataDir } = tmp.dirSync({ unsafeCleanup: true })
 
   const dbPath = path.resolve(dataDir, 'test.db')
 
   const mbTilesPath = path.resolve(
     __dirname,
-    './fixtures/mbtiles/raster/countries-png.mbtiles'
+    '../fixtures/mbtiles/raster/countries-png.mbtiles'
   )
 
-  const createServer = (
-    fastifyOpts: FastifyServerOptions = { logger: false }
-  ) => createMapServer(fastifyOpts, { dbPath })
+  /** @type {(fastifyOpts?: import('fastify').FastifyServerOptions) => ReturnType<createMapServer>} */
+  const createServer = (fastifyOpts = { logger: false }) =>
+    createMapServer(fastifyOpts, { dbPath })
 
   const server = createServer()
 
@@ -90,8 +94,12 @@ function createContext(t: Test) {
   return context
 }
 
-async function waitForImportCompletion(endpoint: string) {
-  return new Promise<MessageComplete>((res, rej) => {
+/**
+ * @param {string} endpoint
+ * @returns {Promise<MessageComplete>}
+ */
+async function waitForImportCompletion(endpoint) {
+  return new Promise((res, rej) => {
     const evtSource = new EventSource(endpoint)
 
     evtSource.onmessage = (event) => {
@@ -105,7 +113,7 @@ async function waitForImportCompletion(endpoint: string) {
 
     evtSource.onerror = (err) => {
       evtSource.close()
-      rej(err as any)
+      rej(err)
     }
   })
 }
@@ -191,9 +199,7 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
     payload: sampleTileJSON,
   })
 
-  const { id: tilesetId, name: expectedName } = responseTilesetsPost.json<
-    TileJSON & IdResource
-  >()
+  const { id: tilesetId, name: expectedName } = responseTilesetsPost.json()
 
   const responseStylesListGet = await server.inject({
     method: 'GET',
@@ -242,21 +248,21 @@ test('PUT /tilesets when tileset exists returns the updated tileset', async (t) 
     payload: sampleTileJSON,
   })
 
-  const updatedFields: Partial<TileJSON> = {
+  const updatedFields = {
     name: 'Map Server Test',
   }
 
   const updatedResponse = await server.inject({
     method: 'PUT',
-    url: `/tilesets/${initialResponse.json<TileJSON>().id}`,
-    payload: { ...initialResponse.json<TileJSON>(), ...updatedFields },
+    url: `/tilesets/${initialResponse.json().id}`,
+    payload: { ...initialResponse.json(), ...updatedFields },
   })
 
   t.equal(updatedResponse.statusCode, 200)
 
   t.notSame(initialResponse.json(), updatedResponse.json())
 
-  t.equal(updatedResponse.json<TileJSON>().name, updatedFields.name)
+  t.equal(updatedResponse.json().name, updatedFields.name)
 })
 
 test('PUT /tilesets when providing an incorrect id returns 400 status code', async (t) => {
@@ -308,7 +314,7 @@ test('GET /tile of png format returns a tile image', async (t) => {
     payload: sampleTileJSON,
   })
 
-  const { id: tilesetId } = initialResponse.json<TileJSON & IdResource>()
+  const { id: tilesetId } = initialResponse.json()
 
   const response = await server.inject({
     method: 'GET',
@@ -344,7 +350,7 @@ test('POST /tilesets/import fails when provided vector tiles format', async (t) 
 
   const unsupportedFixturePath = path.resolve(
     __dirname,
-    './fixtures/mbtiles/vector/trails-pbf.mbtiles'
+    '../fixtures/mbtiles/vector/trails-pbf.mbtiles'
   )
 
   const importResponse = await server.inject({
@@ -418,7 +424,7 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
   t.equal(styleGetResponse.statusCode, 200)
 
   const styleHasSourceReferringToTileset = Object.values(
-    styleGetResponse.json<StyleJSON & IdResource>().sources
+    styleGetResponse.json().sources
   ).some((source) => {
     if ('url' in source && source.url) {
       return source.url === expectedSourceUrl
@@ -571,9 +577,7 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
       method: 'GET',
       url: '/styles',
     })
-    .then((resp) =>
-      resp.json().find((s: { id: string }) => s.id === style1Before.id)
-    )
+    .then((resp) => resp.json().find((s) => s.id === style1Before.id))
 
   t.equal(style1Before.bytesStored, style1After.bytesStored)
 })
@@ -607,8 +611,7 @@ test('GET /imports/progress/:importId returns 404 error when import does not exi
     }
   })
 
-  // @ts-ignore
-  t.equal(error?.status, 404)
+  t.equal(error.status, 404)
 })
 
 test('GET /imports/:importId returns import information', async (t) => {
@@ -660,7 +663,7 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
     let receivedFinalProgressEvent = false
     let receivedCompletedEvent = false
 
-    const completedEventMessage = await new Promise<any>((res, rej) => {
+    const completedEventMessage = await new Promise((res, rej) => {
       evtSource.onmessage = (event) => {
         const message = JSON.parse(event.data)
 
@@ -691,7 +694,7 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
         }
       }
 
-      evtSource.onerror = (err: any) => {
+      evtSource.onerror = (err) => {
         evtSource.close()
         rej(new Error(err.message))
       }
@@ -870,8 +873,7 @@ test('POST /styles when providing valid style returns resource with id and alter
 
   t.equal(responsePost.statusCode, 200)
 
-  const { id, style } =
-    responsePost.json<Awaited<ReturnType<Api['createStyle']>>>()
+  const { id, style } = responsePost.json()
 
   t.ok(id, 'created style possesses an id')
 
@@ -898,7 +900,7 @@ test('POST /styles when providing valid style returns resource with id and alter
     if ('url' in source) {
       // TODO: Ideally verify that each url ends with the corresponding tileset id
       t.ok(
-        source.url?.startsWith(tilesetEndpointPrefix),
+        source.url.startsWith(tilesetEndpointPrefix),
         'url field in source remapped to point to map server api endpoint'
       )
     }
@@ -954,10 +956,7 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
     payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
   })
 
-  const { id: expectedId } = responsePost.json<{
-    id: string
-    style: StyleJSON
-  }>()
+  const { id: expectedId } = responsePost.json()
 
   const responseGet = await server.inject({
     method: 'GET',
@@ -966,9 +965,7 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
 
   t.equal(responseGet.statusCode, 200)
 
-  for (const source of Object.values(
-    responseGet.json<StyleJSON>()['sources']
-  )) {
+  for (const source of Object.values(responseGet.json()['sources'])) {
     const urlExists = 'url' in source && source.url !== undefined
 
     t.ok(urlExists)
@@ -1056,7 +1053,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
     },
   })
 
-  const { id } = responsePost.json<{ id: string; style: StyleJSON }>()
+  const { id } = responsePost.json()
 
   const responseDelete = await server.inject({
     method: 'DELETE',
@@ -1099,14 +1096,14 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 
   const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
-  const styles = await Promise.all<StyleJSON & IdResource>(
-    stylesList.map(({ url, id }: { url: string; id: string }) =>
+  const styles = await Promise.all(
+    stylesList.map(({ url, id }) =>
       server
         .inject({
           method: 'GET',
           url,
         })
-        .then((response) => response.json<StyleJSON>())
+        .then((response) => response.json())
         .then((style) => ({ ...style, id }))
     )
   )
