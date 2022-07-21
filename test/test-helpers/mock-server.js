@@ -1,8 +1,8 @@
+const { setupServer } = require('msw/node')
 const { rest } = require('msw')
 const { createHash } = require('crypto')
 
-
-module.exports.handlers = [
+const handlers = [
   rest.get(
     // based on fixtures/good-tilejson/mapbox_raster_tilejson.json
     'http://*.tiles.mapbox.com/v3/aj.1x1-degrees/:zoom/:x/:y',
@@ -111,3 +111,6 @@ function createETag(entity) {
 function convertParamToNumber(param) {
   return Number.parseInt(Array.isArray(param) ? param[0] : param, 10)
 }
+
+// This configures a request mocking server with the given request handlers.
+module.exports = setupServer(...handlers)

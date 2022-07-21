@@ -6,15 +6,7 @@ import './type-extensions' // necessary to make sure that the fastify types are 
 import api, { type MapServerOptions } from './api'
 import * as routes from './routes'
 
-export { validateTileJSON, type TileJSON } from './lib/tilejson'
-export {
-  DEFAULT_RASTER_LAYER_ID,
-  DEFAULT_RASTER_SOURCE_ID,
-  validate as validateStyleJSON,
-  type StyleJSON,
-} from './lib/stylejson'
-
-export function createServer(
+function createServer(
   fastifyOpts: FastifyServerOptions = {},
   mapServerOpts: MapServerOptions
 ): FastifyInstance {
@@ -42,5 +34,9 @@ export function createServer(
 
   return fastify
 }
+
+export default createServer
+
+module.exports = createServer
 
 export { type MapServerOptions }
