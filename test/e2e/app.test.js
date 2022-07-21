@@ -47,21 +47,6 @@ if (!fs.existsSync(path.resolve(__dirname, '../../prisma/migrations'))) {
 assertSampleTileJSONIsValid(mapboxRasterTilejson)
 validateStyleJSON(simpleRasterStylejson)
 
-mockServer.listen({
-  onUnhandledRequest: (req, print) => {
-    const canIgnorePath = ['/imports/progress'].some((p) =>
-      req.url.pathname.startsWith(p)
-    )
-    const isLocalhost = ['localhost', '127.0.0.1'].includes(req.url.hostname)
-
-    if (isLocalhost && canIgnorePath) {
-      return
-    }
-
-    print.warning()
-  },
-})
-
 /**
  * @param {import('tape').Test} t
  */
@@ -81,7 +66,13 @@ function createContext(t) {
 
   const server = createServer()
 
-  t.teardown(() => server.close())
+  t.teardown(() => {
+    server.close()
+    // Ensure mock server is closed after each test (catch error if it is not running)
+    try {
+      mockServer.close()
+    } catch (e) {}
+  })
 
   const context = {
     createServer,
@@ -306,6 +297,7 @@ test('GET /tile before tileset is created returns 404 status code', async (t) =>
 
 test('GET /tile of png format returns a tile image', async (t) => {
   const { sampleTileJSON, server } = createContext(t)
+  mockServer.listen()
 
   // Create initial tileset
   const initialResponse = await server.inject({
@@ -838,6 +830,7 @@ test('POST /styles when providing an id returns resource with the same id', asyn
 
 test('POST /styles when style exists returns 409', async (t) => {
   const { server, sampleStyleJSON } = createContext(t)
+  mockServer.listen()
 
   const payload = {
     style: sampleStyleJSON,
@@ -864,6 +857,7 @@ test('POST /styles when style exists returns 409', async (t) => {
 
 test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
   const { server, sampleStyleJSON } = createContext(t)
+  mockServer.listen()
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -949,6 +943,7 @@ test('GET /styles/:styleId when style does not exist return 404 status code', as
 
 test('GET /styles/:styleId when style exists returns style with sources pointing to offline tilesets', async (t) => {
   const { server, sampleStyleJSON } = createContext(t)
+  mockServer.listen()
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -993,6 +988,7 @@ test('GET /styles when no styles exist returns body with an empty array', async 
 
 test('GET /styles when styles exist returns array of metadata for each', async (t) => {
   const { server, sampleStyleJSON } = createContext(t)
+  mockServer.listen()
 
   const expectedName = 'My Style'
 
@@ -1043,6 +1039,7 @@ test('DELETE /styles/:styleId when style does not exist returns 404 status code'
 
 test('DELETE /styles/:styleId when style exists returns 204 status code and empty body', async (t) => {
   const { server } = createContext(t)
+  mockServer.listen()
 
   const responsePost = await server.inject({
     method: 'POST',
