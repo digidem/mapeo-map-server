@@ -745,6 +745,7 @@ test('POST /styles with invalid style returns 400 status code', async (t) => {
 // We'd enforce at the application level that they provide an `id` field in their body
 test('POST /styles when providing an id returns resource with the same id', async (t) => {
   const server = createServer(t)
+  mockServer.listen()
 
   const expectedId = 'example-style-id'
 
