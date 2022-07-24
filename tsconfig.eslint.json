@@ -4,7 +4,7 @@
     "src",
     ".eslintrc.js",
     "package.json",
-    "tests",
+    "test",
     "types",
     "scripts",
     "server.ts"
