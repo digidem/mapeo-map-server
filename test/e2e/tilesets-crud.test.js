@@ -1,4 +1,5 @@
 const test = require('tape')
+const nock = require('nock')
 
 const {
   DEFAULT_RASTER_LAYER_ID,
@@ -7,7 +8,11 @@ const {
 
 const createServer = require('../test-helpers/create-server')
 const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
-const mockServer = require('../test-helpers/mock-server')
+const {
+  defaultMockHeaders,
+  tileMockBody,
+  createFakeTile,
+} = require('../test-helpers/server-mocks')
 
 /**
  * /tilesets tests
@@ -197,7 +202,6 @@ test('GET /tile before tileset is created returns 404 status code', async (t) =>
 
 test('GET /tile of png format returns a tile image', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
 
   // Create initial tileset
   const initialResponse = await server.inject({
@@ -208,18 +212,24 @@ test('GET /tile of png format returns a tile image', async (t) => {
 
   const { id: tilesetId } = initialResponse.json()
 
+  const scope = nock(/tiles.mapbox.com/)
+    .defaultReplyHeaders(defaultMockHeaders)
+    // This should match the URLs in the `tiles` property of the sampleTileJSON
+    .get(/\/v3\/aj\.1x1-degrees\/(?<z>.*)\/(?<x>.*)\/(?<y>.*)\.png/)
+    .reply(200, tileMockBody, { 'Content-Type': 'image/png' })
+
+  const expectedTile = createFakeTile(1, 2, 3)
   const response = await server.inject({
     method: 'GET',
     url: `/tilesets/${tilesetId}/1/2/3`,
   })
 
+  t.ok(scope.isDone(), 'tile mock was called')
   t.equal(response.statusCode, 200)
-
   t.equal(
     response.headers['content-type'],
     'image/png',
     'Response content type matches desired resource type'
   )
-
-  t.equal(typeof response.body, 'string')
+  t.deepEqual(response.rawPayload, expectedTile, 'Got expected response')
 })

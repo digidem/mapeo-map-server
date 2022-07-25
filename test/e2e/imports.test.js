@@ -3,6 +3,8 @@ const path = require('path')
 
 const importSse = require('../test-helpers/import-sse')
 const createServer = require('../test-helpers/create-server')
+// This disables upstream requests (e.g. simulates offline)
+require('../test-helpers/server-mocks')
 
 const sampleMbTilesPath = path.resolve(
   __dirname,
