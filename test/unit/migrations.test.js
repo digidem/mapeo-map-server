@@ -1,25 +1,34 @@
-import test from 'tape'
-import tmp from 'tmp'
-import crypto from 'crypto'
-import path from 'path'
-import fs from 'fs'
-import Database from 'better-sqlite3'
+// @ts-check
+const test = require('tape')
+const tmp = require('tmp')
+const crypto = require('crypto')
+const path = require('path')
+const fs = require('fs')
+const Database = require('better-sqlite3')
 
-import { Migration, migrate } from './migrations'
+const { migrate } = require('../../dist/lib/migrations')
+
+/**
+ * @typedef {import('../../dist/lib/migrations').Migration Migration}
+ */
 
 tmp.setGracefulCleanup()
 
 const TEST_TABLE_NAME = 'Developers'
 
-function generateMigrationChecksum(s: string) {
+/**
+ * @param {string} s
+ * @returns {string}
+ */
+function generateMigrationChecksum(s) {
   return crypto.createHash('sha256').update(s).digest('hex')
 }
 
-function migrationRecordedAsSuccess({
-  finished_at,
-  logs,
-  rolled_back_at,
-}: Migration) {
+/**
+ * @param {Migration} migration
+ * @returns {boolean}
+ */
+function migrationRecordedAsSuccess({ finished_at, logs, rolled_back_at }) {
   return finished_at !== null && logs === null && rolled_back_at === null
 }
 
@@ -51,7 +60,11 @@ const fixtures = {
   `,
 }
 
-function formatTimeUnit(n: number) {
+/**
+ * @param {number} n
+ * @returns {string}
+ */
+function formatTimeUnit(n) {
   return n.toString().padStart(2, '0')
 }
 
@@ -64,7 +77,11 @@ function createContext() {
 
   const db = new Database(path.resolve(dataDir, 'migrations-test.db'))
 
-  function buildMigration(name: string, query: string) {
+  /**
+   * @param {string} name
+   * @param {string} query
+   */
+  function buildMigration(name, query) {
     const migrationDir = path.resolve(allMigrationsDir, name)
 
     fs.mkdirSync(migrationDir)
@@ -75,9 +92,14 @@ function createContext() {
   // Used in `generateMigrationName` to guarantee sequential directory names when called multiple times in a test
   let migrationSequenceNumber = 0
 
-  // Roughly equivalent to the Prisma implementation for generating the migration's directory name
-  // https://github.com/prisma/prisma-engines/blob/6d0d1f6ebabd0497065a8d8e13be1d4dbc2d7c05/migration-engine/connectors/migration-connector/src/migrations_directory.rs#L26
-  function generateMigrationName(name: string): string {
+  /**
+   * Roughly equivalent to the Prisma implementation for generating the migration's directory name
+   * https://github.com/prisma/prisma-engines/blob/6d0d1f6ebabd0497065a8d8e13be1d4dbc2d7c05/migration-engine/connectors/migration-connector/src/migrations_directory.rs#L26
+   *
+   * @param {string} name
+   * @returns {string}
+   */
+  function generateMigrationName(name) {
     const d = new Date()
     const year = formatTimeUnit(d.getUTCFullYear())
     const month = formatTimeUnit(d.getUTCMonth() + 1)
@@ -91,7 +113,11 @@ function createContext() {
     return year + month + date + hours + minutes + seconds + '_' + name
   }
 
-  function getSQLiteTableInfo(tableName: string = TEST_TABLE_NAME) {
+  /**
+   * @param {string} [tableName]
+   * @returns {*}
+   */
+  function getSQLiteTableInfo(tableName = TEST_TABLE_NAME) {
     // https://www.sqlite.org/pragma.html#pragma_table_info
     return db.pragma(`table_info(${tableName})`)
   }
@@ -133,7 +159,8 @@ test('Works when database schema is not initialized', (t) => {
 
   t.ok(migrationsTableExists(), 'Migrations table now exists')
 
-  const allPersistedMigrations: Migration[] = db
+  /** @type {Migration[]} */
+  const allPersistedMigrations = db
     .prepare("SELECT * FROM '_prisma_migrations'")
     .all()
 
@@ -142,13 +169,13 @@ test('Works when database schema is not initialized', (t) => {
   const persistedMigration = allPersistedMigrations[0]
 
   t.equal(
-    persistedMigration?.migration_name,
+    persistedMigration.migration_name,
     migrationName,
     'Migration name persisted sucessfully'
   )
 
   t.equal(
-    persistedMigration?.checksum,
+    persistedMigration.checksum,
     generateMigrationChecksum(fixtures.initial),
     'Checksum for migration matches hash of migration file'
   )
@@ -182,7 +209,8 @@ test('Works when a subsequent migration is run', (t) => {
 
   t.doesNotThrow(runMigrations, 'Subsequent migration runs without error')
 
-  const allPersistedMigrations: Migration[] = db
+  /** @type {Migration[]} */
+  const allPersistedMigrations = db
     .prepare("SELECT * FROM '_prisma_migrations'")
     .all()
 
@@ -229,14 +257,16 @@ test('Does nothing when no new migrations need to be applied (idempotency)', (t)
     "SELECT * FROM '_prisma_migrations'"
   )
 
-  const migrationsBefore: Migration[] = allMigrationsStatement.all()
+  /** @type {Migration[]} */
+  const migrationsBefore = allMigrationsStatement.all()
 
   t.doesNotThrow(
     runMigrations,
     'Subsequent and unecessary migration runs without error'
   )
 
-  const migrationsAfter: Migration[] = allMigrationsStatement.all()
+  /** @type {Migration[]} */
+  const migrationsAfter = allMigrationsStatement.all()
 
   t.same(
     migrationsBefore,
@@ -259,7 +289,8 @@ test('Applies multiple migrations sequentially if necessary', (t) => {
 
   t.doesNotThrow(runMigrations, 'Runs migrations with no errors')
 
-  const allMigrations: Migration[] = db
+  /** @type {Migration[]} */
+  const allMigrations = db
     .prepare("SELECT * FROM '_prisma_migrations' ORDER BY finished_at ASC;")
     .all()
 
@@ -309,7 +340,8 @@ test('Only updates migrations table when bad migration is attempted', (t) => {
 
   const tableInfoAfter = getSQLiteTableInfo()
 
-  const failedMigration: Migration = db
+  /** @type {Migration} */
+  const failedMigration = db
     .prepare("SELECT * FROM '_prisma_migrations' WHERE migration_name = ?;")
     .get(badMigrationName)
 

@@ -1,10 +1,11 @@
-import test from 'tape'
-import fs from 'fs'
-import path from 'path'
-import Database from 'better-sqlite3'
+// @ts-check
+const test = require('tape')
+const fs = require('fs')
+const path = require('path')
+const Database = require('better-sqlite3')
 
-import { mbTilesToTileJSON } from './mbtiles'
-import { validateTileJSON } from './tilejson'
+const { mbTilesToTileJSON } = require('../../dist/lib/mbtiles')
+const { validateTileJSON } = require('../../dist/lib/tilejson')
 
 const FIXTURE_DIRECTORIES_PATHS = [
   path.resolve(__dirname, '../fixtures/mbtiles/raster/'),

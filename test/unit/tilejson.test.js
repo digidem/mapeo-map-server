@@ -1,8 +1,9 @@
-import fs from 'fs'
-import path from 'path'
-import test from 'tape'
+// @ts-check
+const fs = require('fs')
+const path = require('path')
+const test = require('tape')
 
-import { validateTileJSON } from './tilejson'
+const { validateTileJSON } = require('../../dist/lib/tilejson')
 
 test('Bad tileJSON fails validation', (t) => {
   const dir = path.join(__dirname, '../fixtures/bad-tilejson')

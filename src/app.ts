@@ -3,7 +3,7 @@ import fastifySwagger from '@fastify/swagger'
 import { FastifySSEPlugin } from 'fastify-sse-v2'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
-import api, { MapServerOptions } from './api'
+import api, { type MapServerOptions } from './api'
 import * as routes from './routes'
 
 function createServer(
@@ -35,9 +35,8 @@ function createServer(
   return fastify
 }
 
-export { MapServerOptions }
-
 export default createServer
 
 module.exports = createServer
-module.exports.default = createServer
+
+export { type MapServerOptions }
