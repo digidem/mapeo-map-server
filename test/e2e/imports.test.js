@@ -1,5 +1,6 @@
 const test = require('tape')
 const path = require('path')
+const EventSource = require('eventsource')
 
 const importSse = require('../test-helpers/import-sse')
 const createServer = require('../test-helpers/create-server')
@@ -9,6 +10,10 @@ require('../test-helpers/server-mocks')
 const sampleMbTilesPath = path.resolve(
   __dirname,
   '../fixtures/mbtiles/raster/countries-png.mbtiles'
+)
+const sampleSmallMbTilesPath = path.resolve(
+  __dirname,
+  '../fixtures/mbtiles/raster/countries-png-small.mbtiles'
 )
 
 test('GET /imports/:importId returns 404 error when import does not exist', async (t) => {
@@ -41,7 +46,7 @@ test('GET /imports/:importId returns import information', async (t) => {
   const createImportResponse = await server.inject({
     method: 'POST',
     url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
+    payload: { filePath: sampleSmallMbTilesPath },
   })
 
   t.equals(createImportResponse.statusCode, 200)
@@ -96,14 +101,62 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
   )
 })
 
-// TODO: Sometimes this test is hanging locally
-test('GET /imports/progress/:importId when import is already completed returns single complete event (SSE)', async (t) => {
+// This tests that the server can force an eventsource client to disconnect by
+// responding with a 204 status code. This is in case the client does not close
+// the eventSource (as it should) after the 'complete' message is received
+test('GET /imports/progress/:importId - server disconnects via 204 if client is not closed', async (t) => {
   const server = createServer(t)
 
   const createImportResponse = await server.inject({
     method: 'POST',
     url: '/tilesets/import',
     payload: { filePath: sampleMbTilesPath },
+  })
+
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  const address = await server.listen(0)
+  const evtSource = new EventSource(
+    `${address}/imports/progress/${createdImportId}`
+  )
+  await new Promise((res) => {
+    let errors = 0
+    let lastMessage
+    evtSource.onmessage = (ev) => {
+      lastMessage = JSON.parse(ev.data)
+    }
+    evtSource.onerror = async (ev) => {
+      errors++
+      if (errors === 1) {
+        t.equal(lastMessage.type, 'complete')
+        t.equal(
+          evtSource.readyState,
+          evtSource.CONNECTING,
+          'EventSource tries to reconnect the first time after the server closes'
+        )
+      } else {
+        // Await next tick before checking event source state
+        await new Promise((res) => setTimeout(res, 0))
+        t.equal(
+          evtSource.readyState,
+          evtSource.CLOSED,
+          'EventSource is closed the second time after the server closes'
+        )
+        res()
+      }
+    }
+  })
+})
+
+test('GET /imports/progress/:importId when import is already completed returns single complete event (SSE)', async (t) => {
+  const server = createServer(t)
+
+  const createImportResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: sampleSmallMbTilesPath },
   })
 
   const {
