@@ -112,14 +112,11 @@ const styles: FastifyPluginAsync = async function (fastify) {
     let upstreamSprites: Map<number, UpstreamSpriteResponse> | undefined
 
     if (style.sprite) {
-      upstreamSprites = await request.api.fetchUpstreamSprites(
-        style.sprite,
-        accessToken
-      )
+      upstreamSprites = await request.api.fetchUpstreamSprites(style.sprite, {
+        accessToken,
+      })
 
-      if (
-        [...upstreamSprites.values()].every((info) => info instanceof Error)
-      ) {
+      if (upstreamSprites.size === 0) {
         throw new FailedUpstreamFetchError(style.sprite)
       }
     }

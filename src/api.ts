@@ -196,7 +196,10 @@ export interface Api {
   deleteSprite(id: string, pixelDensity: number): void
   fetchUpstreamSprites(
     upstreamSpriteUrl: string,
-    accessToken?: string
+    options: {
+      accessToken?: string
+      etag?: string // etag for the 1x image asset
+    }
   ): Promise<
     Map<number, UpstreamSpriteResponse> // Map of pixel density to the response result
   >
@@ -1096,7 +1099,7 @@ function createApi({
 
       return spriteToSave
     },
-    async fetchUpstreamSprites(upstreamSpriteUrl, accessToken) {
+    async fetchUpstreamSprites(upstreamSpriteUrl, { accessToken, etag }) {
       if (isMapboxURL(upstreamSpriteUrl) && !accessToken) {
         throw new MBAccessTokenRequiredError()
       }
@@ -1110,6 +1113,8 @@ function createApi({
         upstreamRequestsManager.getUpstream({
           url: normalizeSpriteURL(upstreamSpriteUrl, '', '.png', accessToken),
           responseType: 'buffer',
+          // We only keep track of the etag for the 1x image asset
+          etag,
         }),
       ])
 
@@ -1145,8 +1150,13 @@ function createApi({
       const upstreamSprites: Awaited<ReturnType<Api['fetchUpstreamSprites']>> =
         new Map()
 
-      upstreamSprites.set(1, extractedSprite1x)
-      upstreamSprites.set(2, extractedSprite2x)
+      if (extractedSprite1x) {
+        upstreamSprites.set(1, extractedSprite1x)
+      }
+
+      if (extractedSprite2x) {
+        upstreamSprites.set(2, extractedSprite2x)
+      }
 
       return upstreamSprites
 
@@ -1154,25 +1164,24 @@ function createApi({
         settledResponseResult: PromiseSettledResult<
           [UpstreamResponse<'json'>, UpstreamResponse<'buffer'>]
         >
-      ): UpstreamSpriteResponse {
-        if (settledResponseResult.status === 'fulfilled') {
-          const [layoutAssetResponse, imageAssetResponse] =
-            settledResponseResult.value
+      ): UpstreamSpriteResponse | null {
+        // This means that the asset was not modified upstream
+        if (settledResponseResult.status === 'rejected') return null
 
-          if (!validateSpriteIndex(layoutAssetResponse.data)) {
-            return new UpstreamJsonValidationError(
-              upstreamSpriteUrl,
-              validateSpriteIndex.errors
-            )
-          }
+        const [layoutAssetResponse, imageAssetResponse] =
+          settledResponseResult.value
 
-          return {
-            layout: layoutAssetResponse.data,
-            data: imageAssetResponse.data,
-            etag: layoutAssetResponse.etag,
-          }
-        } else {
-          return new Error(settledResponseResult.reason)
+        if (!validateSpriteIndex(layoutAssetResponse.data)) {
+          return new UpstreamJsonValidationError(
+            upstreamSpriteUrl,
+            validateSpriteIndex.errors
+          )
+        }
+
+        return {
+          layout: layoutAssetResponse.data,
+          data: imageAssetResponse.data,
+          etag: imageAssetResponse.etag,
         }
       }
     },
