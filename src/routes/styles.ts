@@ -133,7 +133,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
 
     const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
 
-    if (spriteId && style.sprite && upstreamSprites) {
+    if (spriteId && style.sprite && upstreamSprites?.size) {
       for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
         // TODO: Should we report the error here?
         if (spriteInfo instanceof Error) continue
