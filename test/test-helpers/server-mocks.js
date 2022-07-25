@@ -32,7 +32,6 @@ function tileMockBody(uri) {
   )
   if (!match) throw new Error('Unexpected URI')
   const { x, y, z } = match.groups
-  console.log({ x, y, z })
 
   // First 8 bytes identify a PNG datastream: https://www.w3.org/TR/PNG/#5PNG-file-signature
   return createFakeTile(Number(z), Number(x), Number(y))
@@ -57,7 +56,6 @@ function createFakeTile(z, x, y) {
 /** @param {string} uri */
 function tilesetMockBody(uri) {
   const match = uri.match(/\/v4\/(?<tilesetId>.*)\.json/)
-  console.log(uri)
   if (!match) throw new Error('Unexpected URI')
   const { tilesetId } = match.groups
   const tileset = {
