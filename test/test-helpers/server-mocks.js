@@ -126,14 +126,7 @@ function spriteLayoutMockBody(uri) {
 
   const { name, username } = match.groups
 
-  return JSON.stringify(
-    JSON.parse(
-      fs.readFileSync(
-        path.join(__dirname, getSpriteFixturePath(username, name, 'json')),
-        'utf8'
-      )
-    )
-  )
+  return fs.readFileSync(getSpriteFixturePath(username, name, 'json'), 'utf8')
 }
 
 /**
@@ -149,9 +142,7 @@ function spriteImageMockBody(uri) {
 
   const { name, username } = match.groups
 
-  return fs.readFileSync(
-    path.join(__dirname, getSpriteFixturePath(username, name, 'png'))
-  )
+  return fs.readFileSync(getSpriteFixturePath(username, name, 'png'))
 }
 
 /**
@@ -164,5 +155,8 @@ function getSpriteFixturePath(username, name, format) {
   const pixelDensity = parseInt(name.split('@')[1], 10) || 1
   const densitySuffix = pixelDensity === 1 ? '' : `@${pixelDensity}x`
 
-  return `../fixtures/sprites/${username}/sprite${densitySuffix}.${format}`
+  return path.join(
+    __dirname,
+    `../fixtures/sprites/${username}/sprite${densitySuffix}.${format}`
+  )
 }
