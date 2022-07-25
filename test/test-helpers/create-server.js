@@ -3,7 +3,6 @@ const path = require('path')
 const fs = require('fs')
 
 const createMapServer = require('../..')
-const mockServer = require('../test-helpers/mock-server')
 
 tmp.setGracefulCleanup()
 
@@ -32,10 +31,6 @@ function createServer(t) {
   t.teardown(async () => {
     await server.close()
     removeCallback()
-    // Ensure mock server is closed after each test (catch error if it is not running)
-    try {
-      mockServer.close()
-    } catch (e) {}
   })
 
   return server

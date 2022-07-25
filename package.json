@@ -77,7 +77,7 @@
     "eventsource": "^2.0.2",
     "husky": "^4.3.0",
     "lint-staged": "^11.2.6",
-    "msw": "~0.38.2",
+    "nock": "^13.2.9",
     "pino-pretty": "^7.6.1",
     "prettier": "^2.6.2",
     "prisma": "^3.14.0",
