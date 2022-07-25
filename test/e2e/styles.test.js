@@ -1,9 +1,13 @@
 const test = require('tape')
 const path = require('path')
+const nock = require('nock')
 
 const createServer = require('../test-helpers/create-server')
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
-const mockServer = require('../test-helpers/mock-server')
+const {
+  defaultMockHeaders,
+  tilesetMockBody,
+} = require('../test-helpers/server-mocks')
 
 const sampleMbTilesPath = path.resolve(
   __dirname,
@@ -31,7 +35,10 @@ test('POST /styles with invalid style returns 400 status code', async (t) => {
 // We'd enforce at the application level that they provide an `id` field in their body
 test('POST /styles when providing an id returns resource with the same id', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
   const expectedId = 'example-style-id'
 
@@ -47,12 +54,17 @@ test('POST /styles when providing an id returns resource with the same id', asyn
     payload,
   })
 
+  t.equal(responsePost.statusCode, 200)
   t.equal(responsePost.json().id, expectedId)
+  t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
 })
 
 test('POST /styles when style exists returns 409', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
   const payload = {
     style: sampleStyleJSON,
@@ -67,6 +79,7 @@ test('POST /styles when style exists returns 409', async (t) => {
   })
 
   t.equal(responsePost1.statusCode, 200)
+  t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
 
   const responsePost2 = await server.inject({
     method: 'POST',
@@ -79,7 +92,10 @@ test('POST /styles when style exists returns 409', async (t) => {
 
 test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -88,6 +104,7 @@ test('POST /styles when providing valid style returns resource with id and alter
   })
 
   t.equal(responsePost.statusCode, 200)
+  t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
 
   const { id, style } = responsePost.json()
 
@@ -165,7 +182,10 @@ test('GET /styles/:styleId when style does not exist return 404 status code', as
 
 test('GET /styles/:styleId when style exists returns style with sources pointing to offline tilesets', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -181,6 +201,7 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
   })
 
   t.equal(responseGet.statusCode, 200)
+  t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
 
   for (const source of Object.values(responseGet.json()['sources'])) {
     const urlExists = 'url' in source && source.url !== undefined
@@ -210,7 +231,10 @@ test('GET /styles when no styles exist returns body with an empty array', async 
 
 test('GET /styles when styles exist returns array of metadata for each', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
   const expectedName = 'My Style'
 
@@ -242,7 +266,7 @@ test('GET /styles when styles exist returns array of metadata for each', async (
   const responseGet = await server.inject({ method: 'GET', url: '/styles' })
 
   t.equal(responseGet.statusCode, 200)
-
+  t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
   t.same(responseGet.json(), expectedGetResponse)
 })
 
@@ -261,7 +285,10 @@ test('DELETE /styles/:styleId when style does not exist returns 404 status code'
 
 test('DELETE /styles/:styleId when style exists returns 204 status code and empty body', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -273,6 +300,8 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   })
 
   const { id } = responsePost.json()
+  t.equal(responsePost.statusCode, 200)
+  t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
 
   const responseDelete = await server.inject({
     method: 'DELETE',
