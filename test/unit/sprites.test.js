@@ -1,7 +1,12 @@
-import test from 'tape'
-import { parseSpriteName } from './sprites'
+const test = require('tape')
+const { parseSpriteName } = require('../../dist/lib/sprites')
 
-function createSpriteNameFixture(id: string, density: number) {
+/**
+ * @param {string} id
+ * @param {number} density
+ * @returns {string}
+ */
+function createSpriteNameFixture(id, density) {
   return `${id}${density ? `@${density}x` : ''}`
 }
 

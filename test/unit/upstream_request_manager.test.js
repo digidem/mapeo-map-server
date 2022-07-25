@@ -1,8 +1,11 @@
-import Fastify from 'fastify'
-import Etag from '@fastify/etag'
-import test, { Test } from 'tape'
+// @ts-check
+const Fastify = require('fastify')
+const Etag = require('@fastify/etag')
+const test = require('tape')
 
-import { UpstreamRequestsManager } from './upstream_requests_manager'
+const {
+  UpstreamRequestsManager,
+} = require('../../dist/lib/upstream_requests_manager')
 
 const PORT = 3001
 const ENDPOINT_URL = `http://localhost:${PORT}/`
@@ -10,11 +13,8 @@ const ENDPOINT_URL = `http://localhost:${PORT}/`
 function createServer() {
   const server = Fastify({ logger: false })
   let payload = Buffer.from(JSON.stringify({ hello: 'world' }))
-  const responses: Array<{
-    payload: any
-    statusCode: number
-    headers: any
-  }> = []
+  /** @type {{payload: *, statusCode: number, headers: *}[]} */
+  const responses = []
   server.register(Etag)
 
   server.get('/', async () => {
@@ -34,13 +34,19 @@ function createServer() {
     listen: server.listen.bind(server),
     close: server.close.bind(server),
     responses,
-    setPayload(newPayload: Buffer) {
+    /**
+     * @param {Buffer} newPayload
+     */
+    setPayload(newPayload) {
       payload = newPayload
     },
   }
 }
 
-async function createContext(t: Test) {
+/**
+ * @param {import('tape').Test} t
+ */
+async function createContext(t) {
   const server = createServer()
 
   t.teardown(() => server.close())
