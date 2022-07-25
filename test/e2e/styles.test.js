@@ -6,6 +6,8 @@ const createServer = require('../test-helpers/create-server')
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
 const {
   defaultMockHeaders,
+  spriteLayoutMockBody,
+  spriteImageMockBody,
   tilesetMockBody,
 } = require('../test-helpers/server-mocks')
 
@@ -400,7 +402,6 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 
 test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 when sprite does not exist', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
 
   const getSpriteImageResponse = await server.inject({
     method: 'GET',
@@ -419,7 +420,23 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 
 
 test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns correct sprite asset', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteLayoutScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.json/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteLayoutMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteImageScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.png/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteImageMockBody, { 'Content-Type': 'image/png' })
 
   const styleWithSprite = {
     ...sampleStyleJSON,
@@ -434,6 +451,16 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns corr
       accessToken: DUMMY_MB_ACCESS_TOKEN,
     },
   })
+
+  t.ok(
+    mockedSpriteLayoutScope.isDone(),
+    'upstream request for sprite layout was made'
+  )
+
+  t.ok(
+    mockedSpriteImageScope.isDone(),
+    'upstream request for sprite image was made'
+  )
 
   const {
     style: { sprite },
@@ -472,7 +499,23 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns corr
 
 test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an available fallback asset', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteLayoutScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.json/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteLayoutMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteImageScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.png/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteImageMockBody, { 'Content-Type': 'image/png' })
 
   const styleWithSprite = {
     ...sampleStyleJSON,
@@ -487,6 +530,16 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an a
       accessToken: DUMMY_MB_ACCESS_TOKEN,
     },
   })
+
+  t.ok(
+    mockedSpriteLayoutScope.isDone(),
+    'upstream request for sprite layout was made'
+  )
+
+  t.ok(
+    mockedSpriteImageScope.isDone(),
+    'upstream request for sprite image was made'
+  )
 
   const {
     style: { sprite },
@@ -536,7 +589,23 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an a
 
 test('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
   const server = createServer(t)
-  mockServer.listen()
+
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteLayoutScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.json/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteLayoutMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteImageScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.png/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteImageMockBody, { 'Content-Type': 'image/png' })
 
   const styleWithSprite = {
     ...sampleStyleJSON,
@@ -553,6 +622,16 @@ test('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
   })
 
   t.equal(createStyleResponse.statusCode, 200)
+
+  t.ok(
+    mockedSpriteLayoutScope.isDone(),
+    'upstream request for sprite layout was made'
+  )
+
+  t.ok(
+    mockedSpriteImageScope.isDone(),
+    'upstream request for sprite image was made'
+  )
 
   const {
     id: styleId,

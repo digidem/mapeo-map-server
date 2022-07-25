@@ -1,4 +1,6 @@
 const nock = require('nock')
+const fs = require('fs')
+const path = require('path')
 const { createHash } = require('crypto')
 
 // Block all outgoing requests apart from to localhost
@@ -18,11 +20,13 @@ const defaultMockHeaders = {
 }
 
 module.exports = {
+  createETag,
+  createFakeTile,
+  defaultMockHeaders,
+  spriteImageMockBody,
+  spriteLayoutMockBody,
   tileMockBody,
   tilesetMockBody,
-  createETag,
-  defaultMockHeaders,
-  createFakeTile,
 }
 
 /** @param {string} uri */
@@ -107,4 +111,58 @@ function createETag(entity) {
       : entity.length
 
   return `"${len.toString(16)}-${hash}"`
+}
+
+/**
+ * @param {string} uri
+ * @returns {string}
+ */
+function spriteLayoutMockBody(uri) {
+  const match = uri.match(
+    /\/styles\/v1\/(?<username>.*)\/(?:.*)\/(?<name>.*)\.json/
+  )
+
+  if (!match) throw new Error('Unexpected URI')
+
+  const { name, username } = match.groups
+
+  return JSON.stringify(
+    JSON.parse(
+      fs.readFileSync(
+        path.join(__dirname, getSpriteFixturePath(username, name, 'json')),
+        'utf8'
+      )
+    )
+  )
+}
+
+/**
+ * @param {string} uri
+ * @returns {Buffer}
+ */
+function spriteImageMockBody(uri) {
+  const match = uri.match(
+    /\/styles\/v1\/(?<username>.*)\/(?:.*)\/(?<name>.*)\.png/
+  )
+
+  if (!match) throw new Error('Unexpected URI')
+
+  const { name, username } = match.groups
+
+  return fs.readFileSync(
+    path.join(__dirname, getSpriteFixturePath(username, name, 'png'))
+  )
+}
+
+/**
+ * @param {string} username
+ * @param {string} name
+ * @param {string} format
+ * @returns {string}
+ */
+function getSpriteFixturePath(username, name, format) {
+  const pixelDensity = parseInt(name.split('@')[1], 10) || 1
+  const densitySuffix = pixelDensity === 1 ? '' : `@${pixelDensity}x`
+
+  return `../fixtures/sprites/${username}/sprite${densitySuffix}.${format}`
 }
