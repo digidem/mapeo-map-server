@@ -191,10 +191,10 @@ export interface Api {
       upstreamUrl?: string
     }
   ): Sprite & IdResource
-  deleteSprite(id: string, pixelDensity: number): void
+  deleteSprite(id: string, pixelDensity?: number): void
   fetchUpstreamSprites(
     upstreamSpriteUrl: string,
-    options: {
+    options?: {
       accessToken?: string
       etag?: string // etag for the 1x image asset
     }
@@ -287,14 +287,19 @@ function createApi({
     )
   }
 
-  function spriteExists(spriteId: string, pixelDensity: number) {
-    return (
-      db
-        .prepare<{ spriteId: string; pixelDensity: number }>(
-          'SELECT COUNT(*) AS count FROM Sprite WHERE id = :spriteId AND pixelDensity = :pixelDensity'
-        )
-        .get({ spriteId, pixelDensity }).count > 0
-    )
+  function spriteExists(spriteId: string, pixelDensity?: number) {
+    const query =
+      pixelDensity === undefined
+        ? db
+            .prepare('SELECT COUNT(*) AS count FROM Sprite WHERE id = ?')
+            .bind(spriteId)
+        : db
+            .prepare<{ spriteId: string; pixelDensity: number }>(
+              'SELECT COUNT(*) AS count FROM Sprite WHERE id = :spriteId AND pixelDensity = :pixelDensity'
+            )
+            .bind({ spriteId, pixelDensity })
+
+    return query.get().count > 0
   }
 
   function getTilesetInfo(tilesetId: string) {
@@ -1073,12 +1078,19 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      db.prepare<{ id: string; pixelDensity: number }>(
-        'DELETE FROM Sprite WHERE id = :id AND pixelDensity = :pixelDensity'
-      ).run({
-        id,
-        pixelDensity,
-      })
+      const query =
+        pixelDensity === undefined
+          ? db.prepare('DELETE FROM Sprite WHERE id = :id').bind(id)
+          : db
+              .prepare<{ id: string; pixelDensity: number }>(
+                'DELETE FROM Sprite WHERE id = :id AND pixelDensity = :pixelDensity'
+              )
+              .bind({
+                id,
+                pixelDensity,
+              })
+
+      query.run()
     },
     updateSprite(id, pixelDensity, options) {
       if (!spriteExists(id, pixelDensity)) {
@@ -1100,7 +1112,7 @@ function createApi({
 
       return spriteToSave
     },
-    async fetchUpstreamSprites(upstreamSpriteUrl, { accessToken, etag }) {
+    async fetchUpstreamSprites(upstreamSpriteUrl, { accessToken, etag } = {}) {
       if (isMapboxURL(upstreamSpriteUrl) && !accessToken) {
         throw new MBAccessTokenRequiredError()
       }
