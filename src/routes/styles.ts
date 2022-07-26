@@ -116,7 +116,11 @@ const styles: FastifyPluginAsync = async function (fastify) {
         accessToken,
       })
 
-      if (upstreamSprites.size === 0) {
+      if (
+        [...upstreamSprites.values()].every(
+          (spriteInfo) => spriteInfo instanceof Error
+        )
+      ) {
         throw new FailedUpstreamFetchError(style.sprite)
       }
     }
@@ -135,10 +139,9 @@ const styles: FastifyPluginAsync = async function (fastify) {
 
     if (spriteId && style.sprite && upstreamSprites?.size) {
       for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
-        // TODO: Should we report the error here?
+        // TODO: Should we report the error here? Usually will be a validation error for the layout
         if (spriteInfo instanceof Error) continue
 
-        // TODO: Wrap in try/catch in the case that the sprite already exists?
         request.api.createSprite({
           id: spriteId,
           data: spriteInfo.data,
