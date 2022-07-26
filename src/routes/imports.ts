@@ -1,9 +1,9 @@
 import { FastifyPluginAsync } from 'fastify'
 import { Static, Type as T } from '@sinclair/typebox'
+import { PassThrough } from 'readable-stream'
 
 import { PortMessage } from '../lib/mbtiles_import_worker'
 import { serializeSSE, addSSEHeaders, type EventMessage } from '../lib/sse'
-import { PassThrough } from 'readable-stream'
 
 const GetImportProgressParamsSchema = T.Object({
   importId: T.String(),
@@ -35,7 +35,7 @@ const imports: FastifyPluginAsync = async function (fastify) {
       const { importId } = request.params
       // Respond with 404 and close connection if import does not exist
       // Sends standard error in body as JSON (no SSE headers)
-      const importProgress = await request.api.getImport(importId)
+      const importProgress = request.api.getImport(importId)
 
       addSSEHeaders(reply)
 
@@ -47,7 +47,7 @@ const imports: FastifyPluginAsync = async function (fastify) {
         return
       }
 
-      const port = await request.api.getImportPort(importId)
+      const port = request.api.getImportPort(importId)
       // This is an unexpected error state: import active but no port
       if (importProgress.state === 'active' && !port) {
         // TODO: log / report error

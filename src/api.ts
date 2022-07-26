@@ -35,8 +35,6 @@ import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
 import { PortMessage } from './lib/mbtiles_import_worker'
 import {
-  ImportError,
-  ImportState,
   convertActiveToError as convertActiveImportsToErrorImports,
   ImportRecord,
 } from './lib/imports'
@@ -121,12 +119,12 @@ export interface Api {
   importMBTiles(
     filePath: string
   ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
-  getImport(importId: string): Promise<ImportRecord>
-  getImportPort(importId: string): Promise<MessagePort | undefined>
-  createTileset(tileset: TileJSON): Promise<TileJSON & IdResource>
-  putTileset(id: string, tileset: TileJSON): Promise<TileJSON & IdResource>
-  listTilesets(): Promise<Array<TileJSON & IdResource>>
-  getTileset(id: string): Promise<TileJSON & IdResource>
+  getImport(importId: string): ImportRecord
+  getImportPort(importId: string): MessagePort | undefined
+  createTileset(tileset: TileJSON): TileJSON & IdResource
+  putTileset(id: string, tileset: TileJSON): TileJSON & IdResource
+  listTilesets(): Array<TileJSON & IdResource>
+  getTileset(id: string): TileJSON & IdResource
   getTile(opts: {
     tilesetId: string
     zoom: number
@@ -140,11 +138,11 @@ export interface Api {
     y: number
     data: Buffer
     etag?: string
-  }): Promise<void>
+  }): void
   createStyleForTileset(
     tilesetId: string,
     nameForStyle?: string
-  ): Promise<{ id: string; style: StyleJSON }>
+  ): { style: StyleJSON } & IdResource
   createStyle(
     style: StyleJSON,
     options?: {
@@ -155,16 +153,14 @@ export interface Api {
     }
   ): Promise<{ style: StyleJSON } & IdResource>
   updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
-  getStyle(id: string): Promise<StyleJSON>
-  deleteStyle(id: string): Promise<void>
-  listStyles(): Promise<
-    Array<
-      {
-        bytesStored: number
-        name: string | null
-        url: string
-      } & IdResource
-    >
+  getStyle(id: string): StyleJSON
+  deleteStyle(id: string): void
+  listStyles(): Array<
+    {
+      bytesStored: number
+      name: string | null
+      url: string
+    } & IdResource
   >
 }
 
@@ -357,10 +353,10 @@ function createApi({
       const tilesetId = getTilesetId(tilejson)
 
       if (!tilesetExists(tilesetId)) {
-        await api.createTileset(tilejson)
+        api.createTileset(tilejson)
       } else {
         // TODO: Should we update an existing tileset here?
-        // await api.putTileset(tilesetId, tilejson)
+        // api.putTileset(tilesetId, tilejson)
       }
       sourceIdToTilesetId[sourceId] = tilesetId
     }
@@ -369,7 +365,7 @@ function createApi({
   }
 
   const api: Api = {
-    async importMBTiles(filePath: string) {
+    importMBTiles(filePath: string) {
       const filePathWithExtension =
         path.extname(filePath) === '.mbtiles' ? filePath : filePath + '.mbtiles'
 
@@ -404,9 +400,9 @@ function createApi({
 
       const tilesetId = getTilesetId(tilejson)
 
-      const tileset = await api.createTileset(tilejson)
+      const tileset = api.createTileset(tilejson)
 
-      const { id: styleId } = await api.createStyleForTileset(
+      const { id: styleId } = api.createStyleForTileset(
         tileset.id,
         tileset.name
       )
@@ -495,7 +491,7 @@ function createApi({
         }
       })
     },
-    async getImport(importId) {
+    getImport(importId) {
       const row: ImportRecord | undefined = db
         .prepare(
           'SELECT state, error, importedResources, totalResources, importedBytes, totalBytes, ' +
@@ -509,10 +505,10 @@ function createApi({
 
       return row
     },
-    async getImportPort(importId) {
+    getImportPort(importId) {
       return activeImports.get(importId)
     },
-    async createTileset(tilejson) {
+    createTileset(tilejson) {
       const tilesetId = getTilesetId(tilejson)
 
       if (tilesetExists(tilesetId)) {
@@ -546,7 +542,7 @@ function createApi({
       }
     },
 
-    async putTileset(id, tilejson) {
+    putTileset(id, tilejson) {
       if (id !== tilejson.id) {
         throw new MismatchedIdError(id, tilejson.id)
       }
@@ -587,7 +583,7 @@ function createApi({
       return result
     },
 
-    async listTilesets() {
+    listTilesets() {
       const tilesets: (TileJSON & IdResource)[] = []
 
       db.prepare('SELECT id, tilejson FROM Tileset')
@@ -609,7 +605,7 @@ function createApi({
       return tilesets
     },
 
-    async getTileset(id) {
+    getTileset(id) {
       const row:
         | { tilejson: string; etag?: string; upstreamUrl?: string }
         | undefined = db
@@ -694,8 +690,8 @@ function createApi({
           })
 
           if (response) {
-            api
-              .putTile({
+            try {
+              api.putTile({
                 tilesetId,
                 zoom,
                 x,
@@ -703,7 +699,10 @@ function createApi({
                 data: response.data,
                 etag: response.etag,
               })
-              .catch(noop)
+            } catch (_err) {
+              // TODO: Handle error here?
+              noop()
+            }
 
             return { data: response.data, etag: response.etag }
           }
@@ -734,7 +733,7 @@ function createApi({
       }
     },
 
-    async putTile({ tilesetId, zoom, x, y, data, etag }) {
+    putTile({ tilesetId, zoom, x, y, data, etag }) {
       const upstreamTileUrl = getUpstreamTileUrl({
         tilesetId,
         zoom,
@@ -785,7 +784,7 @@ function createApi({
       transaction()
     },
     // TODO: Ideally could consolidate with createStyle
-    async createStyleForTileset(tilesetId, nameForStyle) {
+    createStyleForTileset(tilesetId, nameForStyle) {
       const styleId = encodeBase32(hash(`style:${tilesetId}`))
 
       // TODO: Come up with better default name?
@@ -883,7 +882,7 @@ function createApi({
         style: styleToSave,
       })
     },
-    async listStyles() {
+    listStyles() {
       // `bytesStored` calculates the total bytes stored by tiles that the style references
       // Eventually we want to get storage taken up by other resources like sprites and glyphs
       return db
@@ -918,7 +917,7 @@ function createApi({
         )
     },
 
-    async getStyle(id) {
+    getStyle(id) {
       const row:
         | {
             id: string
@@ -950,7 +949,7 @@ function createApi({
         style,
       })
     },
-    async deleteStyle(id: string) {
+    deleteStyle(id: string) {
       if (!styleExists(id)) {
         throw new NotFoundError(id)
       }
