@@ -395,7 +395,7 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
   t.equal(tilesetResponseGet.statusCode, 404, 'tileset is properly deleted')
 })
 
-test('DELETE /styles/:styleId deletes tilesets that are referenced by the deleted style', async (t) => {
+test('DELETE /styles/:styleId deletes tilesets that are only referenced by the deleted style', async (t) => {
   const server = createServer(t)
 
   const mockedTilesetScope = nock('https://api.mapbox.com')
