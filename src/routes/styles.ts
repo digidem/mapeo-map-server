@@ -176,7 +176,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      await request.api.deleteStyle(request.params.id)
+      request.api.deleteStyle(request.params.id)
       reply.code(204).send()
     }
   )
