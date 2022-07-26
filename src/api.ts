@@ -436,7 +436,6 @@ function createApi({
       } catch (_err) {
         throw new MBTilesImportTargetMissingError(filePath)
       }
-
       const tilejson = mbTilesToTileJSON(mbTilesDb)
 
       mbTilesDb.close()
@@ -496,6 +495,7 @@ function createApi({
             { signal: abortSignaler, transferList: [port1] }
           )
           .catch((err) => {
+            // FYI this will be called when piscina.destroy() in the onClose hook
             rej(err)
           })
           .finally(() => {
@@ -953,8 +953,8 @@ function createApi({
       return db
         .prepare(
           `
-          SELECT Style.id, 
-            json_extract(Style.stylejson, '$.name') as name, 
+          SELECT Style.id,
+            json_extract(Style.stylejson, '$.name') as name,
             (
               SELECT SUM(LENGTH(TileData.data))
               FROM TileData

@@ -7,9 +7,10 @@ const createServer = require('../test-helpers/create-server')
 // This disables upstream requests (e.g. simulates offline)
 require('../test-helpers/server-mocks')
 
-const sampleMbTilesPath = path.resolve(
-  __dirname,
-  '../fixtures/mbtiles/raster/countries-png.mbtiles'
+const fixturesPath = path.resolve(__dirname, '../fixtures')
+const sampleMbTilesPath = path.join(
+  fixturesPath,
+  'mbtiles/raster/countries-png.mbtiles'
 )
 
 test('POST /tilesets/import fails when providing path for non-existent file', async (t) => {
@@ -256,4 +257,29 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
     .then((resp) => resp.json().find((s) => s.id === style1Before.id))
 
   t.equal(style1Before.bytesStored, style1After.bytesStored)
+})
+
+// Failing test
+test.skip('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or styles created', async (t) => {
+  const server = createServer(t)
+  const badMbTilesPath = path.join(
+    fixturesPath,
+    'bad-mbtiles/missing-tiles-table.mbtiles'
+  )
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: badMbTilesPath },
+  })
+
+  // This is currently 500, but should probably be 400?
+  t.equal(importResponse.statusCode, 400)
+
+  const tilesetsRes = await server.inject({ method: 'GET', url: '/tilesets' })
+  t.equal(tilesetsRes.statusCode, 200)
+  t.same(tilesetsRes.json(), [], 'no tilesets created')
+
+  const stylesRes = await server.inject({ method: 'GET', url: '/styles' })
+  t.equal(stylesRes.statusCode, 200)
+  t.same(stylesRes.json(), [], 'no styles created')
 })
