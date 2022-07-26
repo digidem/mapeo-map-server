@@ -124,7 +124,7 @@ export interface Api {
   createTileset(tileset: TileJSON): TileJSON & IdResource
   putTileset(id: string, tileset: TileJSON): TileJSON & IdResource
   listTilesets(): Array<TileJSON & IdResource>
-  deleteTileset(tilesetId: string): void
+  deleteTileset(id: string): void
   getTileset(id: string): TileJSON & IdResource
   getTile(opts: {
     tilesetId: string
@@ -647,15 +647,15 @@ function createApi({
       return { ...tilejson, tiles: [getTileUrl(id)], id }
     },
 
-    deleteTileset(tilesetId) {
-      if (!tilesetExists(tilesetId)) {
-        return new NotFoundError(tilesetId)
+    deleteTileset(id) {
+      if (!tilesetExists(id)) {
+        return new NotFoundError(id)
       }
 
       db.transaction(() => {
-        db.prepare('DELETE FROM Tile WHERE tilesetId = ?').run(tilesetId)
-        db.prepare('DELETE FROM Tileset WHERE id = ?').run(tilesetId)
-        db.prepare('DELETE FROM TileData WHERE tilesetId = ?').run(tilesetId)
+        db.prepare('DELETE FROM Tile WHERE tilesetId = ?').run(id)
+        db.prepare('DELETE FROM Tileset WHERE id = ?').run(id)
+        db.prepare('DELETE FROM TileData WHERE tilesetId = ?').run(id)
       })()
     },
 
