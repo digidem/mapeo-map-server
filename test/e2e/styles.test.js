@@ -520,8 +520,6 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
     'tileset successfully created'
   )
 
-  const { id: tilesetId } = getTilesetBeforeResponse.json()
-
   const style1DeleteResponse = await server.inject({
     method: 'DELETE',
     url: `/styles/${styleId1}`,
@@ -539,6 +537,4 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
     200,
     'tileset still exists after style 1 deletion'
   )
-
-  t.deepEqual(getTilesetBeforeResponse.json(), getTilesetAfterResponse.json())
 })
