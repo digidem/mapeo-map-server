@@ -124,6 +124,7 @@ export interface Api {
   createTileset(tileset: TileJSON): TileJSON & IdResource
   putTileset(id: string, tileset: TileJSON): TileJSON & IdResource
   listTilesets(): Array<TileJSON & IdResource>
+  deleteTileset(tilesetId: string): void
   getTileset(id: string): TileJSON & IdResource
   getTile(opts: {
     tilesetId: string
@@ -646,6 +647,18 @@ function createApi({
       return { ...tilejson, tiles: [getTileUrl(id)], id }
     },
 
+    deleteTileset(tilesetId) {
+      if (!tilesetExists(tilesetId)) {
+        return new NotFoundError(tilesetId)
+      }
+
+      db.transaction(() => {
+        db.prepare('DELETE FROM Tile WHERE tilesetId = ?').run(tilesetId)
+        db.prepare('DELETE FROM Tileset WHERE id = ?').run(tilesetId)
+        db.prepare('DELETE FROM TileData WHERE tilesetId = ?').run(tilesetId)
+      })()
+    },
+
     async getTile({ tilesetId, zoom, x, y }) {
       const quadKey = tileToQuadKey({ x, y, zoom })
 
@@ -954,8 +967,16 @@ function createApi({
         throw new NotFoundError(id)
       }
 
+      const tilesetsToDelete: Array<{ tilesetId: string }> = db
+        .prepare('SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?')
+        .all(id)
+
+      tilesetsToDelete.forEach(({ tilesetId }) => {
+        api.deleteTileset(tilesetId)
+      })
+
       // TODO: How to handle glpyhs here?
-      const deleteStyleTransaction = db.transaction(() => {
+      db.transaction(() => {
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
@@ -963,28 +984,8 @@ function createApi({
         db.prepare(
           'DELETE FROM Sprite WHERE Sprite.id IN (SELECT spriteId FROM Style WHERE Style.id = ?)'
         ).run(id)
-
-        db.prepare(
-          'DELETE FROM Tile WHERE Tile.tilesetId ' +
-            'IN (SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?)'
-        ).run(id)
-
-        // TODO: This statement seems to cause issues
-        // https://github.com/WiseLibs/better-sqlite3/issues/842
-        db.prepare(
-          'DELETE FROM Tileset WHERE Tileset.id ' +
-            'IN (SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?)'
-        ).run(id)
-
-        db.prepare(
-          'DELETE FROM TileData WHERE TileData.tilesetId ' +
-            'IN (SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?)'
-        ).run(id)
-
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
-      })
-
-      deleteStyleTransaction()
+      })()
     },
   }
   return api
