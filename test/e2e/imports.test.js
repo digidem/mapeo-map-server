@@ -7,13 +7,14 @@ const createServer = require('../test-helpers/create-server')
 // This disables upstream requests (e.g. simulates offline)
 require('../test-helpers/server-mocks')
 
-const sampleMbTilesPath = path.resolve(
-  __dirname,
-  '../fixtures/mbtiles/raster/countries-png.mbtiles'
+const fixturesPath = path.resolve(__dirname, '../fixtures')
+const sampleMbTilesPath = path.join(
+  fixturesPath,
+  'mbtiles/raster/countries-png.mbtiles'
 )
-const sampleSmallMbTilesPath = path.resolve(
-  __dirname,
-  '../fixtures/mbtiles/raster/countries-png-small.mbtiles'
+const sampleSmallMbTilesPath = path.join(
+  fixturesPath,
+  'mbtiles/raster/countries-png-small.mbtiles'
 )
 
 test('GET /imports/:importId returns 404 error when import does not exist', async (t) => {
@@ -104,7 +105,7 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
 // This tests that the server can force an eventsource client to disconnect by
 // responding with a 204 status code. This is in case the client does not close
 // the eventSource (as it should) after the 'complete' message is received
-test('GET /imports/progress/:importId - server disconnects via 204 if client is not closed', async (t) => {
+test('GET /imports/progress/:importId - EventSource forced to close after import completes', async (t) => {
   const server = createServer(t)
 
   const createImportResponse = await server.inject({
@@ -127,7 +128,7 @@ test('GET /imports/progress/:importId - server disconnects via 204 if client is 
     evtSource.onmessage = (ev) => {
       lastMessage = JSON.parse(ev.data)
     }
-    evtSource.onerror = async (ev) => {
+    evtSource.onerror = async () => {
       errors++
       if (errors === 1) {
         t.equal(lastMessage.type, 'complete')
@@ -176,8 +177,10 @@ test('GET /imports/progress/:importId when import is already completed returns s
   t.same(messages2[0], messages1[messages1.length - 1])
 })
 
-// Skipping for now - need a better way to generate the error
-test.skip('GET /imports/:importId on failed import returns import with error state', async (t) => {
+// This tests that the server can force an eventsource client to disconnect by
+// responding with a 204 status code. This is in case the client does not close
+// the eventSource (as it should) after the 'complete' message is received
+test('GET /imports/progress/:importId - EventSource forced to close after single message if import has already completed', async (t) => {
   const server = createServer(t)
 
   const createImportResponse = await server.inject({
@@ -190,16 +193,73 @@ test.skip('GET /imports/:importId on failed import returns import with error sta
     import: { id: createdImportId },
   } = createImportResponse.json()
 
-  // Close the server to simulate it going down, ideally before the import finishes
-  // Theoretically a race condition can occur where the import does finish in time,
-  // which would cause this test to fail
-  await server.close()
+  const address = await server.listen(0)
+  const progressEndpoint = `${address}/imports/progress/${createdImportId}`
+  // Wait for import to complete
+  await importSse(progressEndpoint)
 
-  const server2 = createServer()
+  const evtSource = new EventSource(progressEndpoint)
+  await new Promise((res) => {
+    let errors = 0
+    let msgs = 0
+    evtSource.onmessage = (ev) => {
+      msgs++
+      t.equal(msgs, 1, 'only one message is received')
+      t.equal(JSON.parse(ev.data).type, 'complete', 'message is complete')
+    }
+    evtSource.onerror = async () => {
+      errors++
+      if (errors === 1) {
+        t.equal(msgs, 1, 'disconnect after first message')
+        t.equal(
+          evtSource.readyState,
+          evtSource.CONNECTING,
+          'EventSource tries to reconnect the first time after the server closes'
+        )
+      } else {
+        // Await next tick before checking event source state
+        await new Promise((res) => setTimeout(res, 0))
+        t.equal(
+          evtSource.readyState,
+          evtSource.CLOSED,
+          'EventSource is closed the second time after the server closes'
+        )
+        res()
+      }
+    }
+  })
+})
 
-  t.teardown(() => server2.close())
+// Failing test
+test.skip('GET /imports/:importId after deferred import error shows error state', async (t) => {
+  const server = createServer(t)
+  // This mbtiles file has one of the tile_data fields set to null. This causes
+  // the import to initially report progress, but fail when it reaches the null
+  // field
+  const mbTilesPath = path.join(
+    fixturesPath,
+    'bad-mbtiles/null-tile_data.mbtiles'
+  )
+  const createImportResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: mbTilesPath },
+  })
+  t.equal(
+    createImportResponse.statusCode,
+    200,
+    'initial import creation successful'
+  )
 
-  const getImportResponse = await server2.inject({
+  const {
+    import: { id: createdImportId },
+  } = createImportResponse.json()
+
+  const address = await server.listen(0)
+  // Wait for import to complete
+  await importSse(`${address}/imports/progress/${createdImportId}`)
+
+  const getImportResponse = await server.inject({
     method: 'GET',
     url: `/imports/${createdImportId}`,
   })
