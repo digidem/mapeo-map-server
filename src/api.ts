@@ -975,7 +975,7 @@ function createApi({
         api.deleteTileset(tilesetId)
       })
 
-      // TODO: How to handle glpyhs here?
+      // TODO: How to handle glyphs here?
       db.transaction(() => {
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
