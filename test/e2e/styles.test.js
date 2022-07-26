@@ -4,6 +4,7 @@ const nock = require('nock')
 
 const createServer = require('../test-helpers/create-server')
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
+const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
 const {
   defaultMockHeaders,
   tilesetMockBody,
@@ -18,6 +19,7 @@ const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
 
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
+// - checking tiles are/are not deleted when style is deleted
 
 test('POST /styles with invalid style returns 400 status code', async (t) => {
   const server = createServer(t)
@@ -391,4 +393,152 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
   })
 
   t.equal(tilesetResponseGet.statusCode, 404, 'tileset is properly deleted')
+})
+
+test('DELETE /styles/:styleId deletes tilesets that are referenced by the deleted style', async (t) => {
+  const server = createServer(t)
+
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const createStyleResponse = await server.inject({
+    method: 'POST',
+    url: 'styles',
+    payload: {
+      style: sampleStyleJSON,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  const { id: styleId, style } = createStyleResponse.json()
+
+  const createIsolatedTilesetBeforeResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: sampleTileJSON,
+  })
+
+  t.equal(createIsolatedTilesetBeforeResponse.statusCode, 200)
+
+  const { id: isolatedTilesetId } = createIsolatedTilesetBeforeResponse.json()
+
+  const { pathname: tilesetPathname } = new URL(
+    Object.values(style.sources)[0].url
+  )
+
+  const getTilesetBeforeResponse = await server.inject({
+    method: 'GET',
+    url: tilesetPathname,
+  })
+
+  t.equal(
+    getTilesetBeforeResponse.statusCode,
+    200,
+    'tileset successfully created'
+  )
+
+  const styleDeleteResponse = await server.inject({
+    method: 'DELETE',
+    url: `/styles/${styleId}`,
+  })
+
+  t.equal(styleDeleteResponse.statusCode, 204, 'style successfully deleted')
+
+  const getTilesetAfterResponse = await server.inject({
+    method: 'GET',
+    url: tilesetPathname,
+  })
+
+  t.equal(
+    getTilesetAfterResponse.statusCode,
+    404,
+    'referenced tileset no longer exists'
+  )
+
+  const getIsolatedTilesetAfterResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${isolatedTilesetId}`,
+  })
+
+  t.equal(
+    getIsolatedTilesetAfterResponse.statusCode,
+    200,
+    'isolated tileset still exists'
+  )
+})
+
+test('DELETE /styles/:styleId does not delete referenced tilesets that are also referenced by other styles', async (t) => {
+  const server = createServer(t)
+
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .times(2)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const createStyle1Response = await server.inject({
+    method: 'POST',
+    url: 'styles',
+    payload: {
+      style: sampleStyleJSON,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  const createStyle2Response = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: {
+      style: sampleStyleJSON,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  const { id: styleId1, style: style1 } = createStyle1Response.json()
+  const { id: styleId2, style: style2 } = createStyle2Response.json()
+
+  t.notEqual(styleId1, styleId2, 'ids for created styles are different')
+
+  t.deepEqual(
+    style1.sources,
+    style2.sources,
+    'created styles have same `sources` field'
+  )
+
+  const tilesetPathname = new URL(Object.values(style1.sources)[0].url).pathname
+
+  const getTilesetBeforeResponse = await server.inject({
+    method: 'GET',
+    url: tilesetPathname,
+  })
+
+  t.equal(
+    getTilesetBeforeResponse.statusCode,
+    200,
+    'tileset successfully created'
+  )
+
+  const { id: tilesetId } = getTilesetBeforeResponse.json()
+
+  const style1DeleteResponse = await server.inject({
+    method: 'DELETE',
+    url: `/styles/${styleId1}`,
+  })
+
+  t.equal(style1DeleteResponse.statusCode, 204, 'style 1 successfully deleted')
+
+  const getTilesetAfterResponse = await server.inject({
+    method: 'GET',
+    url: tilesetPathname,
+  })
+
+  t.equal(
+    getTilesetAfterResponse.statusCode,
+    200,
+    'tileset still exists after style 1 deletion'
+  )
+
+  t.deepEqual(getTilesetBeforeResponse.json(), getTilesetAfterResponse.json())
 })
