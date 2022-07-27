@@ -19,6 +19,7 @@ import {
   ParseError,
   UnsupportedSourceError,
 } from './errors'
+import { generateSpriteId } from '../lib/sprites'
 
 interface SourceIdToTilesetId {
   [sourceId: keyof StyleJSON['sources']]: string
@@ -67,6 +68,10 @@ function createStylesApi({
     return `${apiUrl}/styles/${styleId}`
   }
 
+  function getSpriteUrl(styleId: string, spriteId: string): string {
+    return `${getStyleUrl(styleId)}/sprites/${spriteId}`
+  }
+
   function getTilesetUrl(tilesetId: string): string {
     return `${apiUrl}/tilesets/${tilesetId}`
   }
@@ -81,10 +86,14 @@ function createStylesApi({
 
   function addOfflineUrls({
     sourceIdToTilesetId,
+    spriteId,
     style,
+    styleId,
   }: {
     sourceIdToTilesetId: SourceIdToTilesetId
+    spriteId?: string
     style: StyleJSON
+    styleId: string
   }): StyleJSON {
     const updatedSources: StyleJSON['sources'] = {}
 
@@ -102,10 +111,11 @@ function createStylesApi({
       }
     }
 
-    // TODO: Remap glyphs and sprite URLs to map server
+    // TODO: Remap glyphs URL to map server
     return {
       ...style,
       sources: updatedSources,
+      sprite: spriteId ? getSpriteUrl(styleId, spriteId) : undefined,
     }
   }
 
@@ -187,6 +197,8 @@ function createStylesApi({
         )
       }
 
+      const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
+
       const sourceIdToTilesetId = await createOfflineSources({
         accessToken,
         sources: style.sources,
@@ -197,25 +209,30 @@ function createStylesApi({
       db.prepare<{
         id: string
         stylejson: string
+        spriteId?: string
         etag?: string
         upstreamUrl?: string
         sourceIdToTilesetId: string
       }>(
-        'INSERT INTO Style (id, stylejson, etag, upstreamUrl, sourceIdToTilesetId) VALUES (:id, :stylejson, :etag, :upstreamUrl, :sourceIdToTilesetId)'
+        'INSERT INTO Style (id, stylejson, spriteId, etag, upstreamUrl, sourceIdToTilesetId) ' +
+          'VALUES (:id, :stylejson, :spriteId, :etag, :upstreamUrl, :sourceIdToTilesetId)'
       ).run({
         id: styleId,
         stylejson: JSON.stringify(styleToSave),
+        spriteId,
         etag,
         upstreamUrl,
         sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
       })
 
       return {
+        id: styleId,
         style: addOfflineUrls({
           sourceIdToTilesetId,
+          spriteId,
           style: styleToSave,
+          styleId,
         }),
-        id: styleId,
       }
     },
     // TODO: Ideally could consolidate with createStyle
@@ -251,14 +268,14 @@ function createStylesApi({
         throw new NotFoundError(id)
       }
 
-      // TODO
-      // - Delete any orphaned tilesets and sprites
-      // - How to handle glpyhs here?
       const deleteStyleTransaction = db.transaction(() => {
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
         db.prepare('DELETE FROM OfflineArea WHERE styleId = ?').run(id)
+        db.prepare(
+          'DELETE FROM Sprite WHERE Sprite.id IN (SELECT spriteId FROM Style WHERE Style.id = ?)'
+        ).run(id)
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
       })
 
@@ -270,10 +287,11 @@ function createStylesApi({
             id: string
             stylejson: string
             sourceIdToTilesetId: string
+            spriteId: string | null
           }
         | undefined = db
         .prepare(
-          'SELECT id, stylejson, sourceIdToTilesetId FROM Style WHERE id = ?'
+          'SELECT id, stylejson, sourceIdToTilesetId, spriteId FROM Style WHERE id = ?'
         )
         .get(id)
 
@@ -293,7 +311,9 @@ function createStylesApi({
 
       return addOfflineUrls({
         sourceIdToTilesetId,
+        spriteId: row.spriteId || undefined,
         style,
+        styleId: id,
       })
     },
     listStyles() {
@@ -340,23 +360,30 @@ function createStylesApi({
         sources: style.sources,
       })
 
+      const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
+
       const styleToSave: StyleJSON = await uncompositeStyle(style)
 
       db.prepare<{
         id: string
         sourceIdToTilesetId: string
+        spriteId?: string
         stylejson: string
       }>(
-        'UPDATE Style SET stylejson = :stylejson, sourceIdToTilesetId = :sourceIdToTilesetId WHERE id = :id'
+        'UPDATE Style SET stylejson = :stylejson, sourceIdToTilesetId = :sourceIdToTilesetId, spriteId = :spriteId ' +
+          'WHERE id = :id'
       ).run({
         id,
         sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
+        spriteId,
         stylejson: JSON.stringify(styleToSave),
       })
 
       return addOfflineUrls({
         sourceIdToTilesetId,
+        spriteId,
         style: styleToSave,
+        styleId: id,
       })
     },
   }

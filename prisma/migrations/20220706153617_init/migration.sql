@@ -44,7 +44,7 @@ CREATE TABLE "Sprite" (
     "id" TEXT NOT NULL,
     "data" BLOB NOT NULL,
     "layout" TEXT NOT NULL,
-    "pixelDensity" INTEGER NOT NULL,
+    "pixelDensity" REAL NOT NULL,
     "etag" TEXT,
     "upstreamUrl" TEXT,
 

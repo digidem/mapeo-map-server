@@ -9,6 +9,7 @@ import { convertActiveToError as convertActiveImportsToErrorImports } from '../l
 import { migrate } from '../lib/migrations'
 import { UpstreamRequestsManager } from '../lib/upstream_requests_manager'
 import createImportsApi, { ImportsApi } from './imports'
+import createSpritesApi, { SpritesApi } from './sprites'
 import createStylesApi, { StylesApi } from './styles'
 import createTilesApi, { TilesApi } from './tiles'
 import createTilesetsApi, { TilesetsApi } from './tilesets'
@@ -29,7 +30,12 @@ export interface IdResource {
   id: string
 }
 
-export interface Api extends ImportsApi, StylesApi, TilesApi, TilesetsApi {}
+export interface Api
+  extends ImportsApi,
+    SpritesApi,
+    StylesApi,
+    TilesApi,
+    TilesetsApi {}
 
 function createApi({
   context,
@@ -73,8 +79,13 @@ function createApi({
     context,
   })
 
+  const spritesApi = createSpritesApi({
+    context,
+  })
+
   return {
     ...importsApi,
+    ...spritesApi,
     ...stylesApi,
     ...tilesApi,
     ...tilesetsApi,

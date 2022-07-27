@@ -1,9 +1,21 @@
 import { FastifyPluginAsync } from 'fastify'
 import createError from '@fastify/error'
 import got from 'got'
+import { Static, Type as T } from '@sinclair/typebox'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
+import {
+  SpriteIndexSchema,
+  UpstreamSpriteResponse,
+  generateSpriteId,
+  parseSpriteName,
+} from '../lib/sprites'
+
+const GetSpriteParamsSchema = T.Object({
+  styleId: T.String(),
+  spriteInfo: T.String(), // contains desired sprite id (and maybe pixel density)
+})
 
 const InvalidStyleError = createError(
   'FST_INVALID_STYLE',
@@ -15,6 +27,12 @@ const InvalidRequestBodyError = createError(
   'FST_INVALID_REQUEST_BODY',
   'Invalid request body: %s',
   400
+)
+
+const FailedUpstreamFetchError = createError(
+  'FST_UPSTREAM_FETCH',
+  'Failed to fetch upstream resources from %s',
+  500
 )
 
 function createInvalidStyleError(err: unknown) {
@@ -91,7 +109,24 @@ const styles: FastifyPluginAsync = async function (fastify) {
 
     validateStyle(style)
 
-    // TODO: Should we catch the missing access token issue before calling this? i.e. check if `url` or any of `style.sources` are Mapbox urls
+    let upstreamSprites: Map<number, UpstreamSpriteResponse> | undefined
+
+    if (style.sprite) {
+      upstreamSprites = await request.api.fetchUpstreamSprites(style.sprite, {
+        accessToken,
+      })
+
+      if (
+        [...upstreamSprites.values()].every(
+          (spriteInfo) => spriteInfo instanceof Error
+        )
+      ) {
+        throw new FailedUpstreamFetchError(style.sprite)
+      }
+    }
+
+    // TODO: Should we catch the missing access token issue before calling this?
+    // i.e. check if `url` or any of `style.sources` are Mapbox urls
     // `createStyle` will catch these but may save resources in the db before that occurs
     const result = await request.api.createStyle(style, {
       accessToken,
@@ -99,6 +134,24 @@ const styles: FastifyPluginAsync = async function (fastify) {
       id,
       upstreamUrl,
     })
+
+    const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
+
+    if (spriteId && style.sprite && upstreamSprites?.size) {
+      for (const [pixelDensity, spriteInfo] of upstreamSprites.entries()) {
+        // TODO: Should we report the error here? Usually will be a validation error for the layout
+        if (spriteInfo instanceof Error) continue
+
+        request.api.createSprite({
+          id: spriteId,
+          data: spriteInfo.data,
+          etag: spriteInfo.etag || null,
+          layout: JSON.stringify(spriteInfo.layout),
+          pixelDensity,
+          upstreamUrl: style.sprite,
+        })
+      }
+    }
 
     reply.header('Location', `${fastify.prefix}/${id}`)
 
@@ -128,6 +181,50 @@ const styles: FastifyPluginAsync = async function (fastify) {
     async function (request, reply) {
       request.api.deleteStyle(request.params.id)
       reply.code(204).send()
+    }
+  )
+
+  /**
+   * Mapbox SDKs will send requests to json and png endpoints for a corresponding sprite url
+   * https://docs.mapbox.com/mapbox-gl-js/style-spec/sprite/#loading-sprite-files
+   */
+
+  fastify.get<{
+    Params: Static<typeof GetSpriteParamsSchema>
+  }>(
+    '/:styleId/sprites/:spriteInfo.png',
+    {
+      schema: {
+        params: GetSpriteParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id, pixelDensity } = parseSpriteName(request.params.spriteInfo)
+      const { data } = request.api.getSprite(id, pixelDensity, true)
+
+      reply.header('Content-Type', 'image/png')
+      reply.send(data)
+    }
+  )
+
+  fastify.get<{
+    Params: Static<typeof GetSpriteParamsSchema>
+  }>(
+    '/:styleId/sprites/:spriteInfo.json',
+    {
+      schema: {
+        params: GetSpriteParamsSchema,
+        response: {
+          200: SpriteIndexSchema,
+        },
+      },
+    },
+    async (request) => {
+      const { id, pixelDensity } = parseSpriteName(request.params.spriteInfo)
+
+      const { layout } = request.api.getSprite(id, pixelDensity, true)
+
+      return JSON.parse(layout)
     }
   )
 }

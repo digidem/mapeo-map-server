@@ -6,6 +6,8 @@ const createServer = require('../test-helpers/create-server')
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
 const {
   defaultMockHeaders,
+  spriteLayoutMockBody,
+  spriteImageMockBody,
   tilesetMockBody,
 } = require('../test-helpers/server-mocks')
 
@@ -15,6 +17,18 @@ const sampleMbTilesPath = path.resolve(
 )
 
 const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
+
+/**
+ * @param {string} endpointPath
+ * @param {number} pixelDensity
+ * @param {string} format
+ * @returns {string}
+ */
+function createSpriteEndpoint(endpointPath, pixelDensity, format) {
+  return `${endpointPath}${
+    pixelDensity > 1 ? `@${pixelDensity}x` : ''
+  }.${format}`
+}
 
 // TODO: Add styles tests for:
 // - POST /styles (style via url)
@@ -384,4 +398,269 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
   })
 
   t.equal(responseGet.statusCode, 404, 'style is properly deleted')
+})
+
+test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 when sprite does not exist', async (t) => {
+  const server = createServer(t)
+
+  const getSpriteImageResponse = await server.inject({
+    method: 'GET',
+    url: '/styles/abc123/sprites/abc123.png',
+  })
+
+  t.equal(getSpriteImageResponse.statusCode, 404)
+
+  const getSpriteLayoutResponse = await server.inject({
+    method: 'GET',
+    url: '/styles/abc123/sprites/abc123.json',
+  })
+
+  t.equal(getSpriteLayoutResponse.statusCode, 404)
+})
+
+test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns correct sprite asset', async (t) => {
+  const server = createServer(t)
+
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteLayoutScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.json/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteLayoutMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteImageScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.png/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteImageMockBody, { 'Content-Type': 'image/png' })
+
+  const styleWithSprite = {
+    ...sampleStyleJSON,
+    sprite: 'mapbox://sprites/terrastories/test',
+  }
+
+  const createStyleResponse = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: {
+      style: styleWithSprite,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.ok(
+    mockedSpriteLayoutScope.isDone(),
+    'upstream request for sprite layout was made'
+  )
+
+  t.ok(
+    mockedSpriteImageScope.isDone(),
+    'upstream request for sprite image was made'
+  )
+
+  const {
+    style: { sprite },
+  } = createStyleResponse.json()
+
+  t.ok(sprite)
+
+  const spriteEndpointPath = new URL(sprite).pathname
+
+  const existingPixelDensities = [1, 2]
+
+  for (const density of existingPixelDensities) {
+    const getSpriteImageResponse = await server.inject({
+      method: 'GET',
+      url: createSpriteEndpoint(spriteEndpointPath, density, 'png'),
+    })
+
+    t.equal(getSpriteImageResponse.statusCode, 200)
+    t.equal(getSpriteImageResponse.headers['content-type'], 'image/png')
+    t.ok(
+      parseInt(
+        (getSpriteImageResponse.headers['content-length'] || '').toString(),
+        10
+      ) > 0
+    )
+
+    const getSpriteLayoutResponse = await server.inject({
+      method: 'GET',
+      url: createSpriteEndpoint(spriteEndpointPath, density, 'json'),
+    })
+
+    t.equal(getSpriteLayoutResponse.statusCode, 200)
+    t.ok(getSpriteLayoutResponse.json())
+  }
+})
+
+test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an available fallback asset', async (t) => {
+  const server = createServer(t)
+
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteLayoutScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.json/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteLayoutMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteImageScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.png/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteImageMockBody, { 'Content-Type': 'image/png' })
+
+  const styleWithSprite = {
+    ...sampleStyleJSON,
+    sprite: 'mapbox://sprites/terrastories/test',
+  }
+
+  const createStyleResponse = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: {
+      style: styleWithSprite,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.ok(
+    mockedSpriteLayoutScope.isDone(),
+    'upstream request for sprite layout was made'
+  )
+
+  t.ok(
+    mockedSpriteImageScope.isDone(),
+    'upstream request for sprite image was made'
+  )
+
+  const {
+    style: { sprite },
+  } = createStyleResponse.json()
+
+  t.ok(sprite)
+
+  const spriteEndpointPath = new URL(sprite).pathname
+
+  const getSpriteImage2xResponse = await server.inject({
+    method: 'GET',
+    url: `${spriteEndpointPath}@2x.png`,
+  })
+
+  const getSpriteImage3xResponse = await server.inject({
+    method: 'GET',
+    url: `${spriteEndpointPath}@3x.png`,
+  })
+
+  t.equal(getSpriteImage3xResponse.statusCode, 200)
+  t.equal(getSpriteImage3xResponse.headers['content-type'], 'image/png')
+  t.ok(
+    parseInt(
+      (getSpriteImage3xResponse.headers['content-length'] || '').toString(),
+      10
+    ) > 0
+  )
+
+  t.equal(getSpriteImage3xResponse.body, getSpriteImage2xResponse.body)
+
+  const getSpriteLayout1xResponse = await server.inject({
+    method: 'GET',
+    url: `${spriteEndpointPath}@2x.json`,
+  })
+
+  const getSpriteLayout3xResponse = await server.inject({
+    method: 'GET',
+    url: `${spriteEndpointPath}@3x.json`,
+  })
+
+  t.equal(getSpriteLayout3xResponse.statusCode, 200)
+  t.deepEqual(
+    getSpriteLayout3xResponse.json(),
+    getSpriteLayout1xResponse.json()
+  )
+})
+
+test('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
+  const server = createServer(t)
+
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteLayoutScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.json/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteLayoutMockBody, { 'Content-Type': 'application/json' })
+
+  const mockedSpriteImageScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/\/styles\/v1\/(?<username>.*)\/(?<styleId>.*)\/(?<name>.*)\.png/)
+    .query({ access_token: DUMMY_MB_ACCESS_TOKEN })
+    .reply(200, spriteImageMockBody, { 'Content-Type': 'image/png' })
+
+  const styleWithSprite = {
+    ...sampleStyleJSON,
+    sprite: 'mapbox://sprites/terrastories/test',
+  }
+
+  const createStyleResponse = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: {
+      style: styleWithSprite,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.equal(createStyleResponse.statusCode, 200)
+
+  t.ok(
+    mockedSpriteLayoutScope.isDone(),
+    'upstream request for sprite layout was made'
+  )
+
+  t.ok(
+    mockedSpriteImageScope.isDone(),
+    'upstream request for sprite image was made'
+  )
+
+  const {
+    id: styleId,
+    style: { sprite },
+  } = createStyleResponse.json()
+
+  const spriteEndpointPath = new URL(sprite).pathname
+
+  const deleteStyleResponse = await server.inject({
+    method: 'DELETE',
+    url: `/styles/${styleId}`,
+  })
+
+  t.equal(deleteStyleResponse.statusCode, 204)
+
+  const pixelDensities = [1, 2]
+
+  for (const density of pixelDensities) {
+    const getSpriteImageResponse = await server.inject({
+      method: 'GET',
+      url: createSpriteEndpoint(spriteEndpointPath, density, 'png'),
+    })
+
+    const getSpriteLayoutResponse = await server.inject({
+      method: 'GET',
+      url: createSpriteEndpoint(spriteEndpointPath, density, 'json'),
+    })
+
+    t.equal(getSpriteImageResponse.statusCode, 404)
+    t.equal(getSpriteLayoutResponse.statusCode, 404)
+  }
 })
