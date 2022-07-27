@@ -64,7 +64,7 @@ model Sprite {
   data         Bytes
   // JSON string describing positions of sprite in data
   layout       String
-  pixelDensity Int
+  pixelDensity Float
   etag         String?
   upstreamUrl  String?
 

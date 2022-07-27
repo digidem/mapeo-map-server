@@ -34,3 +34,15 @@ export function getTilesetId(tilejson: TileJSON): string {
   const id = tilejson.id || tilejson.tiles.sort()[0]
   return encodeBase32(hash(id))
 }
+
+export function isFulfilledPromiseResult<T>(
+  result: PromiseSettledResult<T>
+): result is PromiseFulfilledResult<T> {
+  return result.status === 'fulfilled'
+}
+
+export function isRejectedPromiseResult(
+  result: PromiseSettledResult<unknown>
+): result is PromiseRejectedResult {
+  return result.status === 'rejected'
+}

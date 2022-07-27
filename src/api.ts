@@ -31,13 +31,26 @@ import {
 } from './lib/stylejson'
 import { getTilesetId, hash, encodeBase32, generateId } from './lib/utils'
 import { migrate } from './lib/migrations'
-import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
-import { isMapboxURL, normalizeSourceURL } from './lib/mapbox_urls'
+import {
+  UpstreamRequestsManager,
+  UpstreamResponse,
+} from './lib/upstream_requests_manager'
+import {
+  isMapboxURL,
+  normalizeSourceURL,
+  normalizeSpriteURL,
+} from './lib/mapbox_urls'
 import { PortMessage } from './lib/mbtiles_import_worker'
 import {
   convertActiveToError as convertActiveImportsToErrorImports,
   ImportRecord,
 } from './lib/imports'
+import {
+  Sprite,
+  UpstreamSpriteResponse,
+  generateSpriteId,
+  validateSpriteIndex,
+} from './lib/sprites'
 
 const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
@@ -162,6 +175,32 @@ export interface Api {
       url: string
     } & IdResource
   >
+  createSprite(info: Sprite): Sprite & IdResource
+  getSprite(
+    id: string,
+    pixelDensity: number,
+    allowFallback?: boolean
+  ): Sprite & IdResource
+  updateSprite(
+    id: string,
+    pixelDensity: number,
+    options: {
+      layout: string
+      data: Buffer
+      etag?: string
+      upstreamUrl?: string
+    }
+  ): Sprite & IdResource
+  deleteSprite(id: string, pixelDensity?: number): void
+  fetchUpstreamSprites(
+    upstreamSpriteUrl: string,
+    options?: {
+      accessToken?: string
+      etag?: string // etag for the 1x image asset
+    }
+  ): Promise<
+    Map<number, UpstreamSpriteResponse> // Map of pixel density to the response result
+  >
 }
 
 function createApi({
@@ -189,8 +228,8 @@ function createApi({
     return `${apiUrl}/styles/${styleId}`
   }
 
-  function getSpriteUrl(styleId: string): string {
-    return `${apiUrl}/sprites/${styleId}`
+  function getSpriteUrl(styleId: string, spriteId: string): string {
+    return `${getStyleUrl(styleId)}/sprites/${spriteId}`
   }
 
   function getGlyphsUrl(styleId: string): string {
@@ -199,10 +238,14 @@ function createApi({
 
   function addOfflineUrls({
     sourceIdToTilesetId,
+    spriteId,
     style,
+    styleId,
   }: {
     sourceIdToTilesetId: SourceIdToTilesetId
+    spriteId?: string
     style: StyleJSON
+    styleId: string
   }): StyleJSON {
     const updatedSources: StyleJSON['sources'] = {}
 
@@ -220,10 +263,11 @@ function createApi({
       }
     }
 
-    // TODO: Remap glyphs and sprite URLs to map server
+    // TODO: Remap glyphs URL to map server
     return {
       ...style,
       sources: updatedSources,
+      sprite: spriteId ? getSpriteUrl(styleId, spriteId) : undefined,
     }
   }
 
@@ -241,6 +285,21 @@ function createApi({
         .prepare('SELECT COUNT(*) AS count FROM Style WHERE id = ?')
         .get(styleId).count > 0
     )
+  }
+
+  function spriteExists(spriteId: string, pixelDensity?: number) {
+    const query =
+      pixelDensity === undefined
+        ? db
+            .prepare('SELECT COUNT(*) AS count FROM Sprite WHERE id = ?')
+            .bind(spriteId)
+        : db
+            .prepare<{ spriteId: string; pixelDensity: number }>(
+              'SELECT COUNT(*) AS count FROM Sprite WHERE id = :spriteId AND pixelDensity = :pixelDensity'
+            )
+            .bind({ spriteId, pixelDensity })
+
+    return query.get().count > 0
   }
 
   function getTilesetInfo(tilesetId: string) {
@@ -821,6 +880,8 @@ function createApi({
         )
       }
 
+      const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
+
       const sourceIdToTilesetId = await createOfflineSources({
         accessToken,
         sources: style.sources,
@@ -831,29 +892,32 @@ function createApi({
       db.prepare<{
         id: string
         stylejson: string
+        spriteId?: string
         etag?: string
         upstreamUrl?: string
         sourceIdToTilesetId: string
       }>(
-        'INSERT INTO Style (id, stylejson, etag, upstreamUrl, sourceIdToTilesetId) VALUES (:id, :stylejson, :etag, :upstreamUrl, :sourceIdToTilesetId)'
+        'INSERT INTO Style (id, stylejson, spriteId, etag, upstreamUrl, sourceIdToTilesetId) ' +
+          'VALUES (:id, :stylejson, :spriteId, :etag, :upstreamUrl, :sourceIdToTilesetId)'
       ).run({
         id: styleId,
         stylejson: JSON.stringify(styleToSave),
+        spriteId,
         etag,
         upstreamUrl,
         sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
       })
 
       return {
+        id: styleId,
         style: addOfflineUrls({
           sourceIdToTilesetId,
+          spriteId,
           style: styleToSave,
+          styleId,
         }),
-        id: styleId,
       }
     },
-
-    // TODO: May need to accept an access token
     async updateStyle(id, style) {
       if (!styleExists(id)) {
         throw new NotFoundError(id)
@@ -863,23 +927,30 @@ function createApi({
         sources: style.sources,
       })
 
+      const spriteId = style.sprite ? generateSpriteId(style.sprite) : undefined
+
       const styleToSave: StyleJSON = await uncompositeStyle(style)
 
       db.prepare<{
         id: string
         sourceIdToTilesetId: string
+        spriteId?: string
         stylejson: string
       }>(
-        'UPDATE Style SET stylejson = :stylejson, sourceIdToTilesetId = :sourceIdToTilesetId WHERE id = :id'
+        'UPDATE Style SET stylejson = :stylejson, sourceIdToTilesetId = :sourceIdToTilesetId, spriteId = :spriteId ' +
+          'WHERE id = :id'
       ).run({
         id,
         sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
+        spriteId,
         stylejson: JSON.stringify(styleToSave),
       })
 
       return addOfflineUrls({
         sourceIdToTilesetId,
+        spriteId,
         style: styleToSave,
+        styleId: id,
       })
     },
     listStyles() {
@@ -923,10 +994,11 @@ function createApi({
             id: string
             stylejson: string
             sourceIdToTilesetId: string
+            spriteId: string | null
           }
         | undefined = db
         .prepare(
-          'SELECT id, stylejson, sourceIdToTilesetId FROM Style WHERE id = ?'
+          'SELECT id, stylejson, sourceIdToTilesetId, spriteId FROM Style WHERE id = ?'
         )
         .get(id)
 
@@ -946,7 +1018,9 @@ function createApi({
 
       return addOfflineUrls({
         sourceIdToTilesetId,
+        spriteId: row.spriteId || undefined,
         style,
+        styleId: id,
       })
     },
     deleteStyle(id: string) {
@@ -954,18 +1028,175 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      // TODO
-      // - Delete any orphaned tilesets and sprites
-      // - How to handle glpyhs here?
+      // TODO Delete any orphaned tilesets. Also how do we handle glyphs here?
       const deleteStyleTransaction = db.transaction(() => {
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
         db.prepare('DELETE FROM OfflineArea WHERE styleId = ?').run(id)
+        db.prepare(
+          'DELETE FROM Sprite WHERE Sprite.id IN (SELECT spriteId FROM Style WHERE Style.id = ?)'
+        ).run(id)
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
       })
 
       deleteStyleTransaction()
+    },
+    createSprite(info: Sprite) {
+      if (spriteExists(info.id, info.pixelDensity)) {
+        throw new AlreadyExistsError(info.id)
+      }
+
+      db.prepare<Sprite>(
+        'INSERT INTO Sprite (id, pixelDensity, data, layout, etag, upstreamUrl) ' +
+          'VALUES (:id, :pixelDensity, :data, :layout, :etag, :upstreamUrl)'
+      ).run(info)
+
+      return info
+    },
+    // if `allowFallback` is true, may return highest available pixel density that's less than the requested one
+    getSprite(id, pixelDensity, allowFallback = false) {
+      const row: Sprite | undefined = db
+        .prepare<{ id: string; pixelDensity: number }>(
+          `SELECT * FROM Sprite WHERE id = :id AND pixelDensity ${
+            allowFallback ? '<=' : '='
+          } :pixelDensity LIMIT 1`
+        )
+        .get({
+          id,
+          pixelDensity,
+        })
+
+      if (!row) {
+        throw new NotFoundError(id)
+      }
+
+      return row
+    },
+    deleteSprite(id, pixelDensity) {
+      if (!spriteExists(id, pixelDensity)) {
+        throw new NotFoundError(id)
+      }
+
+      const query =
+        pixelDensity === undefined
+          ? db.prepare('DELETE FROM Sprite WHERE id = :id').bind(id)
+          : db
+              .prepare<{ id: string; pixelDensity: number }>(
+                'DELETE FROM Sprite WHERE id = :id AND pixelDensity = :pixelDensity'
+              )
+              .bind({
+                id,
+                pixelDensity,
+              })
+
+      query.run()
+    },
+    updateSprite(id, pixelDensity, options) {
+      if (!spriteExists(id, pixelDensity)) {
+        throw new NotFoundError(id)
+      }
+
+      const spriteToSave: Sprite = {
+        ...options,
+        etag: options.etag || null,
+        upstreamUrl: options.upstreamUrl || null,
+        id,
+        pixelDensity,
+      }
+
+      db.prepare<Sprite>(
+        'UPDATE Sprite SET data = :data, layout = :layout, etag = :etag, upstreamUrl = :upstreamUrl ' +
+          'WHERE id = :id AND pixelDensity = :pixelDensity'
+      ).run(spriteToSave)
+
+      return spriteToSave
+    },
+    async fetchUpstreamSprites(upstreamSpriteUrl, { accessToken, etag } = {}) {
+      if (isMapboxURL(upstreamSpriteUrl) && !accessToken) {
+        throw new MBAccessTokenRequiredError()
+      }
+
+      // Download the sprite layout and image for both 1x and 2x pixel densities
+      const upstreamRequests1x = Promise.all([
+        upstreamRequestsManager.getUpstream({
+          url: normalizeSpriteURL(upstreamSpriteUrl, '', '.json', accessToken),
+          responseType: 'json',
+        }),
+        upstreamRequestsManager.getUpstream({
+          url: normalizeSpriteURL(upstreamSpriteUrl, '', '.png', accessToken),
+          responseType: 'buffer',
+          // We only keep track of the etag for the 1x image asset
+          etag,
+        }),
+      ])
+
+      const upstreamRequests2x = Promise.all([
+        upstreamRequestsManager.getUpstream({
+          url: normalizeSpriteURL(
+            upstreamSpriteUrl,
+            '@2x',
+            '.json',
+            accessToken
+          ),
+          responseType: 'json',
+        }),
+        upstreamRequestsManager.getUpstream({
+          url: normalizeSpriteURL(
+            upstreamSpriteUrl,
+            '@2x',
+            '.png',
+            accessToken
+          ),
+          responseType: 'buffer',
+        }),
+      ])
+
+      const [responses1x, responses2x] = await Promise.allSettled([
+        upstreamRequests1x,
+        upstreamRequests2x,
+      ])
+
+      const extractedSprite1x = processUpstreamSpriteResponse(responses1x)
+      const extractedSprite2x = processUpstreamSpriteResponse(responses2x)
+
+      const upstreamSprites: Awaited<ReturnType<Api['fetchUpstreamSprites']>> =
+        new Map()
+
+      if (extractedSprite1x) {
+        upstreamSprites.set(1, extractedSprite1x)
+      }
+
+      if (extractedSprite2x) {
+        upstreamSprites.set(2, extractedSprite2x)
+      }
+
+      return upstreamSprites
+
+      function processUpstreamSpriteResponse(
+        settledResponseResult: PromiseSettledResult<
+          [UpstreamResponse<'json'>, UpstreamResponse<'buffer'>]
+        >
+      ): UpstreamSpriteResponse | null {
+        // This means that the asset was not modified upstream
+        if (settledResponseResult.status === 'rejected') return null
+
+        const [layoutAssetResponse, imageAssetResponse] =
+          settledResponseResult.value
+
+        if (!validateSpriteIndex(layoutAssetResponse.data)) {
+          return new UpstreamJsonValidationError(
+            upstreamSpriteUrl,
+            validateSpriteIndex.errors
+          )
+        }
+
+        return {
+          layout: layoutAssetResponse.data,
+          data: imageAssetResponse.data,
+          etag: imageAssetResponse.etag,
+        }
+      }
     },
   }
   return api
