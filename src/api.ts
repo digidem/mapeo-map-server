@@ -137,7 +137,6 @@ export interface Api {
   createTileset(tileset: TileJSON): TileJSON & IdResource
   putTileset(id: string, tileset: TileJSON): TileJSON & IdResource
   listTilesets(): Array<TileJSON & IdResource>
-  deleteTileset(id: string): void
   getTileset(id: string): TileJSON & IdResource
   getTile(opts: {
     tilesetId: string
@@ -705,19 +704,6 @@ function createApi({
 
       return { ...tilejson, tiles: [getTileUrl(id)], id }
     },
-
-    deleteTileset(id) {
-      if (!tilesetExists(id)) {
-        return new NotFoundError(id)
-      }
-
-      db.transaction(() => {
-        db.prepare('DELETE FROM Tile WHERE tilesetId = ?').run(id)
-        db.prepare('DELETE FROM Tileset WHERE id = ?').run(id)
-        db.prepare('DELETE FROM TileData WHERE tilesetId = ?').run(id)
-      })()
-    },
-
     async getTile({ tilesetId, zoom, x, y }) {
       const quadKey = tileToQuadKey({ x, y, zoom })
 
