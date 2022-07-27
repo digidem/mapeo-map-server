@@ -967,16 +967,30 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      const tilesetsToDelete: Array<{ tilesetId: string }> = db
-        .prepare('SELECT tilesetId FROM DeletableTilesetIds WHERE styleId = ?')
-        .all(id)
+      const tilesetsToDelete: Array<string> = db
+        .prepare(
+          `SELECT DISTINCT json_each.value
+             FROM Style, json_each(Style.sourceIdToTilesetId, '$')
+             WHERE Style.id = @styleId
+           EXCEPT
+             SELECT DISTINCT json_each.value
+             FROM Style, json_each(Style.sourceIdToTilesetId, '$')
+             WHERE Style.id != @styleId`
+        )
+        .pluck(true)
+        .all({ styleId: id })
 
-      tilesetsToDelete.forEach(({ tilesetId }) => {
-        api.deleteTileset(tilesetId)
-      })
+      const tilesetsSqlList = tilesetsToDelete.map((id) => `'${id}'`).join(',')
 
       // TODO: How to handle glyphs here?
       db.transaction(() => {
+        db.prepare(
+          `DELETE FROM Tile WHERE tilesetId IN (${tilesetsSqlList})`
+        ).run()
+        db.prepare(`DELETE FROM Tileset WHERE id IN (${tilesetsSqlList})`).run()
+        db.prepare(
+          `DELETE FROM TileData WHERE tilesetId IN (${tilesetsSqlList})`
+        ).run()
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
@@ -1033,24 +1047,6 @@ function init(dbPath: string): Context {
   db.pragma('journal_mode = WAL')
 
   migrate(db, path.resolve(__dirname, '../prisma/migrations'))
-
-  // Create a view of tileset ids that only have one style reference
-  // based on the `sourceToTilesetId` column in the style table.
-  // This is used to determine which tilesets are okay to delete
-  // since they're only referenced by a single style.
-  db.prepare(
-    `
-    CREATE VIEW DeletableTilesetIds AS
-    SELECT SourceToTilesetIdOuter.value AS tilesetId, Style.id AS styleId
-    FROM Style, json_each(Style.sourceIdToTilesetId, '$') AS SourceToTilesetIdOuter
-    JOIN (
-      SELECT SourceToTilesetIdInner.value AS tilesetId, COUNT(SourceToTilesetIdInner.value) AS freq
-      FROM Style, json_each(Style.sourceIdToTilesetId, '$') AS SourceToTilesetIdInner
-      GROUP BY SourceToTilesetIdInner.value
-    ) AS TilesetIdFreq ON SourceToTilesetIdOuter.value = TilesetIdFreq.tilesetId
-    WHERE freq = 1;
-    `
-  ).run()
 
   // Any import with an `active` state on startup most likely failed due to the server process stopping
   // so we update these import records to have an error state
