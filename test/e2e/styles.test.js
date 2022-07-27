@@ -475,66 +475,136 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
-    .times(2)
+    .times(4)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
-  const createStyle1Response = await server.inject({
+  // Create a style with sources A and B and another with sources B and C
+  const sources = {
+    A: {
+      url: 'mapbox://A',
+      type: 'raster',
+      tileSize: 256,
+    },
+    B: {
+      url: 'mapbox://B',
+      type: 'raster',
+      tileSize: 256,
+    },
+    C: {
+      url: 'mapbox://C',
+      type: 'raster',
+      tileSize: 256,
+    },
+  }
+
+  const createStyleABResponse = await server.inject({
     method: 'POST',
     url: 'styles',
     payload: {
-      style: sampleStyleJSON,
+      style: {
+        version: 8,
+        sources: { A: sources.A, B: sources.B },
+        layers: [
+          {
+            id: 'A',
+            type: 'raster',
+            source: 'A',
+          },
+          {
+            id: 'B',
+            type: 'raster',
+            source: 'B',
+          },
+        ],
+      },
       accessToken: DUMMY_MB_ACCESS_TOKEN,
     },
   })
 
-  const createStyle2Response = await server.inject({
+  const createStyleBCResponse = await server.inject({
     method: 'POST',
     url: '/styles',
     payload: {
-      style: sampleStyleJSON,
+      style: {
+        version: 8,
+        sources: { B: sources.B, C: sources.C },
+        layers: [
+          {
+            id: 'B',
+            type: 'raster',
+            source: 'B',
+          },
+          {
+            id: 'C',
+            type: 'raster',
+            source: 'C',
+          },
+        ],
+      },
       accessToken: DUMMY_MB_ACCESS_TOKEN,
     },
   })
 
-  const { id: styleId1, style: style1 } = createStyle1Response.json()
-  const { id: styleId2, style: style2 } = createStyle2Response.json()
+  const { id: styleIdAB, style: styleAB } = createStyleABResponse.json()
+  const { id: styleIdBC, style: styleBC } = createStyleBCResponse.json()
 
-  t.notEqual(styleId1, styleId2, 'ids for created styles are different')
+  t.notDeepEqual(
+    styleAB.sources,
+    styleBC.sources,
+    'created styles have different `sources` field'
+  )
 
   t.deepEqual(
-    style1.sources,
-    style2.sources,
-    'created styles have same `sources` field'
+    styleAB.sources.B,
+    styleBC.sources.B,
+    'created styles share source B'
   )
 
-  const tilesetPathname = new URL(Object.values(style1.sources)[0].url).pathname
-
-  const getTilesetBeforeResponse = await server.inject({
-    method: 'GET',
-    url: tilesetPathname,
-  })
-
-  t.equal(
-    getTilesetBeforeResponse.statusCode,
-    200,
-    'tileset successfully created'
-  )
-
-  const style1DeleteResponse = await server.inject({
+  const styleABDeleteResponse = await server.inject({
     method: 'DELETE',
-    url: `/styles/${styleId1}`,
-  })
-
-  t.equal(style1DeleteResponse.statusCode, 204, 'style 1 successfully deleted')
-
-  const getTilesetAfterResponse = await server.inject({
-    method: 'GET',
-    url: tilesetPathname,
+    url: `/styles/${styleIdAB}`,
   })
 
   t.equal(
-    getTilesetAfterResponse.statusCode,
+    styleABDeleteResponse.statusCode,
+    204,
+    'style AB successfully deleted'
+  )
+
+  const tilesetAPathname = new URL(styleAB.sources.A.url).pathname
+  const tilesetBPathname = new URL(styleAB.sources.B.url).pathname
+  const tilesetCPathname = new URL(styleBC.sources.C.url).pathname
+
+  const getTilesetAResponse = await server.inject({
+    method: 'GET',
+    url: tilesetAPathname,
+  })
+
+  t.equal(
+    getTilesetAResponse.statusCode,
+    404,
+    'tileset A no longer exists after style AB deletion'
+  )
+
+  const getTilesetBResponse = await server.inject({
+    method: 'GET',
+    url: tilesetBPathname,
+  })
+
+  t.equal(
+    getTilesetBResponse.statusCode,
     200,
-    'tileset still exists after style 1 deletion'
+    'tileset B still exists after style AB deletion'
+  )
+
+  const getTilesetCResponse = await server.inject({
+    method: 'GET',
+    url: tilesetCPathname,
+  })
+
+  t.equal(
+    getTilesetCResponse.statusCode,
+    200,
+    'tileset C still exists after style AB deletion'
   )
 })
