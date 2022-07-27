@@ -1054,6 +1054,7 @@ function init(dbPath: string): Context {
 
   const piscina = new Piscina({
     filename: path.resolve(__dirname, './lib/mbtiles_import_worker.js'),
+    minThreads: 1,
   })
   piscina.on('error', (error) => {
     // TODO: Do something with this error https://github.com/piscinajs/piscina#event-error
