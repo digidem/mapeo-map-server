@@ -268,7 +268,29 @@ function createStylesApi({
         throw new NotFoundError(id)
       }
 
-      const deleteStyleTransaction = db.transaction(() => {
+      const tilesetsToDelete: Array<string> = db
+        .prepare(
+          `SELECT DISTINCT json_each.value
+           FROM Style, json_each(Style.sourceIdToTilesetId, '$')
+           WHERE Style.id = @styleId
+         EXCEPT
+           SELECT DISTINCT json_each.value
+           FROM Style, json_each(Style.sourceIdToTilesetId, '$')
+           WHERE Style.id != @styleId`
+        )
+        .pluck(true)
+        .all({ styleId: id })
+
+      const tilesetsSqlList = tilesetsToDelete.map((id) => `'${id}'`).join(',')
+
+      db.transaction(() => {
+        db.prepare(
+          `DELETE FROM Tile WHERE tilesetId IN (${tilesetsSqlList})`
+        ).run()
+        db.prepare(`DELETE FROM Tileset WHERE id IN (${tilesetsSqlList})`).run()
+        db.prepare(
+          `DELETE FROM TileData WHERE tilesetId IN (${tilesetsSqlList})`
+        ).run()
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
@@ -277,9 +299,7 @@ function createStylesApi({
           'DELETE FROM Sprite WHERE Sprite.id IN (SELECT spriteId FROM Style WHERE Style.id = ?)'
         ).run(id)
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
-      })
-
-      deleteStyleTransaction()
+      })()
     },
     getStyle(id) {
       const row:
