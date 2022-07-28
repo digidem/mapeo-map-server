@@ -113,6 +113,7 @@ function init(dbPath: string): Context {
 
   const piscina = new Piscina({
     filename: path.resolve(__dirname, '../lib/mbtiles_import_worker.js'),
+    minThreads: 1,
   })
 
   piscina.on('error', (error) => {
@@ -140,6 +141,22 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
 
   fastify.addHook('onClose', async () => {
     const { piscina, db } = context
+
+    if (context.activeImports.size > 0) {
+      // Wait for all worker threads to finish, so we don't terminate the thread
+      // without closing the DB connections in thread. This is kind-of hacky:
+      // It relies on the MessagePort being closed when the worker thread is done.
+      await Promise.all(
+        [...context.activeImports.values()].map(
+          (port) =>
+            new Promise((res) => {
+              port.once('close', res)
+              port.once('error', res)
+            })
+        )
+      )
+    }
+
     await piscina.destroy()
     db.close()
   })
