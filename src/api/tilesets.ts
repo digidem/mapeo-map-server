@@ -16,29 +16,25 @@ import {
 function noop() {}
 
 export interface TilesetsApi {
-  createTileset(tileset: TileJSON): TileJSON & IdResource
-  getTileset(id: string): TileJSON & IdResource
+  createTileset(tileset: TileJSON, baseApiUrl: string): TileJSON & IdResource
+  getTileset(id: string, baseApiUrl: string): TileJSON & IdResource
   getTilesetInfo(id: string): {
     tilejson: TileJSON
     upstreamTileUrls: TileJSON['tiles'] | undefined
   }
-  listTilesets(): Array<TileJSON & IdResource>
-  putTileset(id: string, tileset: TileJSON): TileJSON & IdResource
+  listTilesets(baseApiUrl: string): Array<TileJSON & IdResource>
+  putTileset(
+    id: string,
+    tileset: TileJSON,
+    baseApiUrl: string
+  ): TileJSON & IdResource
 }
 
-function createTilesetsApi({
-  apiUrl,
-  context,
-  fastify,
-}: {
-  apiUrl: string
-  context: Context
-  fastify: FastifyInstance
-}): TilesetsApi {
+function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
   const { db, upstreamRequestsManager } = context
 
-  function getTileUrl(tilesetId: string): string {
-    return `${apiUrl}/tilesets/${tilesetId}/{z}/{x}/{y}`
+  function getTileUrl(baseApiUrl: string, tilesetId: string): string {
+    return `${baseApiUrl}/tilesets/${tilesetId}/{z}/{x}/{y}`
   }
 
   function tilesetExists(tilesetId: string) {
@@ -79,12 +75,12 @@ function createTilesetsApi({
   })
 
   const tilesetsApi: TilesetsApi = {
-    createTileset(tilejson) {
+    createTileset(tilejson, baseApiUrl: string) {
       const tilesetId = getTilesetId(tilejson)
 
       if (tilesetExists(tilesetId)) {
         throw new AlreadyExistsError(
-          `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to ${fastify.prefix}/${tilesetId} to modify this tileset`
+          `A tileset based on tiles ${tilejson.tiles[0]} already exists. PUT changes to /tilesets/${tilesetId} to modify this tileset`
         )
       }
 
@@ -109,10 +105,10 @@ function createTilesetsApi({
       return {
         ...tilejson,
         id: tilesetId,
-        tiles: [getTileUrl(tilesetId)],
+        tiles: [getTileUrl(baseApiUrl, tilesetId)],
       }
     },
-    getTileset(id) {
+    getTileset(id, baseApiUrl) {
       const row:
         | { tilejson: string; etag?: string; upstreamUrl?: string }
         | undefined = db
@@ -143,17 +139,17 @@ function createTilesetsApi({
           throw new UpstreamJsonValidationError(url, validateTileJSON.errors)
         }
 
-        if (data) tilesetsApi.putTileset(id, data)
+        if (data) tilesetsApi.putTileset(id, data, baseApiUrl)
       }
 
       if (row.upstreamUrl) {
         fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
       }
 
-      return { ...tilejson, tiles: [getTileUrl(id)], id }
+      return { ...tilejson, tiles: [getTileUrl(baseApiUrl, id)], id }
     },
     getTilesetInfo: memoizedGetTilesetInfo,
-    listTilesets() {
+    listTilesets(baseApiUrl: string) {
       const tilesets: (TileJSON & IdResource)[] = []
 
       db.prepare('SELECT id, tilejson FROM Tileset')
@@ -164,7 +160,7 @@ function createTilesetsApi({
 
             tilesets.push({
               ...tileset,
-              tiles: [getTileUrl(id)],
+              tiles: [getTileUrl(baseApiUrl, id)],
               id,
             })
           } catch (err) {
@@ -174,7 +170,7 @@ function createTilesetsApi({
 
       return tilesets
     },
-    putTileset(id, tilejson) {
+    putTileset(id, tilejson, baseApiUrl) {
       if (id !== tilejson.id) {
         throw new MismatchedIdError(id, tilejson.id)
       }
@@ -208,7 +204,7 @@ function createTilesetsApi({
 
       const result = {
         ...tilejson,
-        tiles: [getTileUrl(id)],
+        tiles: [getTileUrl(baseApiUrl, id)],
         id,
       }
 

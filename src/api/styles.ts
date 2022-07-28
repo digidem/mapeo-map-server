@@ -1,4 +1,3 @@
-import { FastifyInstance } from 'fastify'
 import got from 'got'
 
 import { isMapboxURL, normalizeSourceURL } from '../lib/mapbox_urls'
@@ -28,6 +27,7 @@ interface SourceIdToTilesetId {
 export interface StylesApi {
   createStyle(
     style: StyleJSON,
+    baseApiUrl: string,
     options?: {
       accessToken?: string
       etag?: string
@@ -39,41 +39,50 @@ export interface StylesApi {
     tilesetId: string,
     nameForStyle?: string
   ): { style: StyleJSON } & IdResource
-  deleteStyle(id: string): void
-  getStyle(id: string): StyleJSON
-  listStyles(): Array<
+  deleteStyle(id: string, baseApiUrl: string): void
+  getStyle(id: string, baseApiUrl: string): StyleJSON
+  listStyles(baseApiUrl: string): Array<
     {
       bytesStored: number
       name: string | null
       url: string
     } & IdResource
   >
-  updateStyle(id: string, style: StyleJSON): Promise<StyleJSON>
+  updateStyle(
+    id: string,
+    style: StyleJSON,
+    baseApiUrl: string
+  ): Promise<StyleJSON>
 }
 
 function createStylesApi({
   api,
-  apiUrl,
   context,
-  fastify,
 }: {
   api: Pick<Api, 'createTileset'>
-  apiUrl: string
   context: Context
-  fastify: FastifyInstance
 }): StylesApi {
   const { db } = context
 
-  function getStyleUrl(styleId: string): string {
-    return `${apiUrl}/styles/${styleId}`
+  function getStyleUrl(baseApiUrl: string, styleId: string): string {
+    return `${baseApiUrl}/styles/${styleId}`
   }
 
-  function getSpriteUrl(styleId: string, spriteId: string): string {
-    return `${getStyleUrl(styleId)}/sprites/${spriteId}`
+  function getSpriteUrl(
+    baseApiUrl: string,
+    {
+      styleId,
+      spriteId,
+    }: {
+      styleId: string
+      spriteId: string
+    }
+  ): string {
+    return `${getStyleUrl(baseApiUrl, styleId)}/sprites/${spriteId}`
   }
 
-  function getTilesetUrl(tilesetId: string): string {
-    return `${apiUrl}/tilesets/${tilesetId}`
+  function getTilesetUrl(baseApiUrl: string, tilesetId: string): string {
+    return `${baseApiUrl}/tilesets/${tilesetId}`
   }
 
   function styleExists(styleId: string) {
@@ -84,17 +93,20 @@ function createStylesApi({
     )
   }
 
-  function addOfflineUrls({
-    sourceIdToTilesetId,
-    spriteId,
-    style,
-    styleId,
-  }: {
-    sourceIdToTilesetId: SourceIdToTilesetId
-    spriteId?: string
-    style: StyleJSON
-    styleId: string
-  }): StyleJSON {
+  function addOfflineUrls(
+    baseApiUrl: string,
+    {
+      sourceIdToTilesetId,
+      spriteId,
+      style,
+      styleId,
+    }: {
+      sourceIdToTilesetId: SourceIdToTilesetId
+      spriteId?: string
+      style: StyleJSON
+      styleId: string
+    }
+  ): StyleJSON {
     const updatedSources: StyleJSON['sources'] = {}
 
     for (const sourceId of Object.keys(style.sources)) {
@@ -107,7 +119,9 @@ function createStylesApi({
 
       updatedSources[sourceId] = {
         ...source,
-        ...(includeUrlField ? { url: getTilesetUrl(tilesetId) } : undefined),
+        ...(includeUrlField
+          ? { url: getTilesetUrl(baseApiUrl, tilesetId) }
+          : undefined),
       }
     }
 
@@ -115,7 +129,9 @@ function createStylesApi({
     return {
       ...style,
       sources: updatedSources,
-      sprite: spriteId ? getSpriteUrl(styleId, spriteId) : undefined,
+      sprite: spriteId
+        ? getSpriteUrl(baseApiUrl, { styleId, spriteId })
+        : undefined,
     }
   }
 
@@ -129,9 +145,11 @@ function createStylesApi({
 
   async function createOfflineSources({
     accessToken,
+    baseApiUrl,
     sources,
   }: {
     accessToken?: string
+    baseApiUrl: string
     sources: StyleJSON['sources']
   }): Promise<SourceIdToTilesetId> {
     const sourceIdToTilesetId: SourceIdToTilesetId = {}
@@ -175,7 +193,7 @@ function createStylesApi({
       const tilesetId = getTilesetId(tilejson)
 
       if (!tilesetExists(tilesetId)) {
-        api.createTileset(tilejson)
+        api.createTileset(tilejson, baseApiUrl)
       } else {
         // TODO: Should we update an existing tileset here?
         // api.putTileset(tilesetId, tilejson)
@@ -187,13 +205,17 @@ function createStylesApi({
   }
 
   return {
-    async createStyle(style, { accessToken, etag, id, upstreamUrl } = {}) {
+    async createStyle(
+      style,
+      baseApiUrl,
+      { accessToken, etag, id, upstreamUrl } = {}
+    ) {
       const styleId =
         id || (upstreamUrl ? createIdFromStyleUrl(upstreamUrl) : generateId())
 
       if (styleExists(styleId)) {
         throw new AlreadyExistsError(
-          `Style already exists. PUT changes to ${fastify.prefix}/${styleId} to modify this style`
+          `Style already exists. PUT changes to /styles/${styleId} to modify this style`
         )
       }
 
@@ -201,6 +223,7 @@ function createStylesApi({
 
       const sourceIdToTilesetId = await createOfflineSources({
         accessToken,
+        baseApiUrl,
         sources: style.sources,
       })
 
@@ -227,7 +250,7 @@ function createStylesApi({
 
       return {
         id: styleId,
-        style: addOfflineUrls({
+        style: addOfflineUrls(baseApiUrl, {
           sourceIdToTilesetId,
           spriteId,
           style: styleToSave,
@@ -301,7 +324,7 @@ function createStylesApi({
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
       })()
     },
-    getStyle(id) {
+    getStyle(id, baseApiUrl) {
       const row:
         | {
             id: string
@@ -329,14 +352,14 @@ function createStylesApi({
         throw new ParseError(err)
       }
 
-      return addOfflineUrls({
+      return addOfflineUrls(baseApiUrl, {
         sourceIdToTilesetId,
         spriteId: row.spriteId || undefined,
         style,
         styleId: id,
       })
     },
-    listStyles() {
+    listStyles(baseApiUrl) {
       // `bytesStored` calculates the total bytes stored by tiles that the style references
       // Eventually we want to get storage taken up by other resources like sprites and glyphs
       return db
@@ -362,17 +385,18 @@ function createStylesApi({
           }) => ({
             ...row,
             bytesStored: row.bytesStored || 0,
-            url: getStyleUrl(row.id),
+            url: getStyleUrl(baseApiUrl, row.id),
           })
         )
     },
     // TODO: May need to accept an access token
-    async updateStyle(id, style) {
+    async updateStyle(id, style, baseApiUrl) {
       if (!styleExists(id)) {
         throw new NotFoundError(id)
       }
 
       const sourceIdToTilesetId = await createOfflineSources({
+        baseApiUrl,
         sources: style.sources,
       })
 
@@ -395,7 +419,7 @@ function createStylesApi({
         stylejson: JSON.stringify(styleToSave),
       })
 
-      return addOfflineUrls({
+      return addOfflineUrls(baseApiUrl, {
         sourceIdToTilesetId,
         spriteId,
         style: styleToSave,

@@ -11,6 +11,7 @@ import {
   generateSpriteId,
   parseSpriteName,
 } from '../lib/sprites'
+import { getBaseApiUrl } from '../lib/utils'
 
 const GetSpriteParamsSchema = T.Object({
   styleId: T.String(),
@@ -56,7 +57,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       url: string
     }[]
   }>('/', async function (request) {
-    return request.api.listStyles()
+    return this.api.listStyles(getBaseApiUrl(request))
   })
 
   fastify.post<{
@@ -112,7 +113,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     let upstreamSprites: Map<number, UpstreamSpriteResponse> | undefined
 
     if (style.sprite) {
-      upstreamSprites = await request.api.fetchUpstreamSprites(style.sprite, {
+      upstreamSprites = await this.api.fetchUpstreamSprites(style.sprite, {
         accessToken,
       })
 
@@ -128,7 +129,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     // TODO: Should we catch the missing access token issue before calling this?
     // i.e. check if `url` or any of `style.sources` are Mapbox urls
     // `createStyle` will catch these but may save resources in the db before that occurs
-    const result = await request.api.createStyle(style, {
+    const result = await this.api.createStyle(style, getBaseApiUrl(request), {
       accessToken,
       etag,
       id,
@@ -142,7 +143,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
         // TODO: Should we report the error here? Usually will be a validation error for the layout
         if (spriteInfo instanceof Error) continue
 
-        request.api.createSprite({
+        this.api.createSprite({
           id: spriteId,
           data: spriteInfo.data,
           etag: spriteInfo.etag || null,
@@ -164,7 +165,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
     }
     Reply: StyleJSON
   }>('/:id', async function (request) {
-    return request.api.getStyle(request.params.id)
+    return this.api.getStyle(request.params.id, getBaseApiUrl(request))
   })
 
   fastify.delete<{
@@ -179,7 +180,7 @@ const styles: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      request.api.deleteStyle(request.params.id)
+      this.api.deleteStyle(request.params.id, getBaseApiUrl(request))
       reply.code(204).send()
     }
   )
@@ -198,9 +199,9 @@ const styles: FastifyPluginAsync = async function (fastify) {
         params: GetSpriteParamsSchema,
       },
     },
-    async (request, reply) => {
+    async function (request, reply) {
       const { id, pixelDensity } = parseSpriteName(request.params.spriteInfo)
-      const { data } = request.api.getSprite(id, pixelDensity, true)
+      const { data } = this.api.getSprite(id, pixelDensity, true)
 
       reply.header('Content-Type', 'image/png')
       reply.send(data)
@@ -219,10 +220,10 @@ const styles: FastifyPluginAsync = async function (fastify) {
         },
       },
     },
-    async (request) => {
+    async function (request) {
       const { id, pixelDensity } = parseSpriteName(request.params.spriteInfo)
 
-      const { layout } = request.api.getSprite(id, pixelDensity, true)
+      const { layout } = this.api.getSprite(id, pixelDensity, true)
 
       return JSON.parse(layout)
     }

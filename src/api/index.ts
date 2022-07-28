@@ -37,31 +37,14 @@ export interface Api
     TilesApi,
     TilesetsApi {}
 
-function createApi({
-  context,
-  fastify,
-  request,
-}: {
-  context: Context
-  fastify: FastifyInstance
-  request: FastifyRequest
-}): Api {
-  const { hostname, protocol } = request
-  const apiUrl = `${protocol}://${hostname}`
-
-  const tilesetsApi = createTilesetsApi({
-    apiUrl,
-    context,
-    fastify,
-  })
+function createApi(context: Context): Api {
+  const tilesetsApi = createTilesetsApi({ context })
 
   const stylesApi = createStylesApi({
     api: {
       createTileset: tilesetsApi.createTileset,
     },
-    apiUrl,
     context,
-    fastify,
   })
 
   const importsApi = createImportsApi({
@@ -139,6 +122,12 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   // Create context once for each fastify instance
   const context = init(dbPath)
 
+  const api = createApi(context)
+
+  if (!fastify.hasDecorator('api')) {
+    fastify.decorate('api', api)
+  }
+
   fastify.addHook('onClose', async () => {
     const { piscina, db } = context
 
@@ -159,12 +148,6 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
 
     await piscina.destroy()
     db.close()
-  })
-
-  fastify.decorateRequest('api', {
-    getter(this: FastifyRequest) {
-      return createApi({ context, fastify, request: this })
-    },
   })
 }
 

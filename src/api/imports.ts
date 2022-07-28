@@ -24,7 +24,8 @@ export interface ImportsApi {
   getImport(importId: string): ImportRecord
   getImportPort(importId: string): MessagePort | undefined
   importMBTiles(
-    filePath: string
+    filePath: string,
+    baseApiUrl: string
   ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
 }
 
@@ -55,7 +56,7 @@ function createImportsApi({
     getImportPort(importId) {
       return activeImports.get(importId)
     },
-    importMBTiles(filePath: string) {
+    importMBTiles(filePath: string, baseApiUrl: string) {
       const filePathWithExtension =
         path.extname(filePath) === '.mbtiles' ? filePath : filePath + '.mbtiles'
 
@@ -90,7 +91,7 @@ function createImportsApi({
 
       const tilesetId = getTilesetId(tilejson)
 
-      const tileset = api.createTileset(tilejson)
+      const tileset = api.createTileset(tilejson, baseApiUrl)
 
       const { id: styleId } = api.createStyleForTileset(
         tileset.id,
