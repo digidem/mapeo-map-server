@@ -704,7 +704,6 @@ function createApi({
 
       return { ...tilejson, tiles: [getTileUrl(id)], id }
     },
-
     async getTile({ tilesetId, zoom, x, y }) {
       const quadKey = tileToQuadKey({ x, y, zoom })
 
@@ -1024,8 +1023,30 @@ function createApi({
         throw new NotFoundError(id)
       }
 
-      // TODO Delete any orphaned tilesets. Also how do we handle glyphs here?
-      const deleteStyleTransaction = db.transaction(() => {
+      const tilesetsToDelete: Array<string> = db
+        .prepare(
+          `SELECT DISTINCT json_each.value
+             FROM Style, json_each(Style.sourceIdToTilesetId, '$')
+             WHERE Style.id = @styleId
+           EXCEPT
+             SELECT DISTINCT json_each.value
+             FROM Style, json_each(Style.sourceIdToTilesetId, '$')
+             WHERE Style.id != @styleId`
+        )
+        .pluck(true)
+        .all({ styleId: id })
+
+      const tilesetsSqlList = tilesetsToDelete.map((id) => `'${id}'`).join(',')
+
+      // TODO: How to handle glyphs here?
+      db.transaction(() => {
+        db.prepare(
+          `DELETE FROM Tile WHERE tilesetId IN (${tilesetsSqlList})`
+        ).run()
+        db.prepare(`DELETE FROM Tileset WHERE id IN (${tilesetsSqlList})`).run()
+        db.prepare(
+          `DELETE FROM TileData WHERE tilesetId IN (${tilesetsSqlList})`
+        ).run()
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
@@ -1034,9 +1055,7 @@ function createApi({
           'DELETE FROM Sprite WHERE Sprite.id IN (SELECT spriteId FROM Style WHERE Style.id = ?)'
         ).run(id)
         db.prepare('DELETE FROM Style WHERE id = ?').run(id)
-      })
-
-      deleteStyleTransaction()
+      })()
     },
     createSprite(info: Sprite) {
       if (spriteExists(info.id, info.pixelDensity)) {
