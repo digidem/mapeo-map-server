@@ -1017,6 +1017,17 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
 
   fastify.addHook('onClose', async () => {
     const { piscina, db } = context
+    if (context.activeImports.size > 0) {
+      // Quick hack way to wait for all threads to gracefully exit
+      await Promise.all(
+        [...context.activeImports.values()].map((port) => {
+          return new Promise((resolve) => {
+            port.once('close', resolve)
+            port.once('error', resolve)
+          }).catch(console.error)
+        })
+      )
+    }
     await piscina.destroy()
     db.close()
   })
