@@ -958,21 +958,17 @@ function createApi({
       // Eventually we want to get storage taken up by other resources like sprites and glyphs
       return db
         .prepare(
-          `
-          SELECT Style.id,
+          `SELECT Style.id,
             json_extract(Style.stylejson, '$.name') as name,
             (
-              SELECT SUM(LENGTH(TileData.data))
+              SELECT sum(length(TileData.data))
               FROM TileData
-              JOIN (
-                SELECT S2.id AS styleId, StyleReferencedTileset.value AS tilesetId
-                FROM Style S2, json_each(S2.sourceIdToTilesetId, '$') AS StyleReferencedTileset
-              ) AS SourceTileset ON SourceTileset.tilesetId = TileData.tilesetId
-              JOIN Style S1 ON S1.id = SourceTileset.styleId
-              WHERE SourceTileset.styleId = Style.id
+              WHERE TileData.tilesetId IN (
+                SELECT DISTINCT json_each.value
+                FROM Style S2, json_each(S2.sourceIdToTilesetId, '$')
+                WHERE S2.id = Style.id)
             ) AS bytesStored
-          FROM Style;
-          `
+          FROM Style;`
         )
         .all()
         .map(
