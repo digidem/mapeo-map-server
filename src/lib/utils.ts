@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto'
 import base32 from 'base32.js'
 
 import { TileJSON } from './tilejson'
+import { FastifyRequest } from 'fastify'
 
 // Not cryptographically secure, but sha1 results in shorter / more manageable
 // ids for filenames and in the URL, should be fine for our use-case
@@ -45,4 +46,9 @@ export function isRejectedPromiseResult(
   result: PromiseSettledResult<unknown>
 ): result is PromiseRejectedResult {
   return result.status === 'rejected'
+}
+
+export function getBaseApiUrl(request: FastifyRequest) {
+  const { hostname, protocol } = request
+  return `${protocol}://${hostname}`
 }

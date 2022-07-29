@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
 import { TileJSON, TileJSONSchema } from '../lib/tilejson'
 import { Static, Type as T } from '@sinclair/typebox'
+import { getBaseApiUrl } from '../lib/utils'
 
 const GetTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
@@ -37,7 +38,7 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request) {
-      return request.api.listTilesets()
+      return this.api.listTilesets(getBaseApiUrl(request))
     }
   )
 
@@ -52,7 +53,10 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request) {
-      return request.api.getTileset(request.params.tilesetId)
+      return this.api.getTileset(
+        request.params.tilesetId,
+        getBaseApiUrl(request)
+      )
     }
   )
 
@@ -69,9 +73,12 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const tileset = request.api.createTileset(request.body)
+      const tileset = this.api.createTileset(
+        request.body,
+        getBaseApiUrl(request)
+      )
 
-      request.api.createStyleForTileset(tileset.id, tileset.name)
+      this.api.createStyleForTileset(tileset.id, tileset.name)
 
       reply.header('Location', `${fastify.prefix}/${tileset.id}`)
       return tileset
@@ -87,7 +94,7 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const { data, headers } = await request.api.getTile(request.params)
+      const { data, headers } = await this.api.getTile(request.params)
       // Ignore Etag header from MBTiles
       reply.header('Last-Modified', headers['Last-Modified'])
       // See getTileHeaders in lib/utils.ts
@@ -110,9 +117,10 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const tilejson = request.api.putTileset(
+      const tilejson = this.api.putTileset(
         request.params.tilesetId,
-        request.body
+        request.body,
+        getBaseApiUrl(request)
       )
       reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
       return tilejson
@@ -130,7 +138,10 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       },
     },
     async function (request, reply) {
-      const result = await request.api.importMBTiles(request.body.filePath)
+      const result = await this.api.importMBTiles(
+        request.body.filePath,
+        getBaseApiUrl(request)
+      )
       reply.header('Location', `${fastify.prefix}/${result.tileset.id}`)
       return result
     }
