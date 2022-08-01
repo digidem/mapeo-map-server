@@ -1,6 +1,8 @@
-dist
-data
+/dist
+/data
+/sdf
+/coverage
+
 .nyc_output
 .env
 *.db*
-coverage
