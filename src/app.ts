@@ -1,5 +1,7 @@
+import path from 'path'
 import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
 import fastifySwagger from '@fastify/swagger'
+import FastifyStatic from '@fastify/static'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
 import api, { type MapServerOptions } from './api'
@@ -12,6 +14,11 @@ function createServer(
   const fastify = createFastify(fastifyOpts)
 
   fastify.register(api, mapServerOpts)
+
+  fastify.register(FastifyStatic, {
+    root: path.join(__dirname, '../sdf'),
+    prefix: '/fonts',
+  })
 
   fastify.register(fastifySwagger, {
     swagger: {
