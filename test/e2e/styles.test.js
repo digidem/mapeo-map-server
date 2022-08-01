@@ -5,6 +5,7 @@ const nock = require('nock')
 const createServer = require('../test-helpers/create-server')
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
 const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
+
 const {
   defaultMockHeaders,
   spriteLayoutMockBody,
@@ -106,17 +107,26 @@ test('POST /styles when style exists returns 409', async (t) => {
   t.equal(responsePost2.statusCode, 409)
 })
 
-test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
+test.only('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
   const server = createServer(t)
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
+  const styleWithGlyphs = {
+    ...sampleStyleJSON,
+    // The fixture doesn't have this defined but we want to test that this changes too
+    glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+  }
+
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
+    payload: {
+      style: styleWithGlyphs,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
   })
 
   t.equal(responsePost.statusCode, 200)
@@ -126,6 +136,10 @@ test('POST /styles when providing valid style returns resource with id and alter
 
   t.ok(id, 'created style possesses an id')
 
+  const expectedGlyphsUrl = 'http://localhost:80/fonts/{fontStack}/{range}.pbf'
+
+  t.equal(style.glyphs, expectedGlyphsUrl, 'glyphs points to offline url')
+
   t.notSame(
     style.sources,
     sampleStyleJSON.sources,
@@ -134,13 +148,14 @@ test('POST /styles when providing valid style returns resource with id and alter
 
   // The map server updates the sources so that each source's `url` field points to the map server
   const ignoredStyleFields = {
+    glyphs: undefined,
     sources: undefined,
   }
 
   t.same(
     { ...style, ...ignoredStyleFields },
     { ...sampleStyleJSON, ...ignoredStyleFields },
-    'with exception of `sources` field, created style is the same as input'
+    'with exception of `sources` and `glyphs` fields, created style is the same as input'
   )
 
   const tilesetEndpointPrefix = `http://localhost:80/tilesets/`
