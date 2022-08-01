@@ -85,6 +85,10 @@ function createStylesApi({
     return `${baseApiUrl}/tilesets/${tilesetId}`
   }
 
+  function getGlyphsUrl(baseApiUrl: string) {
+    return `${baseApiUrl}/fonts/{fontStack}/{range}.pbf`
+  }
+
   function styleExists(styleId: string) {
     return (
       db
@@ -132,6 +136,7 @@ function createStylesApi({
       sprite: spriteId
         ? getSpriteUrl(baseApiUrl, { styleId, spriteId })
         : undefined,
+      glyphs: style.glyphs ? getGlyphsUrl(baseApiUrl) : undefined,
     }
   }
 
@@ -428,4 +433,5 @@ function createStylesApi({
     },
   }
 }
+
 export default createStylesApi
