@@ -19,7 +19,7 @@ async function generateSdf({ font, outDir }) {
       const end = i + 255
       fontnik.range({ font, start, end }, (err, sdf) => {
         if (err) return reject(err)
-        fs.writeFile(path.join(outDir, `${start}-${end}.sdf`), sdf, (err) => {
+        fs.writeFile(path.join(outDir, `${start}-${end}.pbf`), sdf, (err) => {
           if (err) return reject(err)
           resolve()
         })
