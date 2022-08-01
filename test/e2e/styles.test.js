@@ -107,7 +107,7 @@ test('POST /styles when style exists returns 409', async (t) => {
   t.equal(responsePost2.statusCode, 409)
 })
 
-test.only('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
+test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
   const server = createServer(t)
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
