@@ -1,5 +1,5 @@
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
-import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify'
+import { FastifyPluginAsync } from 'fastify'
 import fp from 'fastify-plugin'
 import path from 'path'
 import Piscina from 'piscina'
