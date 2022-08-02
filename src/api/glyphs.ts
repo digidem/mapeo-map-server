@@ -30,7 +30,6 @@ function createGlyphsApi({ context }: { context: Context }): GlyphsApi {
     return new Promise<GlyphsResult>((res, rej) => {
       fs.access(staticPath, (err) => {
         if (err) {
-          // TODO: Get from upstream if this happens
           rej(new NotFoundError(`${font} (${start}-${end})`))
         }
 
