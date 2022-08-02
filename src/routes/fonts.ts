@@ -22,7 +22,18 @@ const fonts: FastifyPluginAsync = async function (fastify) {
 
       const fontToUse = fonts[0] || 'opensans'
 
-      return reply.sendFile(`${fontToUse}/${start}-${end}.pbf`)
+      const result = await this.api.getGlyphs(fontToUse, start, end)
+
+      switch (result.type) {
+        case 'file': {
+          return reply.sendFile(`${fontToUse}/${start}-${end}.pbf`)
+        }
+        case 'raw': {
+          // TODO: Set the headers here
+          reply.header('Content-Type', 'application/octet-stream')
+          return result.data
+        }
+      }
     }
   )
 }

@@ -8,6 +8,7 @@ import { MessagePort } from 'worker_threads'
 import { convertActiveToError as convertActiveImportsToErrorImports } from '../lib/imports'
 import { migrate } from '../lib/migrations'
 import { UpstreamRequestsManager } from '../lib/upstream_requests_manager'
+import createGlyphsApi, { GlyphsApi } from './glyphs'
 import createImportsApi, { ImportsApi } from './imports'
 import createSpritesApi, { SpritesApi } from './sprites'
 import createStylesApi, { StylesApi } from './styles'
@@ -31,7 +32,8 @@ export interface IdResource {
 }
 
 export interface Api
-  extends ImportsApi,
+  extends GlyphsApi,
+    ImportsApi,
     SpritesApi,
     StylesApi,
     TilesApi,
@@ -66,7 +68,10 @@ function createApi(context: Context): Api {
     context,
   })
 
+  const glyphsApi = createGlyphsApi({ context })
+
   return {
+    ...glyphsApi,
     ...importsApi,
     ...spritesApi,
     ...stylesApi,

@@ -1,10 +1,10 @@
-import path from 'path'
 import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
 import fastifySwagger from '@fastify/swagger'
 import FastifyStatic from '@fastify/static'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
 import api, { type MapServerOptions } from './api'
+import { SDF_STATIC_DIR } from './lib/glyphs'
 import * as routes from './routes'
 
 function createServer(
@@ -16,7 +16,8 @@ function createServer(
   fastify.register(api, mapServerOpts)
 
   fastify.register(FastifyStatic, {
-    root: path.join(__dirname, '../sdf'),
+    // TODO: Does it matter that this uses path.resolve instead of path.join?
+    root: SDF_STATIC_DIR,
     prefix: '/fonts',
   })
 
