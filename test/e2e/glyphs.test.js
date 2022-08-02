@@ -14,8 +14,6 @@ test('GET /fonts/:font/:start-:end.pbf works', async (t) => {
   })
 
   t.equal(getGlyphsResponse.statusCode, 200)
-
-  console.log({ ...getGlyphsResponse, payload: null, body: null })
 })
 
 test('GET /fonts/:font/:start-:end.pbf returns 404 for requests with non-existent ranges', async (t) => {
