@@ -60,3 +60,10 @@ export const ParseError = createError(
   'Cannot properly parse data',
   500
 )
+
+export const createForwardedUpstreamError = (statusCode: number) =>
+  createError(
+    `FORWARDED_UPSTREAM_${statusCode}`,
+    'Upstream request at %s responded with: %s',
+    statusCode
+  )

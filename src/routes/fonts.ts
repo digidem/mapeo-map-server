@@ -1,7 +1,8 @@
 import { FastifyPluginAsync } from 'fastify'
+import { HTTPError } from 'got'
 import { Static, Type as T } from '@sinclair/typebox'
 
-import { NotFoundError } from '../api/errors'
+import { NotFoundError, createForwardedUpstreamError } from '../api/errors'
 import { DEFAULT_STATIC_FONT, createStaticGlyphPath } from '../lib/glyphs'
 
 const GetGlyphsParams = T.Object({
@@ -16,6 +17,8 @@ const GetGlyphsQuerystring = T.Object({
 })
 
 const fonts: FastifyPluginAsync = async function (fastify) {
+  // TODO: This endpoint may need to mirror the fonts api errors provided by Mapbox
+  // https://docs.mapbox.com/api/maps/fonts/#fonts-api-errors
   fastify.get<{
     Params: Static<typeof GetGlyphsParams>
     Querystring: Static<typeof GetGlyphsQuerystring>
@@ -46,20 +49,35 @@ const fonts: FastifyPluginAsync = async function (fastify) {
 
         switch (result.type) {
           case 'file': {
+            reply.header('Content-Type', 'application/x-protobuf')
             return reply.sendFile(createStaticGlyphPath(firstFont, start, end))
           }
           case 'raw': {
             // TODO: Set other headers here?
-            reply.header('Content-Type', 'application/octet-stream')
+            reply.header('Content-Type', 'application/x-protobuf')
             return result.data
           }
         }
       } catch (err) {
-        if (err instanceof NotFoundError) {
+        const notFound =
+          err instanceof NotFoundError ||
+          (err instanceof HTTPError && err.response.statusCode === 404)
+
+        // TODO: Do we want to return default fallback if upstream is not found?
+        if (notFound) {
           return reply.sendFile(
             createStaticGlyphPath(DEFAULT_STATIC_FONT, start, end)
           )
         }
+
+        // This is when the upstream api provides an error status
+        if (err instanceof HTTPError) {
+          throw new (createForwardedUpstreamError(err.response.statusCode))(
+            err.response.url,
+            err.response.statusMessage
+          )
+        }
+
         throw err
       }
     }

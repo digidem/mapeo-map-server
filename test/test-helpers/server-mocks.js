@@ -23,6 +23,7 @@ module.exports = {
   createETag,
   createFakeTile,
   defaultMockHeaders,
+  glyphsMockBody,
   spriteImageMockBody,
   spriteLayoutMockBody,
   tileMockBody,
@@ -159,4 +160,25 @@ function getSpriteFixturePath(username, name, format) {
     __dirname,
     `../fixtures/sprites/${username}/sprite${densitySuffix}.${format}`
   )
+}
+
+/**
+ * @param {string} uri
+ * @returns {Buffer}
+ */
+function glyphsMockBody(uri) {
+  const match = uri.match(
+    /\/fonts\/v1\/(?:.*)\/(?<fontstack>.*)\/(?<start>.*)-(?<end>.*)\.pbf/
+  )
+
+  if (!match) throw new Error('Unexpected URI')
+
+  const { start, end } = match.groups
+
+  const fixturePath = path.resolve(
+    __dirname,
+    `../../sdf/Open-Sans-Regular/${start}-${end}.pbf`
+  )
+
+  return fs.readFileSync(fixturePath)
 }

@@ -33,7 +33,7 @@ function createGlyphsApi({ context }: { context: Context }): GlyphsApi {
     return new Promise<GlyphsResult>((res, rej) => {
       fs.access(staticPath, (err) => {
         if (err) {
-          rej(new NotFoundError(`${font} (${start}-${end})`))
+          rej(new NotFoundError(`${font} (${start}-${end}): ${err}`))
         }
 
         res({ type: 'file', data: staticPath })
@@ -42,19 +42,30 @@ function createGlyphsApi({ context }: { context: Context }): GlyphsApi {
   }
 
   return {
+    // TODO: Should we return always return the offline asset if it exists?
     async getGlyphs({ styleId, accessToken, font, start, end }) {
-      if (!styleId) {
-        return getStaticFile(font, start, end)
-      }
+      try {
+        // 1. Attempt to get desired offline asset
+        // Right now this is just a static asset bundled with the module.
+        // May eventually be the Glyph table in the db.
+        return await getStaticFile(font, start, end)
+      } catch (err) {
+        if (!styleId) throw err
 
-      // TODO: Validate that the glyphs url contains {fontstack} and {range} templates?
-      const upstreamGlyphsUrl: string | undefined = db
-        .prepare(
-          `SELECT json_each.value FROM Style, json_each(Style.stylejson, '$.glyphs') WHERE id = ?`
-        )
-        .get(styleId)
+        // 2. Offline attempt failed, but may be able to get upstream resource
 
-      if (upstreamGlyphsUrl) {
+        // TODO: Validate that the glyphs url contains {fontstack} and {range} templates?
+        const row: { url: string } | undefined = db
+          .prepare(
+            "SELECT json_each.value as url FROM Style, json_each(Style.stylejson, '$.glyphs') WHERE Style.id = ?"
+          )
+          .get(styleId)
+
+        // TODO: Change the kind of error thrown here?
+        if (!row) throw err
+
+        const { url: upstreamGlyphsUrl } = row
+
         if (isMapboxURL(upstreamGlyphsUrl) && !accessToken) {
           throw new MBAccessTokenRequiredError()
         }
@@ -66,22 +77,16 @@ function createGlyphsApi({ context }: { context: Context }): GlyphsApi {
           .replace('{fontstack}', encodeURIComponent(font))
           .replace('{range}', `${start}-${end}`)
 
-        try {
-          const response = await upstreamRequestsManager.getUpstream({
-            url: interpolatedUrl,
-            responseType: 'buffer',
-          })
+        const response = await upstreamRequestsManager.getUpstream({
+          url: interpolatedUrl,
+          responseType: 'buffer',
+        })
 
-          return {
-            ...response,
-            type: 'raw',
-          }
-        } catch (_err) {
-          // TODO: Do we fallback to static or throw an error?
+        return {
+          ...response,
+          type: 'raw',
         }
       }
-
-      return getStaticFile(font, start, end)
     },
   }
 }
