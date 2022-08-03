@@ -2,6 +2,8 @@ import path from 'path'
 
 import { StyleJSON } from './stylejson'
 
+const SPACE_REGEX = / /g
+export const DEFAULT_STATIC_FONT = 'Open Sans Regular'
 export const SDF_STATIC_DIR = path.resolve(__dirname, '../../sdf')
 
 // Returns an array of values where each value is a comma-separated string of font names
@@ -49,4 +51,14 @@ export function getFontStacks(style: StyleJSON): string[] {
   })
 
   return [...fontStacks]
+}
+
+export function createStaticGlyphPath(
+  font: string,
+  start: number,
+  end: number
+) {
+  // We replace the space character with a hyphen when saved in the filesystem
+  const convertedFontName = font.replace(SPACE_REGEX, '-')
+  return `${convertedFontName}/${start}-${end}.pbf`
 }

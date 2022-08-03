@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify'
 import { Static, Type as T } from '@sinclair/typebox'
 
 import { NotFoundError } from '../api/errors'
+import { DEFAULT_STATIC_FONT, createStaticGlyphPath } from '../lib/glyphs'
 
 const GetGlyphsParams = T.Object({
   fontstack: T.String(),
@@ -13,10 +14,6 @@ const GetGlyphsQuerystring = T.Object({
   access_token: T.Optional(T.String()),
   styleId: T.Optional(T.String()),
 })
-
-function createStaticGlyphPath(font: string, start: number, end: number) {
-  return `${font}/${start}-${end}.pbf`
-}
 
 const fonts: FastifyPluginAsync = async function (fastify) {
   fastify.get<{
@@ -59,7 +56,9 @@ const fonts: FastifyPluginAsync = async function (fastify) {
         }
       } catch (err) {
         if (err instanceof NotFoundError) {
-          return reply.sendFile(createStaticGlyphPath('opensans', start, end))
+          return reply.sendFile(
+            createStaticGlyphPath(DEFAULT_STATIC_FONT, start, end)
+          )
         }
         throw err
       }

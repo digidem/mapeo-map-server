@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-import { SDF_STATIC_DIR } from '../lib/glyphs'
+import { createStaticGlyphPath, SDF_STATIC_DIR } from '../lib/glyphs'
 import { isMapboxURL, normalizeGlyphsURL } from '../lib/mapbox_urls'
 import { Context } from '.'
 import { MBAccessTokenRequiredError, NotFoundError } from './errors'
@@ -25,7 +25,10 @@ function createGlyphsApi({ context }: { context: Context }): GlyphsApi {
 
   // TODO: Use LRU for this?
   function getStaticFile(font: string, start: number, end: number) {
-    const staticPath = path.resolve(SDF_STATIC_DIR, font, `${start}-${end}.pbf`)
+    const staticPath = path.resolve(
+      SDF_STATIC_DIR,
+      createStaticGlyphPath(font, start, end)
+    )
 
     return new Promise<GlyphsResult>((res, rej) => {
       fs.access(staticPath, (err) => {

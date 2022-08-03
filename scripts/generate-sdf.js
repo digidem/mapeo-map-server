@@ -4,10 +4,10 @@ const mkdirp = require('mkdirp')
 const fontnik = require('fontnik')
 
 const font = fs.readFileSync(
-  path.join(__dirname, '../fonts/opensans/OpenSans-Regular.ttf')
+  path.join(__dirname, '../fonts/OpenSans/OpenSans-Regular.ttf')
 )
 
-const outDir = path.join(__dirname, '../sdf/opensans')
+const outDir = path.join(__dirname, '../sdf/Open-Sans-Regular')
 mkdirp.sync(outDir)
 
 generateSdf({ font, outDir })
