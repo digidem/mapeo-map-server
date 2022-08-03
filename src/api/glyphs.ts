@@ -47,6 +47,7 @@ function createGlyphsApi({ context }: { context: Context }): GlyphsApi {
         return getStaticFile(font, start, end)
       }
 
+      // TODO: Validate that the glyphs url contains {fontstack} and {range} templates?
       const upstreamGlyphsUrl: string | undefined = db
         .prepare(
           `SELECT json_each.value FROM Style, json_each(Style.stylejson, '$.glyphs') WHERE id = ?`
