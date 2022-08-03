@@ -232,7 +232,7 @@ test(
       .get(
         /\/fonts\/v1\/(?:.*)\/(?<fontstack>.*)\/(?<start>.*)-(?<end>.*)\.pbf/
       )
-      .reply(200, glyphsMockBody, { 'Content-Type': 'application/json' })
+      .reply(200, glyphsMockBody, { 'Content-Type': 'application/x-protobuf' })
 
     const createStyleResponse = await server.inject({
       method: 'POST',
