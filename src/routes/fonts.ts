@@ -53,8 +53,10 @@ const fonts: FastifyPluginAsync = async function (fastify) {
             return reply.sendFile(createStaticGlyphPath(firstFont, start, end))
           }
           case 'raw': {
-            // TODO: Set other headers here?
-            reply.header('Content-Type', 'application/x-protobuf')
+            reply.headers({
+              'Content-Type': 'application/x-protobuf',
+              ETag: result.etag,
+            })
             return result.data
           }
         }
