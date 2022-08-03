@@ -16,10 +16,9 @@ function createServer(
   fastify.register(api, mapServerOpts)
 
   fastify.register(FastifyStatic, {
-    // TODO: Does it matter that this uses path.resolve instead of path.join?
     root: SDF_STATIC_DIR,
     prefix: '/fonts',
-    // res is misleading based on @fastify/static@5 docs
+    // res type documented in @fastify/static@5 docs is misleading
     setHeaders: (res: any, path: string) => {
       if (path.toLowerCase().endsWith('.pbf')) {
         res.setHeader('Content-Type', 'application/x-protobuf')
