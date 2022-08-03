@@ -185,7 +185,7 @@ test('POST /styles when providing valid style returns resource with id and alter
   })
 })
 
-test('POST /styles when required Mapbox access token is missing returns 400 status code', async (t) => {
+test('POST /styles when required Mapbox access token is missing returns 401 status code', async (t) => {
   const server = createServer(t)
 
   const responsePost = await server.inject({
@@ -195,7 +195,7 @@ test('POST /styles when required Mapbox access token is missing returns 400 stat
     payload: { style: sampleStyleJSON, accessToken: undefined },
   })
 
-  t.equal(responsePost.statusCode, 400)
+  t.equal(responsePost.statusCode, 401)
 })
 
 test('GET /styles/:styleId when style does not exist return 404 status code', async (t) => {

@@ -27,7 +27,7 @@ export const MismatchedIdError = createError(
 export const MBAccessTokenRequiredError = createError(
   'FST_ACCESS_TOKEN',
   'A Mapbox API access token is required for styles that use Mapbox-hosted sources',
-  400
+  401
 )
 
 // Only format that is not supported right now is pbf
