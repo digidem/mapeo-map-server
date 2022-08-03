@@ -91,7 +91,7 @@ function createStylesApi({
       ? `?${new URLSearchParams({ styleId }).toString()}`
       : ''
 
-    return `${baseApiUrl}/fonts/{fontStack}/{range}.pbf${searchParams}`
+    return `${baseApiUrl}/fonts/{fontstack}/{range}.pbf${searchParams}`
   }
 
   function styleExists(styleId: string) {

@@ -136,7 +136,7 @@ test('POST /styles when providing valid style returns resource with id and alter
 
   t.ok(id, 'created style possesses an id')
 
-  const expectedGlyphsUrl = `http://localhost:80/fonts/{fontStack}/{range}.pbf?styleId=${id}`
+  const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${id}`
 
   t.equal(style.glyphs, expectedGlyphsUrl, 'glyphs points to offline url')
 
