@@ -27,6 +27,38 @@ function createFontStack(...fonts) {
   return encodeURIComponent((fonts || ['Open Sans Regular']).join(','))
 }
 
+/**
+ * Utility to reduce boilerplate in tests that attempt to test upstream behavior
+ *
+ * @param {import('fastify').FastifyInstance} server
+ * @param {import('tape').Test} t
+ * @returns {{id: string, style: import('../../dist/lib/stylejson').StyleJSON}}
+ */
+async function createStyle(server, t) {
+  const mockedTilesetScope = nock('https://api.mapbox.com')
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(/v4\/(?<tilesetId>.*)\.json/)
+    .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+  const createStyleResponse = await server.inject({
+    method: 'POST',
+    url: '/styles',
+    payload: {
+      style: {
+        ...sampleStyleJSON,
+        glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+      },
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.equal(createStyleResponse.statusCode, 200, 'style created successfully')
+
+  const { id, style } = createStyleResponse.json()
+
+  return { id, style }
+}
+
 test('GET /fonts/:fontstack/:start-:end.pbf works when one font is specified', async (t) => {
   const server = createServer(t)
 
@@ -114,26 +146,7 @@ test(
   async (t) => {
     const server = createServer(t)
 
-    const mockedTilesetScope = nock('https://api.mapbox.com')
-      .defaultReplyHeaders(defaultMockHeaders)
-      .get(/v4\/(?<tilesetId>.*)\.json/)
-      .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
-
-    const createStyleResponse = await server.inject({
-      method: 'POST',
-      url: '/styles',
-      payload: {
-        style: {
-          ...sampleStyleJSON,
-          glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
-        },
-        accessToken: DUMMY_MB_ACCESS_TOKEN,
-      },
-    })
-
-    t.equal(createStyleResponse.statusCode, 200, 'style created successfully')
-
-    const { id: styleId, style } = createStyleResponse.json()
+    const { id: styleId, style } = await createStyle(server, t)
 
     const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${styleId}`
 
@@ -161,10 +174,7 @@ test(
   async (t) => {
     const server = createServer(t)
 
-    const mockedTilesetScope = nock('https://api.mapbox.com')
-      .defaultReplyHeaders(defaultMockHeaders)
-      .get(/v4\/(?<tilesetId>.*)\.json/)
-      .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+    const { id: styleId, style } = await createStyle(server, t)
 
     const mockedGlyphsScope = nock('https://api.mapbox.com/')
       .defaultReplyHeaders(defaultMockHeaders)
@@ -172,22 +182,6 @@ test(
         /\/fonts\/v1\/(?:.*)\/(?<fontstack>.*)\/(?<start>.*)-(?<end>.*)\.pbf/
       )
       .reply(200, glyphsMockBody, { 'Content-Type': 'application/x-protobuf' })
-
-    const createStyleResponse = await server.inject({
-      method: 'POST',
-      url: '/styles',
-      payload: {
-        style: {
-          ...sampleStyleJSON,
-          glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
-        },
-        accessToken: DUMMY_MB_ACCESS_TOKEN,
-      },
-    })
-
-    t.equal(createStyleResponse.statusCode, 200, 'style created successfully')
-
-    const { id: styleId, style } = createStyleResponse.json()
 
     const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${styleId}`
 
@@ -222,10 +216,7 @@ test(
   async (t) => {
     const server = createServer(t)
 
-    const mockedTilesetScope = nock('https://api.mapbox.com')
-      .defaultReplyHeaders(defaultMockHeaders)
-      .get(/v4\/(?<tilesetId>.*)\.json/)
-      .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+    const { id: styleId, style } = await createStyle(server, t)
 
     const mockedGlyphsScope = nock('https://api.mapbox.com/')
       .defaultReplyHeaders(defaultMockHeaders)
@@ -233,22 +224,6 @@ test(
         /\/fonts\/v1\/(?:.*)\/(?<fontstack>.*)\/(?<start>.*)-(?<end>.*)\.pbf/
       )
       .reply(200, glyphsMockBody, { 'Content-Type': 'application/x-protobuf' })
-
-    const createStyleResponse = await server.inject({
-      method: 'POST',
-      url: '/styles',
-      payload: {
-        style: {
-          ...sampleStyleJSON,
-          glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
-        },
-        accessToken: DUMMY_MB_ACCESS_TOKEN,
-      },
-    })
-
-    t.equal(createStyleResponse.statusCode, 200, 'style created successfully')
-
-    const { id: styleId, style } = createStyleResponse.json()
 
     const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${styleId}`
 
@@ -284,10 +259,7 @@ test(
   async (t) => {
     const server = createServer(t)
 
-    const mockedTilesetScope = nock('https://api.mapbox.com')
-      .defaultReplyHeaders(defaultMockHeaders)
-      .get(/v4\/(?<tilesetId>.*)\.json/)
-      .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+    const { id: styleId, style } = await createStyle(server, t)
 
     const mockedGlyphsScope = nock('https://api.mapbox.com/')
       .defaultReplyHeaders(defaultMockHeaders)
@@ -303,22 +275,6 @@ test(
         },
         { 'Content-Type': 'application/json' }
       )
-
-    const createStyleResponse = await server.inject({
-      method: 'POST',
-      url: '/styles',
-      payload: {
-        style: {
-          ...sampleStyleJSON,
-          glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
-        },
-        accessToken: DUMMY_MB_ACCESS_TOKEN,
-      },
-    })
-
-    t.equal(createStyleResponse.statusCode, 200, 'style created successfully')
-
-    const { id: styleId, style } = createStyleResponse.json()
 
     const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${styleId}`
 
@@ -353,10 +309,7 @@ test(
   async (t) => {
     const server = createServer(t)
 
-    const mockedTilesetScope = nock('https://api.mapbox.com')
-      .defaultReplyHeaders(defaultMockHeaders)
-      .get(/v4\/(?<tilesetId>.*)\.json/)
-      .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+    const { id: styleId, style } = await createStyle(server, t)
 
     const upstreamGlyphsApiRegex =
       /\/fonts\/v1\/(?:.*)\/(?<fontstack>.*)\/(?<start>.*)-(?<end>.*)\.pbf/
@@ -383,22 +336,6 @@ test(
         },
         { 'Content-Type': 'application/json' }
       )
-
-    const createStyleResponse = await server.inject({
-      method: 'POST',
-      url: '/styles',
-      payload: {
-        style: {
-          ...sampleStyleJSON,
-          glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
-        },
-        accessToken: DUMMY_MB_ACCESS_TOKEN,
-      },
-    })
-
-    t.equal(createStyleResponse.statusCode, 200, 'style created successfully')
-
-    const { id: styleId, style } = createStyleResponse.json()
 
     const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${styleId}`
 
