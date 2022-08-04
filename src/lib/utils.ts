@@ -4,8 +4,6 @@ import base32 from 'base32.js'
 import { TileJSON } from './tilejson'
 import { FastifyRequest } from 'fastify'
 
-// TODO: Probably not the safest to use ENOTFOUND to indicate no internet access
-export const OFFLINE_ERROR_CODES = ['ENOTFOUND', 'ENETUNREACH']
 
 // Not cryptographically secure, but sha1 results in shorter / more manageable
 // ids for filenames and in the URL, should be fine for our use-case

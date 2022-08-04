@@ -4,11 +4,10 @@ import { Static, Type as T } from '@sinclair/typebox'
 
 import {
   NotFoundError,
+  OFFLINE_ERROR_CODES,
   createForwardedUpstreamError,
-  InvalidGlyphsRangeError,
 } from '../api/errors'
 import { DEFAULT_STATIC_FONT, createStaticGlyphPath } from '../lib/glyphs'
-import { OFFLINE_ERROR_CODES } from '../lib/utils'
 
 const GetGlyphsParams = T.Object({
   fontstack: T.String(),

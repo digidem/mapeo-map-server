@@ -1,5 +1,8 @@
 import createError from '@fastify/error'
 
+// TODO: Probably not the safest to use ENOTFOUND to indicate no internet access
+export const OFFLINE_ERROR_CODES = ['ENOTFOUND', 'ENETUNREACH']
+
 export const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
   'Resource `%s` not found',
