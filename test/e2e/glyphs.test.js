@@ -388,3 +388,44 @@ test(
     t.ok(mockedGlyphsScope.isDone(), 'upstream glyphs requests were made')
   }
 )
+
+test(
+  'GET /fonts/:fontstack/:start-:end.pbf?styleId=:styleId&access_token=:accessToken ' +
+    'returns default fallback glyphs when offline',
+  async (t) => {
+    const server = createServer(t)
+
+    const { id: styleId, style } = await createStyle(server, t)
+
+    // This is needed to return the proper request error from nock when net requests are disabled
+    nock.cleanAll()
+
+    const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${styleId}`
+
+    t.equal(style.glyphs, expectedGlyphsUrl)
+
+    const mockedGlyphsScope = nock('https://api.mapbox.com/')
+
+    const getGlyphsResponse = await server.inject({
+      method: 'GET',
+      url: new URL(
+        style.glyphs
+          .replace('{fontstack}', createFontStack('Arial Unicode MS Regular'))
+          .replace('{range}', '0-255')
+      ).pathname,
+      query: {
+        styleId,
+        access_token: DUMMY_MB_ACCESS_TOKEN,
+      },
+    })
+
+    const { headers, statusCode } = getGlyphsResponse
+
+    t.equal(statusCode, 200)
+    t.equal(
+      parseInt(headers['content-length']),
+      OPEN_SANS_REGULAR_CONTENT_LENGTH
+    )
+    t.equal(headers['content-type'], 'application/x-protobuf')
+  }
+)

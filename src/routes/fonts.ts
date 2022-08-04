@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify'
-import { HTTPError } from 'got'
+import { HTTPError, RequestError } from 'got'
 import { Static, Type as T } from '@sinclair/typebox'
 
 import {
@@ -8,6 +8,7 @@ import {
   InvalidGlyphsRangeError,
 } from '../api/errors'
 import { DEFAULT_STATIC_FONT, createStaticGlyphPath } from '../lib/glyphs'
+import { OFFLINE_ERROR_CODES } from '../lib/utils'
 
 const GetGlyphsParams = T.Object({
   fontstack: T.String(),
@@ -19,6 +20,17 @@ const GetGlyphsQuerystring = T.Object({
   access_token: T.Optional(T.String()),
   styleId: T.Optional(T.String()),
 })
+
+function isOfflineError(err: unknown) {
+  return err instanceof RequestError && OFFLINE_ERROR_CODES.includes(err.code)
+}
+
+function isNotFoundError(err: unknown) {
+  return (
+    err instanceof NotFoundError ||
+    (err instanceof HTTPError && err.response.statusCode === 404)
+  )
+}
 
 const fonts: FastifyPluginAsync = async function (fastify) {
   // TODO: This endpoint may need to mirror the fonts api errors provided by Mapbox
@@ -65,12 +77,8 @@ const fonts: FastifyPluginAsync = async function (fastify) {
           }
         }
       } catch (err) {
-        const notFound =
-          err instanceof NotFoundError ||
-          (err instanceof HTTPError && err.response.statusCode === 404)
-
-        // TODO: Do we want to return default fallback if upstream is not found?
-        if (notFound) {
+        // TODO: Do we want to return default fallback if upstream returns 404?
+        if (isOfflineError(err) || isNotFoundError(err)) {
           return reply.sendFile(
             createStaticGlyphPath(DEFAULT_STATIC_FONT, start, end)
           )
