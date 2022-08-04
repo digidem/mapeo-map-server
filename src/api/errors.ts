@@ -61,6 +61,12 @@ export const ParseError = createError(
   500
 )
 
+export const InvalidGlyphsRangeError = createError(
+  'FST_INVALID_GLYPHS_RANGE',
+  'Invalid range %s-%s',
+  400
+)
+
 export const createForwardedUpstreamError = (statusCode: number) =>
   createError(
     `FORWARDED_UPSTREAM_${statusCode}`,

@@ -76,7 +76,7 @@ test('GET /fonts/:fontstack/:start-:end.pbf sends fallback when specified font i
   t.equal(headers['content-type'], 'application/x-protobuf')
 })
 
-test('GET /fonts/:fontstack/:start-:end.pbf returns 404 for requests with non-existent ranges', async (t) => {
+test('GET /fonts/:fontstack/:start-:end.pbf returns 400 response for invalid glyph ranges', async (t) => {
   const server = createServer(t)
 
   const badStart = 1_000_000
@@ -86,7 +86,7 @@ test('GET /fonts/:fontstack/:start-:end.pbf returns 404 for requests with non-ex
     url: `/fonts/${createFontStack()}/${badStart}-${badStart + 255}.pbf`,
   })
 
-  t.equal(getGlyphsResponse.statusCode, 404)
+  t.equal(getGlyphsResponse.statusCode, 400)
 })
 
 test(

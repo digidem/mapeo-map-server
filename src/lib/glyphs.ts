@@ -62,3 +62,18 @@ export function createStaticGlyphPath(
   const convertedFontName = font.replace(SPACES_REGEX, '-')
   return `${convertedFontName}/${start}-${end}.pbf`
 }
+
+const GLYPHS_RANGE_MULTIPLIER = 256
+const GLYPHS_RANGE_START_MAX = 65280
+
+// Based on start and end parameter docs here:
+// https://docs.mapbox.com/api/maps/fonts/#retrieve-font-glyph-ranges
+export function isValidGlyphsRange(start: number, end: number) {
+  if (start < 0 || end < 0) return false
+
+  const validStart =
+    start % GLYPHS_RANGE_MULTIPLIER === 0 && start <= GLYPHS_RANGE_START_MAX
+  const validEnd = end - start === GLYPHS_RANGE_MULTIPLIER - 1
+
+  return validStart && validEnd
+}

@@ -1,10 +1,18 @@
 import fs from 'fs'
 import path from 'path'
 
-import { createStaticGlyphPath, SDF_STATIC_DIR } from '../lib/glyphs'
+import {
+  createStaticGlyphPath,
+  isValidGlyphsRange,
+  SDF_STATIC_DIR,
+} from '../lib/glyphs'
 import { isMapboxURL, normalizeGlyphsURL } from '../lib/mapbox_urls'
 import { Context } from '.'
-import { MBAccessTokenRequiredError, NotFoundError } from './errors'
+import {
+  InvalidGlyphsRangeError,
+  MBAccessTokenRequiredError,
+  NotFoundError,
+} from './errors'
 
 export type GlyphsResult =
   | { type: 'file'; data: string } // data is an absolute file path
@@ -44,6 +52,9 @@ function createGlyphsApi({ context }: { context: Context }): GlyphsApi {
   return {
     // TODO: Should we return always return the offline asset if it exists?
     async getGlyphs({ styleId, accessToken, font, start, end }) {
+      if (!isValidGlyphsRange(start, end))
+        throw new InvalidGlyphsRangeError(start, end)
+
       try {
         // 1. Attempt to get desired offline asset
         // Right now this is just a static asset bundled with the module.

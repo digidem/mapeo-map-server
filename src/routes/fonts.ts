@@ -2,7 +2,11 @@ import { FastifyPluginAsync } from 'fastify'
 import { HTTPError } from 'got'
 import { Static, Type as T } from '@sinclair/typebox'
 
-import { NotFoundError, createForwardedUpstreamError } from '../api/errors'
+import {
+  NotFoundError,
+  createForwardedUpstreamError,
+  InvalidGlyphsRangeError,
+} from '../api/errors'
 import { DEFAULT_STATIC_FONT, createStaticGlyphPath } from '../lib/glyphs'
 
 const GetGlyphsParams = T.Object({
