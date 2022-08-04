@@ -280,7 +280,7 @@ test(
 // TODO: Is this desired behavior?
 test(
   'GET /fonts/:fontstack/:start-:end.pbf?styleId=:styleId&access_token=:accessToken' +
-    ' returns fallback glyphs when offline and upstream glyphs do not exist',
+    ' returns fallback glyphs when offline and upstream glyphs return a 404',
   async (t) => {
     const server = createServer(t)
 
@@ -344,5 +344,110 @@ test(
     t.equal(statusCode, 200)
     t.equal(headers['content-length'], OPEN_SANS_REGULAR_CONTENT_LENGTH)
     t.equal(headers['content-type'], 'application/x-protobuf')
+  }
+)
+
+test(
+  'GET /fonts/:fontstack/:start-:end.pbf?styleId=:styleId&access_token=:accessToken ' +
+    'forwards non-404 upstream errors',
+  async (t) => {
+    const server = createServer(t)
+
+    const mockedTilesetScope = nock('https://api.mapbox.com')
+      .defaultReplyHeaders(defaultMockHeaders)
+      .get(/v4\/(?<tilesetId>.*)\.json/)
+      .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
+
+    const upstreamGlyphsApiRegex =
+      /\/fonts\/v1\/(?:.*)\/(?<fontstack>.*)\/(?<start>.*)-(?<end>.*)\.pbf/
+
+    const mockedGlyphsScope = nock('https://api.mapbox.com/')
+      .defaultReplyHeaders(defaultMockHeaders)
+      .get(upstreamGlyphsApiRegex)
+      .reply(
+        400,
+        () => {
+          return JSON.stringify({
+            message: 'Maximum of 10 font faces permitted',
+          })
+        },
+        { 'Content-Type': 'application/json' }
+      )
+      .get(upstreamGlyphsApiRegex)
+      .reply(
+        403,
+        () => {
+          return JSON.stringify({
+            message: 'Forbidden',
+          })
+        },
+        { 'Content-Type': 'application/json' }
+      )
+
+    const createStyleResponse = await server.inject({
+      method: 'POST',
+      url: '/styles',
+      payload: {
+        style: {
+          ...sampleStyleJSON,
+          glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+        },
+        accessToken: DUMMY_MB_ACCESS_TOKEN,
+      },
+    })
+
+    t.equal(createStyleResponse.statusCode, 200, 'style created successfully')
+
+    const { id: styleId, style } = createStyleResponse.json()
+
+    const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${styleId}`
+
+    t.equal(style.glyphs, expectedGlyphsUrl)
+
+    // TODO: Nock seems to have a problem with long urls that have encoded space characters
+    // Ideally we'd test something like 'Arial Unicode MS Regular'
+    const longFontstack = createFontStack(...new Array(11).fill('Random'))
+
+    const getGlyphsTooManyFontsResponse = await server.inject({
+      method: 'GET',
+      url: new URL(
+        style.glyphs
+          .replace('{fontstack}', longFontstack)
+          .replace('{range}', '0-255')
+      ).pathname,
+      query: {
+        styleId,
+        access_token: DUMMY_MB_ACCESS_TOKEN,
+      },
+    })
+
+    t.equal(
+      getGlyphsTooManyFontsResponse.statusCode,
+      400,
+      '400 status code forwarded'
+    )
+    t.equal(getGlyphsTooManyFontsResponse.json().code, 'FORWARDED_UPSTREAM_400')
+
+    const getGlyphsUnauthorizedResponse = await server.inject({
+      method: 'GET',
+      url: new URL(
+        style.glyphs
+          .replace('{fontstack}', createFontStack('Arial Unicode MS Regular'))
+          .replace('{range}', '0-255')
+      ).pathname,
+      query: {
+        styleId,
+        access_token: DUMMY_MB_ACCESS_TOKEN,
+      },
+    })
+
+    t.equal(
+      getGlyphsUnauthorizedResponse.statusCode,
+      403,
+      '403 status code forwarded'
+    )
+    t.equal(getGlyphsUnauthorizedResponse.json().code, 'FORWARDED_UPSTREAM_403')
+
+    t.ok(mockedGlyphsScope.isDone(), 'upstream glyphs requests were made')
   }
 )
