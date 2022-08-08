@@ -6,11 +6,7 @@ import { ImportRecord } from '../lib/imports'
 import { PortMessage } from '../lib/mbtiles_import_worker'
 import { TileJSON, validateTileJSON } from '../lib/tilejson'
 import path from 'path'
-import {
-  isSupportedMBTilesFormat,
-  isValidMBTilesFormat,
-  mbTilesToTileJSON,
-} from '../lib/mbtiles'
+import { isValidMBTilesFormat, mbTilesToTileJSON } from '../lib/mbtiles'
 import { generateId, getTilesetId } from '../lib/utils'
 import { Api, Context, IdResource } from '.'
 import {
@@ -71,6 +67,7 @@ function createImportsApi({
       } catch (_err) {
         throw new MBTilesImportTargetMissingError(filePath)
       }
+
       const tilejson = mbTilesToTileJSON(mbTilesDb)
 
       mbTilesDb.close()
@@ -78,7 +75,6 @@ function createImportsApi({
       // TODO: Should this be handled in extractMBTilesMetadata?
       const formatSupported =
         tilejson.format && isValidMBTilesFormat(tilejson.format)
-      // isSupportedMBTilesFormat(tilejson.format)
 
       if (!formatSupported) {
         throw new UnsupportedMBTilesFormatError()
