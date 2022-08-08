@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify'
 import createError from '@fastify/error'
 import got from 'got'
 import { Static, Type as T } from '@sinclair/typebox'
+import path from 'path'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
@@ -166,6 +167,14 @@ const styles: FastifyPluginAsync = async function (fastify) {
     Reply: StyleJSON
   }>('/:id', async function (request) {
     return this.api.getStyle(request.params.id, getBaseApiUrl(request))
+  })
+
+  fastify.get<{
+    Params: {
+      id: string
+    }
+  }>('/:id/preview', function (request, reply) {
+    reply.sendFile('map_preview.html', path.join(__dirname, '../public'))
   })
 
   fastify.delete<{
