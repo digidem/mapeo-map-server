@@ -296,8 +296,6 @@ function createStylesApi({
         sourceIdToTilesetId[sourceId] = tilesetId
       })
 
-      console.log(sourceIdToTilesetId)
-
       db.prepare<{
         id: string
         sourceIdToTilesetId: string
