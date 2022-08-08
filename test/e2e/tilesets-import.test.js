@@ -8,10 +8,49 @@ const createServer = require('../test-helpers/create-server')
 require('../test-helpers/server-mocks')
 
 const fixturesPath = path.resolve(__dirname, '../fixtures')
-const sampleMbTilesPath = path.join(
+const rasterMbTilesPath = path.join(
   fixturesPath,
   'mbtiles/raster/countries-png.mbtiles'
 )
+const vectorMbTilesPath = path.join(
+  __dirname,
+  '../fixtures/mbtiles/vector/trails-pbf.mbtiles'
+)
+
+const fixtures = [rasterMbTilesPath, vectorMbTilesPath]
+
+async function fetchAllStyles(server) {
+  const getStylesResponse = await server.inject({
+    method: 'GET',
+    url: '/styles',
+  })
+
+  const stylesInfo = getStylesResponse.json()
+
+  const fetchStylePromises = stylesInfo.map((info) =>
+    server
+      .inject({
+        method: 'GET',
+        url: styleInfo.url,
+      })
+      .then((resp) => resp.json())
+  )
+
+  const styleResponses = await Promise.all(fetchStylePromises)
+
+  return { info: stylesInfo, styles: styleResponses }
+}
+
+/**
+ * @param {*} vectorLayers
+ * @returns {boolean}
+ */
+function isValidVectorLayersValue(vectorLayers) {
+  if (!Array.isArray(vectorLayers)) return false
+  if (vectorLayers.length === 0) return false
+
+  return vectorLayers.every((layer) => layer.id && layer.fields)
+}
 
 test('POST /tilesets/import fails when providing path for non-existent file', async (t) => {
   const server = createServer(t)
@@ -26,154 +65,163 @@ test('POST /tilesets/import fails when providing path for non-existent file', as
   t.equal(importResponse.json().code, 'FST_MBTILES_IMPORT_TARGET_MISSING')
 })
 
-test('POST /tilesets/import fails when provided vector tiles format', async (t) => {
-  const server = createServer(t)
-
-  const unsupportedFixturePath = path.resolve(
-    __dirname,
-    '../fixtures/mbtiles/vector/trails-pbf.mbtiles'
-  )
-
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: {
-      filePath: unsupportedFixturePath,
-    },
-  })
-
-  t.equal(importResponse.statusCode, 400)
-
-  t.equal(importResponse.json().code, 'FST_UNSUPPORTED_MBTILES_FORMAT')
-})
-
 test('POST /tilesets/import creates tileset', async (t) => {
   const server = createServer(t)
 
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
-  })
+  for (const fixture of fixtures) {
+    const importResponse = await server.inject({
+      method: 'POST',
+      url: '/tilesets/import',
+      payload: { filePath: fixture },
+    })
 
-  t.equal(importResponse.statusCode, 200)
+    t.equal(importResponse.statusCode, 200)
 
-  const { tileset: createdTileset } = importResponse.json()
+    const { tileset: createdTileset } = importResponse.json()
 
-  const tilesetGetResponse = await server.inject({
-    method: 'GET',
-    url: `/tilesets/${createdTileset.id}`,
-  })
+    const tilesetGetResponse = await server.inject({
+      method: 'GET',
+      url: `/tilesets/${createdTileset.id}`,
+    })
 
-  t.equal(tilesetGetResponse.statusCode, 200)
+    t.equal(tilesetGetResponse.statusCode, 200)
 
-  t.same(tilesetGetResponse.json(), createdTileset)
+    const tileset = tilesetGetResponse.json()
+
+    t.same(tileset, createdTileset)
+
+    if (tileset.format === 'pbf') {
+      t.ok(
+        isValidVectorLayersValue(tileset['vector_layers']),
+        'vector tileset has valid vector_layers field'
+      )
+    }
+  }
 })
 
 test('POST /tilesets/import creates style for created tileset', async (t) => {
   const server = createServer(t)
 
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
-  })
+  const checkedStyleIds = new Set()
 
-  const {
-    tileset: { id: createdTilesetId },
-  } = importResponse.json()
+  for (fixture of fixtures) {
+    const importResponse = await server.inject({
+      method: 'POST',
+      url: '/tilesets/import',
+      payload: { filePath: fixture },
+    })
 
-  const getStylesResponse = await server.inject({
-    method: 'GET',
-    url: '/styles',
-  })
+    const {
+      tileset: { id: createdTilesetId },
+    } = importResponse.json()
 
-  const styleInfo = getStylesResponse.json()[0]
+    const getStylesResponse = await server.inject({
+      method: 'GET',
+      url: '/styles',
+    })
 
-  t.ok(
-    styleInfo.bytesStored !== null && styleInfo.bytesStored > 0,
-    'tiles used by style take up storage space'
-  )
+    const styleInfo = getStylesResponse
+      .json()
+      .find((info) => !checkedStyleIds.has(info.id))
 
-  const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
+    t.ok(
+      styleInfo.bytesStored !== null && styleInfo.bytesStored > 0,
+      'tiles used by style take up storage space'
+    )
 
-  const styleGetResponse = await server.inject({
-    method: 'GET',
-    url: styleInfo.url,
-  })
+    const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
-  t.equal(styleGetResponse.statusCode, 200)
+    const styleGetResponse = await server.inject({
+      method: 'GET',
+      url: styleInfo.url,
+    })
 
-  const styleHasSourceReferringToTileset = Object.values(
-    styleGetResponse.json().sources
-  ).some((source) => {
-    if ('url' in source && source.url) {
-      return source.url === expectedSourceUrl
-    }
-    return false
-  })
+    t.equal(styleGetResponse.statusCode, 200)
 
-  t.ok(
-    styleHasSourceReferringToTileset,
-    'style has source pointing to correct tileset'
-  )
+    const style = styleGetResponse.json()
+
+    const containsSourcePointingToTileset = Object.values(style.sources).some(
+      (source) => {
+        if ('url' in source && source.url) {
+          return source.url === expectedSourceUrl
+        }
+        return false
+      }
+    )
+
+    t.ok(
+      containsSourcePointingToTileset,
+      'style has source pointing to correct tileset'
+    )
+
+    const sourceNames = Object.keys(style.sources)
+    const allLayersPointToSource = style.layers.every((layer) =>
+      sourceNames.includes(layer.source)
+    )
+
+    t.ok(allLayersPointToSource, 'all layers point to a source')
+
+    checkedStyleIds.add(styleInfo.id)
+  }
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
-  t.plan(5)
+  t.plan(10)
 
   const server = createServer(t)
 
-  async function requestImport() {
+  async function requestImport(fixture) {
     return await server.inject({
       method: 'POST',
       url: '/tilesets/import',
-      payload: { filePath: sampleMbTilesPath },
+      payload: { filePath: fixture },
     })
   }
 
-  const importResponse1 = await requestImport()
+  for (const fixture of fixtures) {
+    const importResponse1 = await requestImport(fixture)
 
-  t.equal(importResponse1.statusCode, 200)
+    t.equal(importResponse1.statusCode, 200)
 
-  const {
-    import: { id: importId1 },
-    tileset: { id: tilesetId1 },
-  } = importResponse1.json()
+    const {
+      import: { id: importId1 },
+      tileset: { id: tilesetId1 },
+    } = importResponse1.json()
 
-  const tilesetGetResponse1 = await server.inject({
-    method: 'GET',
-    url: `/tilesets/${tilesetId1}`,
-  })
+    const tilesetGetResponse1 = await server.inject({
+      method: 'GET',
+      url: `/tilesets/${tilesetId1}`,
+    })
 
-  t.equal(tilesetGetResponse1.statusCode, 200)
+    t.equal(tilesetGetResponse1.statusCode, 200)
 
-  // Repeated request with same file path
+    // Repeated request with same file path
 
-  const importResponse2 = await requestImport()
+    const importResponse2 = await requestImport(fixture)
 
-  t.equal(importResponse2.statusCode, 200)
+    t.equal(importResponse2.statusCode, 200)
 
-  const {
-    import: { id: importId2 },
-    tileset: { id: tilesetId2 },
-  } = importResponse2.json()
+    const {
+      import: { id: importId2 },
+      tileset: { id: tilesetId2 },
+    } = importResponse2.json()
 
-  const tilesetGetResponse2 = await server.inject({
-    method: 'GET',
-    url: `/tilesets/${tilesetId2}`,
-  })
+    const tilesetGetResponse2 = await server.inject({
+      method: 'GET',
+      url: `/tilesets/${tilesetId2}`,
+    })
 
-  t.equal(tilesetGetResponse2.statusCode, 200)
+    t.equal(tilesetGetResponse2.statusCode, 200)
 
-  t.notEqual(importId1, importId2, 'new import is created')
+    t.notEqual(importId1, importId2, 'new import is created')
+  }
 })
 
 test('POST /tilesets/import storage used by tiles is roughly equivalent to that of source', async (t) => {
   const server = createServer(t)
 
-  function getMbTilesByteCount() {
-    const mbTilesDb = new Database(sampleMbTilesPath, { readonly: true })
+  function getMbTilesByteCount(fixture) {
+    const mbTilesDb = new Database(fixture, { readonly: true })
 
     const count = mbTilesDb
       .prepare('SELECT SUM(LENGTH(tile_data)) as byteCount FROM tiles')
@@ -184,36 +232,45 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
     return count
   }
 
+  const address = await server.listen(0)
+
   // Completely arbitrary proportion of original source's count where it's not suspiciously too low,
   // to account for a potentially incomplete/faulty import
   const minimumProportion = 0.8
-  const roughlyExpectedCount = getMbTilesByteCount()
 
-  const {
-    import: { id: createdImportId },
-  } = await server
-    .inject({
-      method: 'POST',
-      url: '/tilesets/import',
-      payload: { filePath: sampleMbTilesPath },
-    })
-    .then((resp) => resp.json())
+  const checkedStyleIds = new Set()
+  for (const fixture of fixtures) {
+    const roughlyExpectedCount = getMbTilesByteCount(fixture)
 
-  const address = await server.listen(0)
+    const {
+      import: { id: createdImportId },
+    } = await server
+      .inject({
+        method: 'POST',
+        url: '/tilesets/import',
+        payload: { filePath: fixture },
+      })
+      .then((resp) => resp.json())
 
-  await importSse(`${address}/imports/progress/${createdImportId}`)
+    await importSse(`${address}/imports/progress/${createdImportId}`)
 
-  const { bytesStored } = await server
-    .inject({
-      method: 'GET',
-      url: '/styles',
-    })
-    .then((resp) => resp.json()[0])
+    const styleInfo = await server
+      .inject({
+        method: 'GET',
+        url: '/styles',
+      })
+      .then((resp) => {
+        const styleInfo = resp.json()
+        return styleInfo.find(({ id }) => !checkedStyleIds.has(id))
+      })
 
-  t.ok(
-    bytesStored >= roughlyExpectedCount * minimumProportion &&
-      bytesStored <= roughlyExpectedCount
-  )
+    t.ok(
+      styleInfo.bytesStored >= roughlyExpectedCount * minimumProportion &&
+        styleInfo.bytesStored <= roughlyExpectedCount
+    )
+
+    checkedStyleIds.add(styleInfo.id)
+  }
 })
 
 // TODO: This may eventually become a failing test if styles that share tiles reuse new ones that are stored
@@ -223,40 +280,44 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
   const address = await server.listen(0)
 
   // Creates and waits for import to finish
-  async function requestImport() {
+  async function requestImport(fixture) {
     const {
       import: { id: createdImportId },
     } = await server
       .inject({
         method: 'POST',
         url: '/tilesets/import',
-        payload: { filePath: sampleMbTilesPath },
+        payload: { filePath: fixture },
       })
       .then((resp) => resp.json())
 
     return await importSse(`${address}/imports/progress/${createdImportId}`)
   }
 
-  await requestImport()
+  await requestImport(rasterMbTilesPath)
 
-  const style1Before = await server
+  const rasterStyleBefore = await server
     .inject({
       method: 'GET',
       url: '/styles',
     })
     .then((resp) => resp.json()[0])
 
-  // TODO: Would be helpful to use a different fixture for this import
-  await requestImport()
+  // Do a repeat import and an import of a completely different tileset
+  await requestImport(rasterMbTilesPath)
+  await requestImport(vectorMbTilesPath)
 
-  const style1After = await server
+  const rasterStyleAfter = await server
     .inject({
       method: 'GET',
       url: '/styles',
     })
-    .then((resp) => resp.json().find((s) => s.id === style1Before.id))
+    .then((resp) => {
+      const stylesInfo = resp.json()
+      return stylesInfo.find(({ id }) => id === rasterStyleBefore.id)
+    })
 
-  t.equal(style1Before.bytesStored, style1After.bytesStored)
+  t.equal(rasterStyleBefore.bytesStored, rasterStyleAfter.bytesStored)
 })
 
 // Failing test
