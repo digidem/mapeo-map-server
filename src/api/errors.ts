@@ -1,5 +1,8 @@
 import createError from '@fastify/error'
 
+// TODO: Probably not the safest to use ENOTFOUND to indicate no internet access
+export const OFFLINE_ERROR_CODES = ['ENOTFOUND', 'ENETUNREACH']
+
 export const NotFoundError = createError(
   'FST_RESOURCE_NOT_FOUND',
   'Resource `%s` not found',
@@ -27,7 +30,7 @@ export const MismatchedIdError = createError(
 export const MBAccessTokenRequiredError = createError(
   'FST_ACCESS_TOKEN',
   'A Mapbox API access token is required for styles that use Mapbox-hosted sources',
-  400
+  401
 )
 
 // Only format that is not supported right now is pbf
@@ -60,3 +63,16 @@ export const ParseError = createError(
   'Cannot properly parse data',
   500
 )
+
+export const InvalidGlyphsRangeError = createError(
+  'FST_INVALID_GLYPHS_RANGE',
+  'Invalid range %s-%s',
+  400
+)
+
+export const createForwardedUpstreamError = (statusCode: number) =>
+  createError(
+    `FORWARDED_UPSTREAM_${statusCode}`,
+    'Upstream request at %s responded with: %s',
+    statusCode
+  )

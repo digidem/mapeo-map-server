@@ -5,6 +5,7 @@ const nock = require('nock')
 const createServer = require('../test-helpers/create-server')
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
 const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
+
 const {
   defaultMockHeaders,
   spriteLayoutMockBody,
@@ -113,10 +114,19 @@ test('POST /styles when providing valid style returns resource with id and alter
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
+  const styleWithGlyphs = {
+    ...sampleStyleJSON,
+    // The fixture doesn't have this defined but we want to test that this changes too
+    glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+  }
+
   const responsePost = await server.inject({
     method: 'POST',
     url: '/styles',
-    payload: { style: sampleStyleJSON, accessToken: DUMMY_MB_ACCESS_TOKEN },
+    payload: {
+      style: styleWithGlyphs,
+      accessToken: DUMMY_MB_ACCESS_TOKEN,
+    },
   })
 
   t.equal(responsePost.statusCode, 200)
@@ -126,6 +136,10 @@ test('POST /styles when providing valid style returns resource with id and alter
 
   t.ok(id, 'created style possesses an id')
 
+  const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${id}`
+
+  t.equal(style.glyphs, expectedGlyphsUrl, 'glyphs points to offline url')
+
   t.notSame(
     style.sources,
     sampleStyleJSON.sources,
@@ -134,13 +148,14 @@ test('POST /styles when providing valid style returns resource with id and alter
 
   // The map server updates the sources so that each source's `url` field points to the map server
   const ignoredStyleFields = {
+    glyphs: undefined,
     sources: undefined,
   }
 
   t.same(
     { ...style, ...ignoredStyleFields },
     { ...sampleStyleJSON, ...ignoredStyleFields },
-    'with exception of `sources` field, created style is the same as input'
+    'with exception of `sources` and `glyphs` fields, created style is the same as input'
   )
 
   const tilesetEndpointPrefix = `http://localhost:80/tilesets/`
@@ -170,7 +185,7 @@ test('POST /styles when providing valid style returns resource with id and alter
   })
 })
 
-test('POST /styles when required Mapbox access token is missing returns 400 status code', async (t) => {
+test('POST /styles when required Mapbox access token is missing returns 401 status code', async (t) => {
   const server = createServer(t)
 
   const responsePost = await server.inject({
@@ -180,7 +195,7 @@ test('POST /styles when required Mapbox access token is missing returns 400 stat
     payload: { style: sampleStyleJSON, accessToken: undefined },
   })
 
-  t.equal(responsePost.statusCode, 400)
+  t.equal(responsePost.statusCode, 401)
 })
 
 test('GET /styles/:styleId when style does not exist return 404 status code', async (t) => {

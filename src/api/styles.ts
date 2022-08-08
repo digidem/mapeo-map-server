@@ -85,6 +85,15 @@ function createStylesApi({
     return `${baseApiUrl}/tilesets/${tilesetId}`
   }
 
+  function getGlyphsUrl(baseApiUrl: string, styleId?: string) {
+    // The GET /fonts api uses this search param to figure out how to make upstream requests
+    const searchParams = styleId
+      ? `?${new URLSearchParams({ styleId }).toString()}`
+      : ''
+
+    return `${baseApiUrl}/fonts/{fontstack}/{range}.pbf${searchParams}`
+  }
+
   function styleExists(styleId: string) {
     return (
       db
@@ -125,13 +134,13 @@ function createStylesApi({
       }
     }
 
-    // TODO: Remap glyphs URL to map server
     return {
       ...style,
       sources: updatedSources,
       sprite: spriteId
         ? getSpriteUrl(baseApiUrl, { styleId, spriteId })
         : undefined,
+      glyphs: style.glyphs ? getGlyphsUrl(baseApiUrl, styleId) : undefined,
     }
   }
 
@@ -428,4 +437,5 @@ function createStylesApi({
     },
   }
 }
+
 export default createStylesApi

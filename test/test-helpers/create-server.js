@@ -17,6 +17,7 @@ module.exports = createServer
 
 /**
  * @param {import('tape').Test} t
+ * @returns {import('fastify').FastifyInstance}
  */
 function createServer(t) {
   const { name: dataDir, removeCallback } = tmp.dirSync({ unsafeCleanup: true })
