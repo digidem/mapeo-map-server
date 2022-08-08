@@ -88,10 +88,7 @@ function createImportsApi({
 
       const tileset = api.createTileset(tilejson, baseApiUrl)
 
-      const { id: styleId } = api.createStyleForTileset(
-        tileset.id,
-        tileset.name
-      )
+      const { id: styleId } = api.createStyleForTileset(tileset, tileset.name)
 
       const importId = generateId()
 

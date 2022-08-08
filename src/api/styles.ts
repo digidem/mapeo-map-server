@@ -276,13 +276,27 @@ function createStylesApi({
       // TODO: Come up with better default name?
       const styleName = nameForStyle || `Style ${tilesetId.slice(-4)}`
 
+      const url = `mapeo://tilesets/${tilesetId}`
+
       const style =
-        tilejson.format === 'pbf'
-          ? createVectorStyle()
+        tilejson.format === 'pbf' && tilejson['vector_layers']
+          ? createVectorStyle({
+              name: styleName,
+              url,
+              vectorLayers: tilejson['vector_layers'],
+            })
           : createRasterStyle({
               name: styleName,
-              url: `mapeo://tilesets/${tilesetId}`,
+              url,
             })
+
+      const sourceIdToTilesetId: { [sourceId: string]: string } = {}
+
+      Object.keys(style.sources).forEach((sourceId) => {
+        sourceIdToTilesetId[sourceId] = tilesetId
+      })
+
+      console.log(sourceIdToTilesetId)
 
       db.prepare<{
         id: string
@@ -292,9 +306,7 @@ function createStylesApi({
         'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
       ).run({
         id: styleId,
-        sourceIdToTilesetId: JSON.stringify({
-          [DEFAULT_RASTER_SOURCE_ID]: tilesetId,
-        }),
+        sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
         stylejson: JSON.stringify(style),
       })
 

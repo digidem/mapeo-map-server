@@ -78,7 +78,7 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
         getBaseApiUrl(request)
       )
 
-      this.api.createStyleForTileset(tileset.id, tileset.name)
+      this.api.createStyleForTileset(tileset, tileset.name)
 
       reply.header('Location', `${fastify.prefix}/${tileset.id}`)
       return tileset

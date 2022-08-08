@@ -7,6 +7,7 @@ import {
   LayerSpecification,
   StyleSpecification as StyleJSON,
 } from './style-spec'
+import { TileJSON } from './tilejson'
 import { encodeBase32, hash } from './utils'
 
 // If the style has an `upstreamUrl` property, indicating where it was
@@ -106,8 +107,7 @@ export function createVectorStyle({
 }: {
   name: string
   url: string
-  tileSize?: 256 | 512
-  vectorLayers: any
+  vectorLayers: NonNullable<TileJSON['vector_layers']>
 }): StyleJSON {
   const layers: LayerSpecification[] = []
   const sourceId = DEFAULT_VECTOR_SOURCE_ID
