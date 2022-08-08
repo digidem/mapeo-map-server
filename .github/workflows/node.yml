@@ -14,7 +14,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [12.x, 14.x, 16.x]
+        # Enable Node 16.x when node-fontnik works on it 
+        node-version: [12.x, 14.x]
 
     steps:
       - uses: actions/checkout@v2
