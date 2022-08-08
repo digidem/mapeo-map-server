@@ -77,9 +77,8 @@ function createImportsApi({
 
       // TODO: Should this be handled in extractMBTilesMetadata?
       const formatSupported =
-        tilejson.format &&
-        isValidMBTilesFormat(tilejson.format) &&
-        isSupportedMBTilesFormat(tilejson.format)
+        tilejson.format && isValidMBTilesFormat(tilejson.format)
+      // isSupportedMBTilesFormat(tilejson.format)
 
       if (!formatSupported) {
         throw new UnsupportedMBTilesFormatError()

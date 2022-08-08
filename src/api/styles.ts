@@ -6,9 +6,10 @@ import {
   StyleJSON,
   createIdFromStyleUrl,
   createRasterStyle,
+  createVectorStyle,
   uncompositeStyle,
 } from '../lib/stylejson'
-import { validateTileJSON } from '../lib/tilejson'
+import { TileJSON, validateTileJSON } from '../lib/tilejson'
 import { encodeBase32, generateId, getTilesetId, hash } from '../lib/utils'
 import { Api, Context, IdResource } from '.'
 import {
@@ -36,7 +37,7 @@ export interface StylesApi {
     }
   ): Promise<{ style: StyleJSON } & IdResource>
   createStyleForTileset(
-    tilesetId: string,
+    tilejson: TileJSON & IdResource,
     nameForStyle?: string
   ): { style: StyleJSON } & IdResource
   deleteStyle(id: string, baseApiUrl: string): void
@@ -268,16 +269,20 @@ function createStylesApi({
       }
     },
     // TODO: Ideally could consolidate with createStyle
-    createStyleForTileset(tilesetId, nameForStyle) {
+    createStyleForTileset(tilejson, nameForStyle) {
+      const tilesetId = tilejson.id
       const styleId = encodeBase32(hash(`style:${tilesetId}`))
 
       // TODO: Come up with better default name?
       const styleName = nameForStyle || `Style ${tilesetId.slice(-4)}`
 
-      const style = createRasterStyle({
-        name: styleName,
-        url: `mapeo://tilesets/${tilesetId}`,
-      })
+      const style =
+        tilejson.format === 'pbf'
+          ? createVectorStyle()
+          : createRasterStyle({
+              name: styleName,
+              url: `mapeo://tilesets/${tilesetId}`,
+            })
 
       db.prepare<{
         id: string
