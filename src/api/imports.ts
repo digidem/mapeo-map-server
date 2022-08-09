@@ -72,7 +72,6 @@ function createImportsApi({
 
       mbTilesDb.close()
 
-      // TODO: Should this be handled in extractMBTilesMetadata?
       const formatSupported =
         tilejson.format && isValidMBTilesFormat(tilejson.format)
 
