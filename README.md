@@ -15,7 +15,7 @@ An in-progress offline map style and tile server for Mapeo.
 - [X] Manages Mapbox map styles
 
 - [X] Supports importing MBTile files as tilesets
-  - [X]
+  - [X] Supports getting import progress
 
 - [ ] Provides info related to downloads and storage
 
@@ -62,7 +62,6 @@ Creates the map server instance
 
 Some notes before working on this locally:
 
-- Run the script to generate locally available glyphs: `npm run glyphs:generate`. This will create a `sdf/` directory that's read by the server 
 - If you make any changes to the schema via `schema.prisma`, run the following commands afterwards:
   - `npm run prisma:migrate-dev -- --name MIGRATION_NAME_HERE` - creates a new migration in the `prisma/migrations/` directory, which is used by tests and the server if running locally
 
