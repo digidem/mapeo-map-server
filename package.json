@@ -17,7 +17,8 @@
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix && tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate-dev": "prisma migrate dev",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "glyphs:generate": "node scripts/generate-sdf.js"
   },
   "c8": {
     "lines": 100,
