@@ -1,6 +1,5 @@
 import { Api, Context } from '.'
 import { Headers } from '../lib/mbtiles'
-import { TileJSON } from '../lib/tilejson'
 import {
   getInterpolatedUpstreamTileUrl,
   getTileHeaders,
