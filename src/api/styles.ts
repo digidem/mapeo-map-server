@@ -6,9 +6,10 @@ import {
   StyleJSON,
   createIdFromStyleUrl,
   createRasterStyle,
+  createVectorStyle,
   uncompositeStyle,
 } from '../lib/stylejson'
-import { validateTileJSON } from '../lib/tilejson'
+import { TileJSON, validateTileJSON } from '../lib/tilejson'
 import { encodeBase32, generateId, getTilesetId, hash } from '../lib/utils'
 import { Api, Context, IdResource } from '.'
 import {
@@ -36,7 +37,7 @@ export interface StylesApi {
     }
   ): Promise<{ style: StyleJSON } & IdResource>
   createStyleForTileset(
-    tilesetId: string,
+    tilejson: TileJSON & IdResource,
     nameForStyle?: string
   ): { style: StyleJSON } & IdResource
   deleteStyle(id: string, baseApiUrl: string): void
@@ -268,15 +269,31 @@ function createStylesApi({
       }
     },
     // TODO: Ideally could consolidate with createStyle
-    createStyleForTileset(tilesetId, nameForStyle) {
+    createStyleForTileset(tilejson, nameForStyle) {
+      const tilesetId = tilejson.id
       const styleId = encodeBase32(hash(`style:${tilesetId}`))
 
       // TODO: Come up with better default name?
       const styleName = nameForStyle || `Style ${tilesetId.slice(-4)}`
 
-      const style = createRasterStyle({
-        name: styleName,
-        url: `mapeo://tilesets/${tilesetId}`,
+      const url = `mapeo://tilesets/${tilesetId}`
+
+      const style =
+        tilejson.format === 'pbf' && tilejson['vector_layers']
+          ? createVectorStyle({
+              name: styleName,
+              url,
+              vectorLayers: tilejson['vector_layers'],
+            })
+          : createRasterStyle({
+              name: styleName,
+              url,
+            })
+
+      const sourceIdToTilesetId: { [sourceId: string]: string } = {}
+
+      Object.keys(style.sources).forEach((sourceId) => {
+        sourceIdToTilesetId[sourceId] = tilesetId
       })
 
       db.prepare<{
@@ -287,9 +304,7 @@ function createStylesApi({
         'INSERT INTO Style (id, sourceIdToTilesetId, stylejson) VALUES (:id, :sourceIdToTilesetId, :stylejson)'
       ).run({
         id: styleId,
-        sourceIdToTilesetId: JSON.stringify({
-          [DEFAULT_RASTER_SOURCE_ID]: tilesetId,
-        }),
+        sourceIdToTilesetId: JSON.stringify(sourceIdToTilesetId),
         stylejson: JSON.stringify(style),
       })
 

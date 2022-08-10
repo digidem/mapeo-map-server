@@ -1,3 +1,4 @@
+import path from 'path'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import { EventEmitter } from 'events'
 import { MessageChannel, MessagePort } from 'worker_threads'
@@ -5,12 +6,7 @@ import { MessageChannel, MessagePort } from 'worker_threads'
 import { ImportRecord } from '../lib/imports'
 import { PortMessage } from '../lib/mbtiles_import_worker'
 import { TileJSON, validateTileJSON } from '../lib/tilejson'
-import path from 'path'
-import {
-  isSupportedMBTilesFormat,
-  isValidMBTilesFormat,
-  mbTilesToTileJSON,
-} from '../lib/mbtiles'
+import { isValidMBTilesFormat, mbTilesToTileJSON } from '../lib/mbtiles'
 import { generateId, getTilesetId } from '../lib/utils'
 import { Api, Context, IdResource } from '.'
 import {
@@ -72,15 +68,13 @@ function createImportsApi({
       } catch (_err) {
         throw new MBTilesImportTargetMissingError(filePath)
       }
+
       const tilejson = mbTilesToTileJSON(mbTilesDb)
 
       mbTilesDb.close()
 
-      // TODO: Should this be handled in extractMBTilesMetadata?
       const formatSupported =
-        tilejson.format &&
-        isValidMBTilesFormat(tilejson.format) &&
-        isSupportedMBTilesFormat(tilejson.format)
+        tilejson.format && isValidMBTilesFormat(tilejson.format)
 
       if (!formatSupported) {
         throw new UnsupportedMBTilesFormatError()
@@ -94,10 +88,7 @@ function createImportsApi({
 
       const tileset = api.createTileset(tilejson, baseApiUrl)
 
-      const { id: styleId } = api.createStyleForTileset(
-        tileset.id,
-        tileset.name
-      )
+      const { id: styleId } = api.createStyleForTileset(tileset, tileset.name)
 
       const importId = generateId()
 

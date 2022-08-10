@@ -3,7 +3,11 @@ import { URL } from 'url'
 // @ts-ignore
 import { validate as validateStyleJSON } from '@maplibre/maplibre-gl-style-spec'
 
-import { StyleSpecification as StyleJSON } from './style-spec'
+import {
+  LayerSpecification,
+  StyleSpecification as StyleJSON,
+} from './style-spec'
+import { TileJSON } from './tilejson'
 import { encodeBase32, hash } from './utils'
 
 // If the style has an `upstreamUrl` property, indicating where it was
@@ -46,6 +50,7 @@ function validate(style: unknown): asserts style is StyleJSON {
 
 const DEFAULT_RASTER_SOURCE_ID = 'raster-source'
 const DEFAULT_RASTER_LAYER_ID = 'raster-layer'
+const DEFAULT_VECTOR_SOURCE_ID = 'vector-source'
 
 function createRasterStyle({
   name,
@@ -73,6 +78,110 @@ function createRasterStyle({
         source: DEFAULT_RASTER_SOURCE_ID,
       },
     ],
+  }
+}
+
+const lightColors = [
+  'FC49A3', // pink
+  'CC66FF', // purple-ish
+  '66CCFF', // sky blue
+  '66FFCC', // teal
+  '00FF00', // lime green
+  'FFCC66', // light orange
+  'FF6666', // salmon
+  'FF0000', // red
+  'FF8000', // orange
+  'FFFF66', // yellow
+  '00FFFF', // turquoise
+]
+
+function randomColor(colors: string[]) {
+  const randomNumber = Math.floor(Math.random() * colors.length)
+  return colors[randomNumber]
+}
+
+export function createVectorStyle({
+  name,
+  url,
+  vectorLayers,
+}: {
+  name: string
+  url: string
+  vectorLayers: NonNullable<TileJSON['vector_layers']>
+}): StyleJSON {
+  const layers: LayerSpecification[] = []
+  const sourceId = DEFAULT_VECTOR_SOURCE_ID
+
+  for (const layer of vectorLayers) {
+    const layerColor = '#' + randomColor(lightColors)
+    layers.push({
+      id: `${layer.id}-polygons`,
+      type: 'fill',
+      source: sourceId,
+      'source-layer': layer.id,
+      filter: ['==', '$type', 'Polygon'],
+      layout: {},
+      paint: {
+        'fill-opacity': 0.1,
+        'fill-color': layerColor,
+      },
+    })
+    layers.push({
+      id: `${layer.id}-polygons-outline`,
+      type: 'line',
+      source: sourceId,
+      'source-layer': layer.id,
+      filter: ['==', '$type', 'Polygon'],
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round',
+      },
+      paint: {
+        'line-color': layerColor,
+        'line-width': 1,
+        'line-opacity': 0.75,
+      },
+    })
+    layers.push({
+      id: `${layer.id}-lines`,
+      type: 'line',
+      source: sourceId,
+      'source-layer': layer.id,
+      filter: ['==', '$type', 'LineString'],
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round',
+      },
+      paint: {
+        'line-color': layerColor,
+        'line-width': 1,
+        'line-opacity': 0.75,
+      },
+    })
+    layers.push({
+      id: `${layer.id}-pts`,
+      type: 'circle',
+      source: sourceId,
+      'source-layer': layer.id,
+      filter: ['==', '$type', 'Point'],
+      paint: {
+        'circle-color': layerColor,
+        'circle-radius': 2.5,
+        'circle-opacity': 0.75,
+      },
+    })
+  }
+
+  return {
+    version: 8,
+    name,
+    sources: {
+      [sourceId]: {
+        type: 'vector',
+        url,
+      },
+    },
+    layers,
   }
 }
 
