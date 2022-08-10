@@ -350,6 +350,7 @@ test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or
   })
 
   t.equal(importResponse.statusCode, 400)
+  t.equal(importResponse.json().code, 'FST_MBTILES_CANNOT_READ')
 
   const tilesetsRes = await server.inject({ method: 'GET', url: '/tilesets' })
   t.equal(tilesetsRes.statusCode, 200)
