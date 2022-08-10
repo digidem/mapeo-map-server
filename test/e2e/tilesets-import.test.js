@@ -320,8 +320,7 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
   t.equal(rasterStyleBefore.bytesStored, rasterStyleAfter.bytesStored)
 })
 
-// Failing test
-test.skip('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or styles created', async (t) => {
+test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or styles created', async (t) => {
   const server = createServer(t)
   const badMbTilesPath = path.join(
     fixturesPath,
@@ -333,7 +332,6 @@ test.skip('POST /tilesets/import fails when providing invalid mbtiles, no tilese
     payload: { filePath: badMbTilesPath },
   })
 
-  // This is currently 500, but should probably be 400?
   t.equal(importResponse.statusCode, 400)
 
   const tilesetsRes = await server.inject({ method: 'GET', url: '/tilesets' })

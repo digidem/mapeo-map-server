@@ -10,6 +10,7 @@ import { isValidMBTilesFormat, mbTilesToTileJSON } from '../lib/mbtiles'
 import { generateId, getTilesetId } from '../lib/utils'
 import { Api, Context, IdResource } from '.'
 import {
+  MBTilesCannotReadError,
   MBTilesImportTargetMissingError,
   MBTilesInvalidMetadataError,
   NotFoundError,
@@ -29,7 +30,7 @@ function createImportsApi({
   api,
   context,
 }: {
-  api: Pick<Api, 'createStyleForTileset' | 'createTileset'>
+  api: Pick<Api, 'createStyleForTileset' | 'createTileset' | 'deleteStyle'>
   context: Context
 }): ImportsApi {
   const { activeImports, db, piscina } = context
@@ -96,6 +97,7 @@ function createImportsApi({
       activeImports.set(importId, port2)
 
       return new Promise((res, rej) => {
+        let importStarted = false
         let workerDone = false
         // Initially use a longer duration to account for worker startup
         let timeoutId = createTimeout(10000)
@@ -121,8 +123,17 @@ function createImportsApi({
             { signal: abortSignaler, transferList: [port1] }
           )
           .catch((err) => {
+            if (!importStarted) {
+              api.deleteStyle(styleId, baseApiUrl)
+            }
+
+            // If a sqlite error is raised and the import has not started
+            // we assume that there is an issue reading the mbtiles file provided
+            const isMbTilesIssue =
+              err?.code.startsWith('SQLITE') && !importStarted
+
             // FYI this will be called when piscina.destroy() in the onClose hook
-            rej(err)
+            rej(isMbTilesIssue ? new MBTilesCannotReadError(err.code) : err)
           })
           .finally(() => {
             cleanup()
@@ -131,6 +142,7 @@ function createImportsApi({
 
         function handleFirstProgressMessage(message: PortMessage) {
           if (message.type === 'progress') {
+            importStarted = true
             port2.off('message', handleFirstProgressMessage)
             res({ import: { id: message.importId }, tileset })
           }
@@ -151,9 +163,13 @@ function createImportsApi({
           abortSignaler.emit('abort')
 
           try {
-            db.prepare(
-              "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = 'TIMEOUT' WHERE id = ?"
-            ).run(importId)
+            if (importStarted) {
+              db.prepare(
+                "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = 'TIMEOUT' WHERE id = ?"
+              ).run(importId)
+            } else {
+              api.deleteStyle(styleId, baseApiUrl)
+            }
           } catch (err) {
             // TODO: This could potentially throw when the db is closed already. Need to properly handle/report
             console.error(err)
