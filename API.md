@@ -31,3 +31,19 @@ This endpoint goes through the following steps to determine what to respond with
         - a non-404 upstream HTTP error, forward the error
         - lack of internet connection or a Not Found error (404), go to step 3
 3. Return the glyph range using the default pre-bundled font (Opens Sans)
+
+## Imports
+
+### `GET /imports/:importId`
+
+- Params:
+    - `importId`: The ID for the desired import.
+
+Get information about an import that has or is occurring. This is a direct representation of what's stored in the database, which includes information such as the type of import, its state and progress, and important timestamps.
+
+### `GET /imports/progress/:importId`
+
+- Params:
+    - `importId`: The ID for the desired import.
+
+Subscribe to progress information for an import. This is an Server-Sent Events (SSE) endpoint, so its expected to be used with an EventSource by the client. 

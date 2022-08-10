@@ -1,44 +1,62 @@
 import { Database } from 'better-sqlite3'
+import { Static, Type as T } from '@sinclair/typebox'
 
-export type ImportError = 'TIMEOUT' | 'UNKNOWN'
-export type ImportState = 'complete' | 'active' | 'error'
+import { NullableSchema } from './utils'
 
-type BaseRecord = {
-  error: ImportError | null
-  started: string
-  lastUpdated: string | null
-  finished: string | null
-  importedResources: number
-  totalResources: number
-  importedBytes: number | null
-  totalBytes: number | null
+const ImportErrorSchema = T.Union([T.Literal('TIMEOUT'), T.Literal('UNKNOWN')])
+export type ImportError = Static<typeof ImportErrorSchema>
+
+const ImportState = T.Union([
+  T.Literal('complete'),
+  T.Literal('active'),
+  T.Literal('error'),
+])
+export type ImportState = Static<typeof ImportState>
+
+const BASE_RECORD_SCHEMA_INPUT = {
+  // error: NullableSchema(ImportErrorSchema),
+  started: T.String(),
+  // lastUpdated: NullableSchema(T.String()),
+  // finished: NullableSchema(T.String()),
+  importedResources: T.Number({ minimum: 0 }),
+  totalResources: T.Number({ minimum: 0 }),
+  importedBytes: NullableSchema(T.Number({ minimum: 0 })),
+  totalBytes: NullableSchema(T.Number({ minimum: 0 })),
 }
 
-type ActiveImportRecord = BaseRecord & {
-  state: 'active'
-  error: null
-  lastUpdated: string | null
-  finished: null
-}
+const ActiveImportRecordSchema = T.Object({
+  ...BASE_RECORD_SCHEMA_INPUT,
+  state: T.Literal('active'),
+  error: T.Null(),
+  lastUpdated: NullableSchema(T.String()),
+  finished: T.Null(),
+})
+type ActiveImportRecord = Static<typeof ActiveImportRecordSchema>
 
-type CompleteImportRecord = BaseRecord & {
-  state: 'complete'
-  error: null
-  lastUpdated: string
-  finished: string
-}
+const CompleteImportRecordSchema = T.Object({
+  ...BASE_RECORD_SCHEMA_INPUT,
+  state: T.Literal('complete'),
+  error: T.Null(),
+  lastUpdated: T.String(),
+  finished: T.Null(),
+})
+type CompleteImportRecord = Static<typeof CompleteImportRecordSchema>
 
-type ErrorImportRecord = BaseRecord & {
-  state: 'error'
-  error: ImportError
-  lastUpdated: string
-  finished: string
-}
+const ErrorImportRecordSchema = T.Object({
+  ...BASE_RECORD_SCHEMA_INPUT,
+  state: T.Literal('error'),
+  error: ImportErrorSchema,
+  lastUpdated: T.String(),
+  finished: T.Null(),
+})
+type ErrorImportRecord = Static<typeof ErrorImportRecordSchema>
 
-export type ImportRecord =
-  | ActiveImportRecord
-  | CompleteImportRecord
-  | ErrorImportRecord
+export const ImportRecordSchema = T.Union([
+  ActiveImportRecordSchema,
+  CompleteImportRecordSchema,
+  ErrorImportRecordSchema,
+])
+export type ImportRecord = Static<typeof ImportRecordSchema>
 
 export function convertActiveToError(db: Database) {
   db.prepare(
