@@ -292,6 +292,7 @@ function createStylesApi({
 
       const sourceIdToTilesetId: { [sourceId: string]: string } = {}
 
+      // In this case, the style will only have 1 source
       Object.keys(style.sources).forEach((sourceId) => {
         sourceIdToTilesetId[sourceId] = tilesetId
       })
