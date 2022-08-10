@@ -29,7 +29,8 @@
   "license": "MIT",
   "files": [
     "dist",
-    "prisma/migrations"
+    "prisma/migrations",
+    "API.md"
   ],
   "dependencies": {
     "@fastify/error": "^2.0.0",
