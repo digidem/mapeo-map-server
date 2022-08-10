@@ -52,6 +52,12 @@ export const MBTilesInvalidMetadataError = createError(
   400
 )
 
+export const MBTilesCannotReadError = createError(
+  'FST_MBTILES_CANNOT_READ',
+  'mbtiles file could not be read properly: %s',
+  400
+)
+
 export const UpstreamJsonValidationError = createError(
   'FST_UPSTREAM_VALIDATION',
   'JSON validation failed for upstream resource from %s: %s',

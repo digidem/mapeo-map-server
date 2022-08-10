@@ -53,6 +53,7 @@ function createApi(context: Context): Api {
     api: {
       createTileset: tilesetsApi.createTileset,
       createStyleForTileset: stylesApi.createStyleForTileset,
+      deleteStyle: stylesApi.deleteStyle,
     },
     context,
   })
