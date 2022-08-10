@@ -157,17 +157,13 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 
     const style = styleGetResponse.json()
 
-    const containsSourcePointingToTileset = Object.values(style.sources).some(
-      (source) => {
-        if ('url' in source && source.url) {
-          return source.url === expectedSourceUrl
-        }
-        return false
-      }
-    )
+    const sources = Object.values(style.sources)
 
-    t.ok(
-      containsSourcePointingToTileset,
+    t.equal(sources.length, 1, 'style has one source')
+
+    t.equal(
+      sources[0].url,
+      expectedSourceUrl,
       'style has source pointing to correct tileset'
     )
 
