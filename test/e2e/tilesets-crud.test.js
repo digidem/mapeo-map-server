@@ -6,6 +6,7 @@ const {
   DEFAULT_RASTER_SOURCE_ID,
 } = require('../../dist/lib/stylejson')
 
+const { DUMMY_MB_ACCESS_TOKEN } = require('../test-helpers/constants')
 const createServer = require('../test-helpers/create-server')
 const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
 const {
@@ -232,4 +233,155 @@ test('GET /tile of png format returns a tile image', async (t) => {
     'Response content type matches desired resource type'
   )
   t.deepEqual(response.rawPayload, expectedTile, 'Got expected response')
+})
+
+test('GET /tile forwards 4XX upstream response errors', async (t) => {
+  const server = createServer(t)
+
+  const initialResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: sampleTileJSON,
+  })
+
+  const { id: tilesetId } = initialResponse.json()
+
+  // This should match the URLs in the `tiles` property of the sampleTileJSON
+  const upstreamTileApiRegex =
+    /\/v3\/aj\.1x1-degrees\/(?<z>.*)\/(?<x>.*)\/(?<y>.*)\.png/
+
+  const mockedTileScope = nock(/tiles.mapbox.com/)
+    .defaultReplyHeaders(defaultMockHeaders)
+    .get(upstreamTileApiRegex)
+    .reply(401, JSON.stringify({ message: 'Not Authorized - No Token' }), {
+      'Content-Type': 'application/json',
+    })
+    .get(upstreamTileApiRegex)
+    .reply(404, JSON.stringify({ message: 'Tile not found' }), {
+      'Content-Type': 'application/json',
+    })
+    .get(upstreamTileApiRegex)
+    .reply(
+      422,
+      JSON.stringify({ message: 'Zoom level must be between 0-30.' }),
+      {
+        'Content-Type': 'application/json',
+      }
+    )
+
+  const tokenErrorResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${tilesetId}/1/2/3`,
+  })
+
+  t.equal(
+    tokenErrorResponse.statusCode,
+    401,
+    '401 token-related response forwarded'
+  )
+  t.equal(
+    tokenErrorResponse.json().code,
+    'FORWARDED_UPSTREAM_401',
+    'response body has expected forward code'
+  )
+
+  const notFoundResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${tilesetId}/1/2/3`,
+    query: {
+      access_token: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.equal(notFoundResponse.statusCode, 404, '404 not found response forwarded')
+  t.equal(
+    notFoundResponse.json().code,
+    'FORWARDED_UPSTREAM_404',
+    'response body has expected forward code'
+  )
+
+  const unprocessableEntityResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${tilesetId}/31/1/2`,
+    query: {
+      access_token: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.equal(
+    unprocessableEntityResponse.statusCode,
+    422,
+    '422 unprocessable entity response forwarded'
+  )
+  t.equal(
+    unprocessableEntityResponse.json().code,
+    'FORWARDED_UPSTREAM_422',
+    'response body has expected forward code'
+  )
+
+  t.ok(mockedTileScope.isDone(), 'tile mocks were called')
+})
+
+test('GET /tile returns 404 error when upstream returns a 5XX error', async (t) => {
+  const server = createServer(t)
+
+  const initialResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: sampleTileJSON,
+  })
+
+  const { id: tilesetId } = initialResponse.json()
+
+  const mockedTileScope = nock(/tiles.mapbox.com/)
+    .defaultReplyHeaders(defaultMockHeaders)
+    // This should match the URLs in the `tiles` property of the sampleTileJSON
+    .get(/\/v3\/aj\.1x1-degrees\/(?<z>.*)\/(?<x>.*)\/(?<y>.*)\.png/)
+    .reply(500, JSON.stringify({ message: 'Server error' }), {
+      'Content-Type': 'application/json',
+    })
+    // Persisting this scope is necessary because got will retry requests on 500 errors by default
+    // https://github.com/sindresorhus/got/tree/v11.8.5#retry
+    .persist()
+
+  const upstreamServerErrorResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${tilesetId}/1/2/3`,
+    query: {
+      access_token: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.equal(
+    upstreamServerErrorResponse.statusCode,
+    404,
+    'server responds with 404 when 500 upstream error occurs'
+  )
+
+  t.ok(mockedTileScope.isDone(), 'tile mock was called')
+})
+
+test('GET /tile returns 404 error when internet connection is unavailable', async (t) => {
+  const server = createServer(t)
+
+  const initialResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets',
+    payload: sampleTileJSON,
+  })
+
+  const { id: tilesetId } = initialResponse.json()
+
+  // This is needed to return the proper request error from nock when net requests are disabled
+  nock.cleanAll()
+
+  const response = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${tilesetId}/1/2/3`,
+    query: {
+      access_token: DUMMY_MB_ACCESS_TOKEN,
+    },
+  })
+
+  t.equal(response.statusCode, 404, 'server responded with 404')
 })
