@@ -1,30 +1,31 @@
-import { Api, Context } from '.'
+import { normalizeTileURL } from '../lib/mapbox_urls'
 import { Headers } from '../lib/mbtiles'
 import {
   getInterpolatedUpstreamTileUrl,
   getTileHeaders,
   tileToQuadKey,
 } from '../lib/tiles'
-import { hash } from '../lib/utils'
+import { hash, noop } from '../lib/utils'
+import { Api, Context } from '.'
 import { NotFoundError } from './errors'
 
-function noop() {}
+interface SharedTileParams {
+  tilesetId: string
+  zoom: number
+  x: number
+  y: number
+}
 
 export interface TilesApi {
-  getTile(opts: {
-    tilesetId: string
-    zoom: number
-    x: number
-    y: number
-  }): Promise<{ data: Buffer; headers: Headers }>
-  putTile(opts: {
-    tilesetId: string
-    zoom: number
-    x: number
-    y: number
-    data: Buffer
-    etag?: string
-  }): void
+  getTile(
+    opts: SharedTileParams & { accessToken?: string }
+  ): Promise<{ data: Buffer; headers: Headers }>
+  putTile(
+    opts: SharedTileParams & {
+      data: Buffer
+      etag?: string
+    }
+  ): void
 }
 
 function createTilesApi({
@@ -36,34 +37,66 @@ function createTilesApi({
 }): TilesApi {
   const { db, upstreamRequestsManager } = context
 
-  function getUpstreamTileUrl({
+  function createUpstreamTileUrl({
     tilesetId,
     zoom,
     x,
     y,
-  }: {
-    tilesetId: string
-    zoom: number
-    x: number
-    y: number
-  }) {
+    accessToken,
+  }: SharedTileParams & { accessToken?: string }) {
     const { tilejson, upstreamTileUrls } = api.getTilesetInfo(tilesetId)
 
     if (!upstreamTileUrls) return
 
-    const upstreamTileUrl = getInterpolatedUpstreamTileUrl({
+    return getInterpolatedUpstreamTileUrl({
       tiles: upstreamTileUrls,
       scheme: tilejson.scheme,
       zoom,
       x,
       y,
+      accessToken,
+    })
+  }
+
+  async function getUpstreamTile({
+    accessToken,
+    etag,
+    ...tileParams
+  }: SharedTileParams & {
+    accessToken?: string
+    etag?: string
+  }): Promise<
+    | {
+        data: Buffer
+        etag?: string
+      }
+    | undefined
+  > {
+    const upstreamTileUrl = createUpstreamTileUrl({
+      ...tileParams,
+      accessToken,
     })
 
-    return upstreamTileUrl
+    // TODO: Should we throw here instead?
+    if (!upstreamTileUrl) return
+
+    // We may want to check if an access token is needed before making the request
+    // but it seems that for some external tile APIs, the access token isn't needed
+    // so we don't want to throw an error too early if that's the case
+
+    const normalizedUpstreamUrl = normalizeTileURL(upstreamTileUrl)
+
+    const response = await upstreamRequestsManager.getUpstream({
+      url: normalizedUpstreamUrl,
+      etag,
+      responseType: 'buffer',
+    })
+
+    return { data: response.data, etag: response.etag }
   }
 
   const tilesApi: TilesApi = {
-    async getTile({ tilesetId, zoom, x, y }) {
+    async getTile({ tilesetId, zoom, x, y, accessToken }) {
       const quadKey = tileToQuadKey({ x, y, zoom })
 
       const row:
@@ -84,62 +117,42 @@ function createTilesApi({
         )
         .get({ tilesetId, quadKey })
 
-      async function fetchOnlineResource(): Promise<
-        | {
-            data: Buffer
-            etag?: string
-          }
-        | undefined
-      > {
-        const upstreamTileUrl = getUpstreamTileUrl({
-          tilesetId,
-          zoom,
-          x,
-          y,
-        })
+      let tile: { data: Buffer; etag?: string } | undefined
 
-        // TODO: Need to check if we can make online requests too
-        if (upstreamTileUrl) {
-          const response = await upstreamRequestsManager.getUpstream({
-            url: upstreamTileUrl,
-            etag: row?.etag,
-            responseType: 'buffer',
-          })
-
-          if (response) {
-            try {
+      if (row) {
+        tile = { data: row.data, etag: row.etag }
+        getUpstreamTile({ tilesetId, zoom, x, y, etag: row.etag, accessToken })
+          .then((resp) => {
+            if (resp) {
               tilesApi.putTile({
                 tilesetId,
                 zoom,
                 x,
                 y,
-                data: response.data,
-                etag: response.etag,
+                data: resp.data,
+                etag: resp.etag,
               })
-            } catch (_err) {
-              // TODO: Handle error here?
-              noop()
             }
-
-            return { data: response.data, etag: response.etag }
-          }
-        }
-      }
-
-      let tile: { data: Buffer; etag?: string } | undefined
-
-      if (row) {
-        tile = { data: row.data, etag: row.etag }
-        fetchOnlineResource().catch(noop)
+          })
+          // TODO: Log error
+          .catch(noop)
       } else {
-        tile = await fetchOnlineResource()
-      }
+        tile = await getUpstreamTile({ tilesetId, zoom, x, y, accessToken })
 
-      if (!tile) {
-        // TODO: Improve error handling here?
-        throw new NotFoundError(
-          `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
-        )
+        if (tile) {
+          tilesApi.putTile({
+            tilesetId,
+            zoom,
+            x,
+            y,
+            data: tile.data,
+            etag: tile.etag,
+          })
+        } else {
+          throw new NotFoundError(
+            `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
+          )
+        }
       }
 
       return {
@@ -150,13 +163,6 @@ function createTilesApi({
       }
     },
     putTile({ tilesetId, zoom, x, y, data, etag }) {
-      const upstreamTileUrl = getUpstreamTileUrl({
-        tilesetId,
-        zoom,
-        x,
-        y,
-      })
-
       const quadKey = tileToQuadKey({ x, y, zoom })
 
       const transaction = db.transaction(() => {
@@ -169,18 +175,6 @@ function createTilesApi({
         }>(
           'INSERT INTO TileData (tileHash, tilesetId, data) VALUES (:tileHash, :tilesetId, :data)'
         ).run({ tileHash, tilesetId, data })
-
-        // TODO: Is this still necessary?
-        db.prepare<{
-          etag?: string
-          tilesetId: string
-          upstreamUrl?: string
-        }>(
-          'UPDATE Tileset SET (upstreamUrl) = (:upstreamUrl) WHERE id = :tilesetId'
-        ).run({
-          tilesetId,
-          upstreamUrl: upstreamTileUrl,
-        })
 
         db.prepare<{
           etag?: string

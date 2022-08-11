@@ -1,4 +1,5 @@
 import createError from '@fastify/error'
+import { HTTPError, RequestError } from 'got'
 
 // TODO: Probably not the safest to use ENOTFOUND to indicate no internet access
 export const OFFLINE_ERROR_CODES = ['ENOTFOUND', 'ENETUNREACH']
@@ -82,3 +83,14 @@ export const createForwardedUpstreamError = (statusCode: number) =>
     'Upstream request at %s responded with: %s',
     statusCode
   )
+
+export function isOfflineError(err: unknown): err is RequestError {
+  return err instanceof RequestError && OFFLINE_ERROR_CODES.includes(err.code)
+}
+
+export function isNotFoundError(err: unknown) {
+  return (
+    err instanceof NotFoundError ||
+    (err instanceof HTTPError && err.response.statusCode === 404)
+  )
+}

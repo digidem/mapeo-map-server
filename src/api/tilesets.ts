@@ -3,7 +3,7 @@ import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
 import { TileJSON, validateTileJSON } from '../lib/tilejson'
-import { getTilesetId } from '../lib/utils'
+import { getTilesetId, noop } from '../lib/utils'
 import { Context, IdResource } from '.'
 import {
   AlreadyExistsError,
@@ -12,8 +12,6 @@ import {
   ParseError,
   UpstreamJsonValidationError,
 } from './errors'
-
-function noop() {}
 
 export interface TilesetsApi {
   createTileset(tileset: TileJSON, baseApiUrl: string): TileJSON & IdResource

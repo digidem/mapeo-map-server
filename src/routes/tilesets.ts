@@ -1,6 +1,13 @@
 import { FastifyPluginAsync } from 'fastify'
-import { TileJSON, TileJSONSchema } from '../lib/tilejson'
+import { HTTPError } from 'got'
+
 import { Static, Type as T } from '@sinclair/typebox'
+import {
+  NotFoundError,
+  createForwardedUpstreamError,
+  isOfflineError,
+} from '../api/errors'
+import { TileJSON, TileJSONSchema } from '../lib/tilejson'
 import { getBaseApiUrl } from '../lib/utils'
 
 const GetTilesetParamsSchema = T.Object({
@@ -12,6 +19,10 @@ const GetTileParamsSchema = T.Object({
   zoom: T.Number(),
   x: T.Number(),
   y: T.Number(),
+})
+
+const GetTileQuerystringSchema = T.Object({
+  access_token: T.Optional(T.String()),
 })
 
 const PutTilesetParamsSchema = T.Object({
@@ -85,22 +96,56 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  fastify.get<{ Params: Static<typeof GetTileParamsSchema> }>(
+  fastify.get<{
+    Params: Static<typeof GetTileParamsSchema>
+    Querystring: Static<typeof GetTileQuerystringSchema>
+  }>(
     '/:tilesetId/:zoom/:x/:y',
     {
       schema: {
         description: 'Get a single tile from a tileset',
         params: GetTileParamsSchema,
+        querystring: GetTileQuerystringSchema,
       },
     },
     async function (request, reply) {
-      const { data, headers } = await this.api.getTile(request.params)
-      // Ignore Etag header from MBTiles
-      reply.header('Last-Modified', headers['Last-Modified'])
-      // See getTileHeaders in lib/utils.ts
-      reply.header('Content-Type', headers['Content-Type'])
-      reply.header('Content-Encoding', headers['Content-Encoding'])
-      reply.send(data)
+      try {
+        const { data, headers } = await this.api.getTile({
+          ...request.params,
+          accessToken: request.query.access_token,
+        })
+        // Ignore Etag header from MBTiles
+        reply.header('Last-Modified', headers['Last-Modified'])
+        // See getTileHeaders in lib/utils.ts
+        reply.header('Content-Type', headers['Content-Type'])
+        reply.header('Content-Encoding', headers['Content-Encoding'])
+        reply.send(data)
+      } catch (err) {
+        const { tilesetId, zoom, x, y } = request.params
+
+        const notFoundError = new NotFoundError(
+          `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
+        )
+
+        if (isOfflineError(err)) {
+          throw notFoundError
+        }
+
+        // Handle upstream error
+        if (err instanceof HTTPError) {
+          // Return a 404 response if the upstream server is responding with server errors
+          if (err.response.statusCode >= 500) {
+            throw notFoundError
+          }
+
+          throw new (createForwardedUpstreamError(err.response.statusCode))(
+            err.response.url,
+            err.response.statusMessage
+          )
+        }
+
+        throw err
+      }
     }
   )
 
