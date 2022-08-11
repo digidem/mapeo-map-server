@@ -170,18 +170,6 @@ function createTilesApi({
           'INSERT INTO TileData (tileHash, tilesetId, data) VALUES (:tileHash, :tilesetId, :data)'
         ).run({ tileHash, tilesetId, data })
 
-        // TODO: Is this still necessary?
-        db.prepare<{
-          etag?: string
-          tilesetId: string
-          upstreamUrl?: string
-        }>(
-          'UPDATE Tileset SET (upstreamUrl) = (:upstreamUrl) WHERE id = :tilesetId'
-        ).run({
-          tilesetId,
-          upstreamUrl: upstreamTileUrl,
-        })
-
         db.prepare<{
           etag?: string
           quadKey: string
