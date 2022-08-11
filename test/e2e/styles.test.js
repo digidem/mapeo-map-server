@@ -243,6 +243,9 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
       const responseTilesetGet = await server.inject({
         method: 'GET',
         url: source.url,
+        query: {
+          access_token: DUMMY_MB_ACCESS_TOKEN,
+        },
       })
 
       t.equal(responseTilesetGet.statusCode, 200)
@@ -460,6 +463,9 @@ test('DELETE /styles/:styleId deletes tilesets that are only referenced by the d
   const getTilesetBeforeResponse = await server.inject({
     method: 'GET',
     url: tilesetPathname,
+    query: {
+      access_token: DUMMY_MB_ACCESS_TOKEN,
+    },
   })
 
   t.equal(
@@ -604,10 +610,17 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
   const tilesetBPathname = new URL(styleAB.sources.B.url).pathname
   const tilesetCPathname = new URL(styleBC.sources.C.url).pathname
 
-  const getTilesetAResponse = await server.inject({
-    method: 'GET',
-    url: tilesetAPathname,
-  })
+  async function getTileset(url) {
+    return server.inject({
+      method: 'GET',
+      url,
+      query: {
+        access_token: DUMMY_MB_ACCESS_TOKEN,
+      },
+    })
+  }
+
+  const getTilesetAResponse = await getTileset(tilesetAPathname)
 
   t.equal(
     getTilesetAResponse.statusCode,
@@ -615,10 +628,7 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
     'tileset A no longer exists after style AB deletion'
   )
 
-  const getTilesetBResponse = await server.inject({
-    method: 'GET',
-    url: tilesetBPathname,
-  })
+  const getTilesetBResponse = await getTileset(tilesetBPathname)
 
   t.equal(
     getTilesetBResponse.statusCode,
@@ -626,10 +636,7 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
     'tileset B still exists after style AB deletion'
   )
 
-  const getTilesetCResponse = await server.inject({
-    method: 'GET',
-    url: tilesetCPathname,
-  })
+  const getTilesetCResponse = await getTileset(tilesetCPathname)
 
   t.equal(
     getTilesetCResponse.statusCode,

@@ -7,6 +7,10 @@ const GetTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
 })
 
+const GetTilesetQuerystringSchema = T.Object({
+  access_token: T.Optional(T.String()),
+})
+
 const GetTileParamsSchema = T.Object({
   tilesetId: T.String(),
   zoom: T.Number(),
@@ -42,24 +46,30 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  fastify.get<{ Params: Static<typeof GetTilesetParamsSchema> }>(
+  fastify.get<{
+    Params: Static<typeof GetTilesetParamsSchema>
+    Querystring: Static<typeof GetTilesetQuerystringSchema>
+  }>(
     '/:tilesetId',
     {
       schema: {
-        params: GetTilesetParamsSchema,
         response: {
           200: TileJSONSchema,
         },
+        params: GetTilesetParamsSchema,
+        querystring: GetTilesetQuerystringSchema,
       },
     },
     async function (request) {
       return this.api.getTileset(
         request.params.tilesetId,
-        getBaseApiUrl(request)
+        getBaseApiUrl(request),
+        { accessToken: request.query.access_token }
       )
     }
   )
 
+  // TODO: Update body to include an optional `upstreamUrl` field so that we can fetch from upstream?
   fastify.post<{ Body: TileJSON }>(
     '/',
     {

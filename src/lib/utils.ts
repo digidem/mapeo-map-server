@@ -1,3 +1,4 @@
+import { URL } from 'url'
 import { createHash, randomBytes } from 'crypto'
 import base32 from 'base32.js'
 
@@ -51,4 +52,13 @@ export function isRejectedPromiseResult(
 export function getBaseApiUrl(request: FastifyRequest) {
   const { hostname, protocol } = request
   return `${protocol}://${hostname}`
+}
+
+export function removeSearchParams(
+  url: string,
+  paramsToRemove: string[]
+): string {
+  const u = new URL(url)
+  paramsToRemove.forEach((s) => u.searchParams.delete(s))
+  return u.toString()
 }

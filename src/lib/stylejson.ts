@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/ban-types */
-import { URL } from 'url'
 // @ts-ignore
 import { validate as validateStyleJSON } from '@maplibre/maplibre-gl-style-spec'
 
@@ -8,15 +7,13 @@ import {
   StyleSpecification as StyleJSON,
 } from './style-spec'
 import { TileJSON } from './tilejson'
-import { encodeBase32, hash } from './utils'
+import { encodeBase32, hash, removeSearchParams } from './utils'
 
 // If the style has an `upstreamUrl` property, indicating where it was
 // downloaded from, then use that as the id (this way two clients that
 // download the same style do not result in duplicates)s
 function createIdFromStyleUrl(url: string) {
-  const u = new URL(url)
-  u.searchParams.delete('access_token')
-  return encodeBase32(hash(u.toString()))
+  return encodeBase32(hash(removeSearchParams(url, ['access_token'])))
 }
 
 /**
