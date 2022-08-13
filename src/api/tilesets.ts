@@ -228,7 +228,7 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
             : JSON.stringify(tilejson.tiles),
       })
 
-      // We only update the etag if one is expclcitly passed as a string or null value
+      // We only update the etag if one is explicitly passed as a string or null value
       if (etag !== undefined) {
         db.prepare<{ id: string; etag: string | null }>(
           'UPDATE Tileset SET etag = :etag WHERE id = :id'
