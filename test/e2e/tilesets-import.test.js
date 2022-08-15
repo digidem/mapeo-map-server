@@ -16,6 +16,10 @@ const vectorMbTilesPath = path.join(
   __dirname,
   '../fixtures/mbtiles/vector/trails-pbf.mbtiles'
 )
+const vectorMbTilesMissingJsonRowPath = path.join(
+  __dirname,
+  '../fixtures/bad-mbtiles/vector-missing-json-row.mbtiles'
+)
 
 const fixtures = [rasterMbTilesPath, vectorMbTilesPath]
 
@@ -63,6 +67,19 @@ test('POST /tilesets/import fails when providing path for non-existent file', as
 
   t.equal(importResponse.statusCode, 400)
   t.equal(importResponse.json().code, 'FST_MBTILES_IMPORT_TARGET_MISSING')
+})
+
+test('POST /tilesets/import fails when mbtiles file has bad metadata', async (t) => {
+  const server = createServer(t)
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: vectorMbTilesMissingJsonRowPath },
+  })
+
+  t.equal(importResponse.statusCode, 400)
+  t.equal(importResponse.json().code, 'FST_MBTILES_INVALID_METADATA')
 })
 
 test('POST /tilesets/import creates tileset', async (t) => {
@@ -333,6 +350,7 @@ test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or
   })
 
   t.equal(importResponse.statusCode, 400)
+  t.equal(importResponse.json().code, 'FST_MBTILES_CANNOT_READ')
 
   const tilesetsRes = await server.inject({ method: 'GET', url: '/tilesets' })
   t.equal(tilesetsRes.statusCode, 200)
