@@ -235,7 +235,7 @@ test('GET /tile of png format returns a tile image', async (t) => {
   t.deepEqual(response.rawPayload, expectedTile, 'Got expected response')
 })
 
-test('GET /tile forwards 4XX upstream response errors', async (t) => {
+test('GET /tile returns 404 response when 4XX upstream response errors occur', async (t) => {
   const server = createServer(t)
 
   const initialResponse = await server.inject({
@@ -274,16 +274,7 @@ test('GET /tile forwards 4XX upstream response errors', async (t) => {
     url: `/tilesets/${tilesetId}/1/2/3`,
   })
 
-  t.equal(
-    tokenErrorResponse.statusCode,
-    401,
-    '401 token-related response forwarded'
-  )
-  t.equal(
-    tokenErrorResponse.json().code,
-    'FORWARDED_UPSTREAM_401',
-    'response body has expected forward code'
-  )
+  t.equal(tokenErrorResponse.statusCode, 404)
 
   const notFoundResponse = await server.inject({
     method: 'GET',
@@ -293,12 +284,7 @@ test('GET /tile forwards 4XX upstream response errors', async (t) => {
     },
   })
 
-  t.equal(notFoundResponse.statusCode, 404, '404 not found response forwarded')
-  t.equal(
-    notFoundResponse.json().code,
-    'FORWARDED_UPSTREAM_404',
-    'response body has expected forward code'
-  )
+  t.equal(notFoundResponse.statusCode, 404)
 
   const unprocessableEntityResponse = await server.inject({
     method: 'GET',
@@ -308,16 +294,7 @@ test('GET /tile forwards 4XX upstream response errors', async (t) => {
     },
   })
 
-  t.equal(
-    unprocessableEntityResponse.statusCode,
-    422,
-    '422 unprocessable entity response forwarded'
-  )
-  t.equal(
-    unprocessableEntityResponse.json().code,
-    'FORWARDED_UPSTREAM_422',
-    'response body has expected forward code'
-  )
+  t.equal(unprocessableEntityResponse.statusCode, 404)
 
   t.ok(mockedTileScope.isDone(), 'tile mocks were called')
 })
