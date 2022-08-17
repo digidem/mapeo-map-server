@@ -38,7 +38,7 @@ const CompleteImportRecordSchema = T.Object({
   state: T.Literal('complete'),
   error: T.Null(),
   lastUpdated: T.String(),
-  finished: T.Null(),
+  finished: T.String(),
 })
 type CompleteImportRecord = Static<typeof CompleteImportRecordSchema>
 
@@ -47,7 +47,7 @@ const ErrorImportRecordSchema = T.Object({
   state: T.Literal('error'),
   error: ImportErrorSchema,
   lastUpdated: T.String(),
-  finished: T.Null(),
+  finished: T.String(),
 })
 type ErrorImportRecord = Static<typeof ErrorImportRecordSchema>
 
