@@ -11,7 +11,7 @@ import { encodeBase32, hash, removeSearchParams } from './utils'
 
 // If the style has an `upstreamUrl` property, indicating where it was
 // downloaded from, then use that as the id (this way two clients that
-// download the same style do not result in duplicates)s
+// download the same style do not result in duplicates)
 function createIdFromStyleUrl(url: string) {
   return encodeBase32(hash(removeSearchParams(url, ['access_token'])))
 }
