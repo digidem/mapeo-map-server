@@ -20,8 +20,8 @@ export interface TilesetsApi {
   createTileset(
     tileset: TileJSON,
     baseApiUrl: string,
-    // `upstreamUrl` should be the canonicalized url if possible
-    // e.g. for a mapbox url, it should be "mapbox://..."
+    // `upstreamUrl` should be an http-based url
+    // e.g. for a mapbox url, it should be "https://api.mapbox.com/..."
     options?: { etag?: string; upstreamUrl?: string }
   ): TileJSON & IdResource
   getTileset(

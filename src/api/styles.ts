@@ -9,13 +9,7 @@ import {
   uncompositeStyle,
 } from '../lib/stylejson'
 import { TileJSON, validateTileJSON } from '../lib/tilejson'
-import {
-  encodeBase32,
-  generateId,
-  getTilesetId,
-  hash,
-  removeSearchParams,
-} from '../lib/utils'
+import { encodeBase32, generateId, getTilesetId, hash } from '../lib/utils'
 import { Api, Context, IdResource } from '.'
 import {
   AlreadyExistsError,
@@ -219,12 +213,7 @@ function createStylesApi({
       if (!tilesetExists(tilesetId)) {
         api.createTileset(tilesetResponse.data, baseApiUrl, {
           etag: tilesetResponse.etag,
-          upstreamUrl: isMapboxSource
-            ? source.url
-            : removeSearchParams(normalizedUpstreamSourceUrl, [
-                'access_token',
-                'secure',
-              ]),
+          upstreamUrl: normalizedUpstreamSourceUrl,
         })
       } else {
         // TODO: Should we update an existing tileset here?
