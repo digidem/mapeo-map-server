@@ -24,11 +24,7 @@ export interface TilesetsApi {
     // e.g. for a mapbox url, it should be "https://api.mapbox.com/..."
     options?: { etag?: string; upstreamUrl?: string }
   ): TileJSON & IdResource
-  getTileset(
-    id: string,
-    baseApiUrl: string,
-    options?: { accessToken?: string }
-  ): TileJSON & IdResource
+  getTileset(id: string, baseApiUrl: string): TileJSON & IdResource
   getTilesetInfo(id: string): {
     tilejson: TileJSON
     upstreamTileUrls: TileJSON['tiles'] | undefined
@@ -141,7 +137,7 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
         tiles: [getTileUrl(baseApiUrl, tilesetId)],
       }
     },
-    getTileset(id, baseApiUrl, { accessToken } = {}) {
+    getTileset(id, baseApiUrl) {
       const row:
         | { tilejson: string; etag?: string; upstreamUrl?: string }
         | undefined = db
@@ -160,13 +156,10 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
         throw new ParseError(err)
       }
 
+      // The saved upstreamUrl should be the normalized url
+      // which will contain an access token if needed
       if (row.upstreamUrl) {
-        const normalizedUpstreamUrl = normalizeSourceURL(
-          row.upstreamUrl,
-          accessToken
-        )
-
-        fetchUpstreamTilejson(normalizedUpstreamUrl, row.etag)
+        fetchUpstreamTilejson(row.upstreamUrl, row.etag)
           .then(({ tilejson, etag }) => {
             tilesetsApi.putTileset(id, tilejson, baseApiUrl, { etag })
           })

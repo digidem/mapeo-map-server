@@ -7,6 +7,9 @@ const GetTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
 })
 
+// Clients like Mapbox will pass the access token in the querystring
+// but at the moment, we do not use it for anything since the persisted
+// upstream url will already have it included if required
 const GetTilesetQuerystringSchema = T.Object({
   access_token: T.Optional(T.String()),
 })
@@ -63,8 +66,7 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     async function (request) {
       return this.api.getTileset(
         request.params.tilesetId,
-        getBaseApiUrl(request),
-        { accessToken: request.query.access_token }
+        getBaseApiUrl(request)
       )
     }
   )
