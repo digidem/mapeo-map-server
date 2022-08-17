@@ -63,12 +63,7 @@ function createTilesApi({
   > {
     const upstreamTileUrl = createUpstreamTileUrl(tileParams)
 
-    // TODO: Should we throw here instead?
     if (!upstreamTileUrl) return
-
-    // We may want to check if an access token is needed before making the request
-    // but it seems that for some external tile APIs, the access token isn't needed
-    // so we don't want to throw an error too early if that's the case
 
     const normalizedUpstreamUrl = normalizeTileURL(upstreamTileUrl)
 
