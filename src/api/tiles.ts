@@ -35,12 +35,7 @@ function createTilesApi({
 }): TilesApi {
   const { db, upstreamRequestsManager } = context
 
-  function createUpstreamTileUrl({
-    tilesetId,
-    zoom,
-    x,
-    y,
-  }: SharedTileParams & { accessToken?: string }) {
+  function createUpstreamTileUrl({ tilesetId, zoom, x, y }: SharedTileParams) {
     const { tilejson, upstreamTileUrls } = api.getTilesetInfo(tilesetId)
 
     if (!upstreamTileUrls) return
