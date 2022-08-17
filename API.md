@@ -61,4 +61,9 @@ Get information about an import that has occurred or is occurring. This is a sub
 - Params:
   - `importId`: The ID for the desired import.
 
-Subscribe to progress information for an import. This is an Server-Sent Events (SSE) endpoint, so its expected to be used with an EventSource by the client.
+Subscribe to progress information for an import. This is a [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) endpoint, so it's expected to be used with an [EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) by the client.
+
+Messages that are received will have the following fields when deserialized:
+
+- `type: string`: Type indicating the type of progress message. Can be one of the following values:
+  - `"progress"`:
