@@ -54,16 +54,16 @@ function createTilesApi({
     ...tileParams
   }: SharedTileParams & {
     etag?: string
-  }): Promise<
-    | {
-        data: Buffer
-        etag?: string
-      }
-    | undefined
-  > {
+  }): Promise<{
+    data: Buffer
+    etag?: string
+  }> {
     const upstreamTileUrl = createUpstreamTileUrl(tileParams)
 
-    if (!upstreamTileUrl) return
+    if (!upstreamTileUrl)
+      throw new Error(
+        `No upstream tile url for tileset ${tileParams.tilesetId}`
+      )
 
     const normalizedUpstreamUrl = normalizeTileURL(upstreamTileUrl)
 
@@ -104,23 +104,21 @@ function createTilesApi({
         tile = { data: row.data, etag: row.etag }
         getUpstreamTile({ tilesetId, zoom, x, y, etag: row.etag })
           .then((resp) => {
-            if (resp) {
-              tilesApi.putTile({
-                tilesetId,
-                zoom,
-                x,
-                y,
-                data: resp.data,
-                etag: resp.etag,
-              })
-            }
+            tilesApi.putTile({
+              tilesetId,
+              zoom,
+              x,
+              y,
+              data: resp.data,
+              etag: resp.etag,
+            })
           })
           // TODO: Log error
           .catch(noop)
       } else {
-        tile = await getUpstreamTile({ tilesetId, zoom, x, y })
+        try {
+          tile = await getUpstreamTile({ tilesetId, zoom, x, y })
 
-        if (tile) {
           tilesApi.putTile({
             tilesetId,
             zoom,
@@ -129,7 +127,7 @@ function createTilesApi({
             data: tile.data,
             etag: tile.etag,
           })
-        } else {
+        } catch (err) {
           throw new NotFoundError(
             `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
           )
