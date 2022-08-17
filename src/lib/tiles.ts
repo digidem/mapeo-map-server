@@ -120,21 +120,14 @@ export function getInterpolatedUpstreamTileUrl({
 
   const quadkey = tileToQuadKey({ x, y: upstreamY, zoom })
 
-  const url = new URL(
-    templateUrls[(x + upstreamY) % templateUrls.length]
-      .replace(
-        '{prefix}',
-        (x % 16).toString(16) + (upstreamY % 16).toString(16)
-      )
-      .replace('{z}', String(zoom))
-      .replace('{x}', String(x))
-      .replace('{y}', String(upstreamY))
-      .replace('{quadkey}', quadkey)
-      .replace('{bbox-epsg-3857}', bbox)
-      .replace('{ratio}', ratio ? `@${ratio}x` : '')
-  )
-
-  return url.toString()
+  return templateUrls[(x + upstreamY) % templateUrls.length]
+    .replace('{prefix}', (x % 16).toString(16) + (upstreamY % 16).toString(16))
+    .replace('{z}', String(zoom))
+    .replace('{x}', String(x))
+    .replace('{y}', String(upstreamY))
+    .replace('{quadkey}', quadkey)
+    .replace('{bbox-epsg-3857}', bbox)
+    .replace('{ratio}', ratio ? `@${ratio}x` : '')
 }
 
 function isStringArray(value: unknown): value is string[] {
