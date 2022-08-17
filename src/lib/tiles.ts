@@ -92,14 +92,12 @@ export function getInterpolatedUpstreamTileUrl({
   zoom,
   x,
   y,
-  accessToken,
 }: {
   tiles: TileJSON['tiles']
   scheme: TileJSON['scheme']
   zoom: number
   x: number
   y: number
-  accessToken?: string
 }): string | undefined {
   // TODO: Support {ratio} in template URLs, not used in mapbox-gl-js, only in
   // the mobile SDKs
@@ -135,10 +133,6 @@ export function getInterpolatedUpstreamTileUrl({
       .replace('{bbox-epsg-3857}', bbox)
       .replace('{ratio}', ratio ? `@${ratio}x` : '')
   )
-
-  if (accessToken) {
-    url.searchParams.set('access_token', accessToken)
-  }
 
   return url.toString()
 }

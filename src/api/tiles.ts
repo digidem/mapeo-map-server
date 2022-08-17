@@ -17,9 +17,7 @@ interface SharedTileParams {
 }
 
 export interface TilesApi {
-  getTile(
-    opts: SharedTileParams & { accessToken?: string }
-  ): Promise<{ data: Buffer; headers: Headers }>
+  getTile(opts: SharedTileParams): Promise<{ data: Buffer; headers: Headers }>
   putTile(
     opts: SharedTileParams & {
       data: Buffer
@@ -42,7 +40,6 @@ function createTilesApi({
     zoom,
     x,
     y,
-    accessToken,
   }: SharedTileParams & { accessToken?: string }) {
     const { tilejson, upstreamTileUrls } = api.getTilesetInfo(tilesetId)
 
@@ -54,16 +51,13 @@ function createTilesApi({
       zoom,
       x,
       y,
-      accessToken,
     })
   }
 
   async function getUpstreamTile({
-    accessToken,
     etag,
     ...tileParams
   }: SharedTileParams & {
-    accessToken?: string
     etag?: string
   }): Promise<
     | {
@@ -72,10 +66,7 @@ function createTilesApi({
       }
     | undefined
   > {
-    const upstreamTileUrl = createUpstreamTileUrl({
-      ...tileParams,
-      accessToken,
-    })
+    const upstreamTileUrl = createUpstreamTileUrl(tileParams)
 
     // TODO: Should we throw here instead?
     if (!upstreamTileUrl) return
@@ -96,7 +87,7 @@ function createTilesApi({
   }
 
   const tilesApi: TilesApi = {
-    async getTile({ tilesetId, zoom, x, y, accessToken }) {
+    async getTile({ tilesetId, zoom, x, y }) {
       const quadKey = tileToQuadKey({ x, y, zoom })
 
       const row:
@@ -121,7 +112,7 @@ function createTilesApi({
 
       if (row) {
         tile = { data: row.data, etag: row.etag }
-        getUpstreamTile({ tilesetId, zoom, x, y, etag: row.etag, accessToken })
+        getUpstreamTile({ tilesetId, zoom, x, y, etag: row.etag })
           .then((resp) => {
             if (resp) {
               tilesApi.putTile({
@@ -137,7 +128,7 @@ function createTilesApi({
           // TODO: Log error
           .catch(noop)
       } else {
-        tile = await getUpstreamTile({ tilesetId, zoom, x, y, accessToken })
+        tile = await getUpstreamTile({ tilesetId, zoom, x, y })
 
         if (tile) {
           tilesApi.putTile({

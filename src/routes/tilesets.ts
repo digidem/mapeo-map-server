@@ -21,6 +21,9 @@ const GetTileParamsSchema = T.Object({
   y: T.Number(),
 })
 
+// Clients like Mapbox will pass the access token in the querystring
+// but at the moment, we do not use it for anything since the persisted
+// upstream url will already have it included if required
 const GetTileQuerystringSchema = T.Object({
   access_token: T.Optional(T.String()),
 })
@@ -110,10 +113,7 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     },
     async function (request, reply) {
       try {
-        const { data, headers } = await this.api.getTile({
-          ...request.params,
-          accessToken: request.query.access_token,
-        })
+        const { data, headers } = await this.api.getTile(request.params)
         // Ignore Etag header from MBTiles
         reply.header('Last-Modified', headers['Last-Modified'])
         // See getTileHeaders in lib/utils.ts
