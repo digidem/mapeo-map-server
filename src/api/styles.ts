@@ -180,9 +180,7 @@ function createStylesApi({
         )
       }
 
-      const isMapboxSource = isMapboxURL(source.url)
-
-      if (isMapboxSource && !accessToken) {
+      if (isMapboxURL(source.url) && !accessToken) {
         throw new MBAccessTokenRequiredError()
       }
 
@@ -213,6 +211,9 @@ function createStylesApi({
       if (!tilesetExists(tilesetId)) {
         api.createTileset(tilesetResponse.data, baseApiUrl, {
           etag: tilesetResponse.etag,
+          // Using the normalized url here means that the querystrings
+          // that may contain platform-specific parameters (e.g. access token)
+          // will be persisted in the db, allowing them to be reused by other styles.
           upstreamUrl: normalizedUpstreamSourceUrl,
         })
       } else {

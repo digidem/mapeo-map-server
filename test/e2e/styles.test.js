@@ -243,9 +243,7 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
       const responseTilesetGet = await server.inject({
         method: 'GET',
         url: source.url,
-        query: {
-          access_token: DUMMY_MB_ACCESS_TOKEN,
-        },
+        query: { access_token: DUMMY_MB_ACCESS_TOKEN },
       })
 
       t.equal(responseTilesetGet.statusCode, 200)
@@ -463,9 +461,7 @@ test('DELETE /styles/:styleId deletes tilesets that are only referenced by the d
   const getTilesetBeforeResponse = await server.inject({
     method: 'GET',
     url: tilesetPathname,
-    query: {
-      access_token: DUMMY_MB_ACCESS_TOKEN,
-    },
+    query: { access_token: DUMMY_MB_ACCESS_TOKEN },
   })
 
   t.equal(
@@ -614,9 +610,7 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
     return server.inject({
       method: 'GET',
       url,
-      query: {
-        access_token: DUMMY_MB_ACCESS_TOKEN,
-      },
+      query: { access_token: DUMMY_MB_ACCESS_TOKEN },
     })
   }
 
