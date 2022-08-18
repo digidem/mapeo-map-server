@@ -52,3 +52,5 @@ export function getBaseApiUrl(request: FastifyRequest) {
   const { hostname, protocol } = request
   return `${protocol}://${hostname}`
 }
+
+export function noop() {}
