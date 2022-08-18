@@ -121,26 +121,28 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
         reply.header('Content-Encoding', headers['Content-Encoding'])
         reply.send(data)
       } catch (err) {
-        const { tilesetId, zoom, x, y } = request.params
-
-        const notFoundError = new NotFoundError(
-          `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
-        )
-
         if (isOfflineError(err)) {
-          throw notFoundError
+          const { tilesetId, zoom, x, y } = request.params
+
+          throw new NotFoundError(
+            `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
+          )
         }
 
         // Handle upstream error
         if (err instanceof HTTPError) {
-          // Return a 404 response if the upstream server is responding with server errors
-          if (err.response.statusCode >= 500) {
-            throw notFoundError
-          }
+          const { statusCode: upstreamStatusCode } = err.response
 
-          throw new (createForwardedUpstreamError(err.response.statusCode))(
+          // If the upstream status code is 4XX or 5XX, we return a 404
+          // with information about the upstream error in the body
+          const statusCodeToReturn =
+            upstreamStatusCode >= 400 && upstreamStatusCode < 600
+              ? 404
+              : upstreamStatusCode
+
+          throw new (createForwardedUpstreamError(statusCodeToReturn))(
             err.response.url,
-            err.response.statusMessage
+            err.message
           )
         }
 

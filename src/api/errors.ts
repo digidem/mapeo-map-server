@@ -79,8 +79,8 @@ export const InvalidGlyphsRangeError = createError(
 
 export const createForwardedUpstreamError = (statusCode: number) =>
   createError(
-    `FORWARDED_UPSTREAM_${statusCode}`,
-    'Upstream request at %s responded with: %s',
+    `FST_FORWARDED_UPSTREAM`,
+    'Request to %s errored with: %s',
     statusCode
   )
 

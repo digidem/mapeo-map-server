@@ -7,7 +7,6 @@ import {
 } from '../lib/tiles'
 import { hash, noop } from '../lib/utils'
 import { Api, Context } from '.'
-import { NotFoundError } from './errors'
 
 interface SharedTileParams {
   tilesetId: string
@@ -116,22 +115,16 @@ function createTilesApi({
           // TODO: Log error
           .catch(noop)
       } else {
-        try {
-          tile = await getUpstreamTile({ tilesetId, zoom, x, y })
+        tile = await getUpstreamTile({ tilesetId, zoom, x, y })
 
-          tilesApi.putTile({
-            tilesetId,
-            zoom,
-            x,
-            y,
-            data: tile.data,
-            etag: tile.etag,
-          })
-        } catch (err) {
-          throw new NotFoundError(
-            `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
-          )
-        }
+        tilesApi.putTile({
+          tilesetId,
+          zoom,
+          x,
+          y,
+          data: tile.data,
+          etag: tile.etag,
+        })
       }
 
       return {

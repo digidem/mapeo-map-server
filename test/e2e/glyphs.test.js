@@ -362,7 +362,7 @@ test(
       400,
       '400 status code forwarded'
     )
-    t.equal(getGlyphsTooManyFontsResponse.json().code, 'FORWARDED_UPSTREAM_400')
+    t.equal(getGlyphsTooManyFontsResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
     const getGlyphsUnauthorizedResponse = await server.inject({
       method: 'GET',
@@ -382,7 +382,7 @@ test(
       403,
       '403 status code forwarded'
     )
-    t.equal(getGlyphsUnauthorizedResponse.json().code, 'FORWARDED_UPSTREAM_403')
+    t.equal(getGlyphsUnauthorizedResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
     t.ok(mockedGlyphsScope.isDone(), 'upstream glyphs requests were made')
   }

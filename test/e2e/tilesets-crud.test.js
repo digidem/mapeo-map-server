@@ -235,7 +235,7 @@ test('GET /tile of png format returns a tile image', async (t) => {
   t.deepEqual(response.rawPayload, expectedTile, 'Got expected response')
 })
 
-test('GET /tile returns 404 response when 4XX upstream response errors occur', async (t) => {
+test('GET /tile returns 404 response when upstream returns a 4XX error', async (t) => {
   const server = createServer(t)
 
   const initialResponse = await server.inject({
@@ -253,7 +253,7 @@ test('GET /tile returns 404 response when 4XX upstream response errors occur', a
   const mockedTileScope = nock(/tiles.mapbox.com/)
     .defaultReplyHeaders(defaultMockHeaders)
     .get(upstreamTileApiRegex)
-    .reply(401, JSON.stringify({ message: 'Not Authorized - No Token' }), {
+    .reply(401, JSON.stringify('Not Authorized - No Token'), {
       'Content-Type': 'application/json',
     })
     .get(upstreamTileApiRegex)
@@ -275,6 +275,7 @@ test('GET /tile returns 404 response when 4XX upstream response errors occur', a
   })
 
   t.equal(tokenErrorResponse.statusCode, 404)
+  t.equal(tokenErrorResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
   const notFoundResponse = await server.inject({
     method: 'GET',
@@ -285,6 +286,7 @@ test('GET /tile returns 404 response when 4XX upstream response errors occur', a
   })
 
   t.equal(notFoundResponse.statusCode, 404)
+  t.equal(notFoundResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
   const unprocessableEntityResponse = await server.inject({
     method: 'GET',
@@ -295,6 +297,7 @@ test('GET /tile returns 404 response when 4XX upstream response errors occur', a
   })
 
   t.equal(unprocessableEntityResponse.statusCode, 404)
+  t.equal(unprocessableEntityResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
   t.ok(mockedTileScope.isDone(), 'tile mocks were called')
 })

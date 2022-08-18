@@ -76,7 +76,7 @@ const fonts: FastifyPluginAsync = async function (fastify) {
         if (err instanceof HTTPError) {
           throw new (createForwardedUpstreamError(err.response.statusCode))(
             err.response.url,
-            err.response.statusMessage
+            err.message
           )
         }
 
