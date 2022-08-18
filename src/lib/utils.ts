@@ -62,3 +62,5 @@ export function removeSearchParams(
   paramsToRemove.forEach((s) => u.searchParams.delete(s))
   return u.toString()
 }
+
+export function noop() {}

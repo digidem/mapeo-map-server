@@ -1,30 +1,28 @@
-import { Api, Context } from '.'
+import { normalizeTileURL } from '../lib/mapbox_urls'
 import { Headers } from '../lib/mbtiles'
 import {
   getInterpolatedUpstreamTileUrl,
   getTileHeaders,
   tileToQuadKey,
 } from '../lib/tiles'
-import { hash } from '../lib/utils'
-import { NotFoundError } from './errors'
+import { hash, noop } from '../lib/utils'
+import { Api, Context } from '.'
 
-function noop() {}
+interface SharedTileParams {
+  tilesetId: string
+  zoom: number
+  x: number
+  y: number
+}
 
 export interface TilesApi {
-  getTile(opts: {
-    tilesetId: string
-    zoom: number
-    x: number
-    y: number
-  }): Promise<{ data: Buffer; headers: Headers }>
-  putTile(opts: {
-    tilesetId: string
-    zoom: number
-    x: number
-    y: number
-    data: Buffer
-    etag?: string
-  }): void
+  getTile(opts: SharedTileParams): Promise<{ data: Buffer; headers: Headers }>
+  putTile(
+    opts: SharedTileParams & {
+      data: Buffer
+      etag?: string
+    }
+  ): void
 }
 
 function createTilesApi({
@@ -36,30 +34,45 @@ function createTilesApi({
 }): TilesApi {
   const { db, upstreamRequestsManager } = context
 
-  function getUpstreamTileUrl({
-    tilesetId,
-    zoom,
-    x,
-    y,
-  }: {
-    tilesetId: string
-    zoom: number
-    x: number
-    y: number
-  }) {
+  function createUpstreamTileUrl({ tilesetId, zoom, x, y }: SharedTileParams) {
     const { tilejson, upstreamTileUrls } = api.getTilesetInfo(tilesetId)
 
     if (!upstreamTileUrls) return
 
-    const upstreamTileUrl = getInterpolatedUpstreamTileUrl({
+    return getInterpolatedUpstreamTileUrl({
       tiles: upstreamTileUrls,
       scheme: tilejson.scheme,
       zoom,
       x,
       y,
     })
+  }
 
-    return upstreamTileUrl
+  async function getUpstreamTile({
+    etag,
+    ...tileParams
+  }: SharedTileParams & {
+    etag?: string
+  }): Promise<{
+    data: Buffer
+    etag?: string
+  }> {
+    const upstreamTileUrl = createUpstreamTileUrl(tileParams)
+
+    if (!upstreamTileUrl)
+      throw new Error(
+        `No upstream tile url for tileset ${tileParams.tilesetId}`
+      )
+
+    const normalizedUpstreamUrl = normalizeTileURL(upstreamTileUrl)
+
+    const response = await upstreamRequestsManager.getUpstream({
+      url: normalizedUpstreamUrl,
+      etag,
+      responseType: 'buffer',
+    })
+
+    return { data: response.data, etag: response.etag }
   }
 
   const tilesApi: TilesApi = {
@@ -84,62 +97,34 @@ function createTilesApi({
         )
         .get({ tilesetId, quadKey })
 
-      async function fetchOnlineResource(): Promise<
-        | {
-            data: Buffer
-            etag?: string
-          }
-        | undefined
-      > {
-        const upstreamTileUrl = getUpstreamTileUrl({
-          tilesetId,
-          zoom,
-          x,
-          y,
-        })
-
-        // TODO: Need to check if we can make online requests too
-        if (upstreamTileUrl) {
-          const response = await upstreamRequestsManager.getUpstream({
-            url: upstreamTileUrl,
-            etag: row?.etag,
-            responseType: 'buffer',
-          })
-
-          if (response) {
-            try {
-              tilesApi.putTile({
-                tilesetId,
-                zoom,
-                x,
-                y,
-                data: response.data,
-                etag: response.etag,
-              })
-            } catch (_err) {
-              // TODO: Handle error here?
-              noop()
-            }
-
-            return { data: response.data, etag: response.etag }
-          }
-        }
-      }
-
       let tile: { data: Buffer; etag?: string } | undefined
 
       if (row) {
         tile = { data: row.data, etag: row.etag }
-        fetchOnlineResource().catch(noop)
+        getUpstreamTile({ tilesetId, zoom, x, y, etag: row.etag })
+          .then((resp) => {
+            tilesApi.putTile({
+              tilesetId,
+              zoom,
+              x,
+              y,
+              data: resp.data,
+              etag: resp.etag,
+            })
+          })
+          // TODO: Log error
+          .catch(noop)
       } else {
-        tile = await fetchOnlineResource()
-      }
+        tile = await getUpstreamTile({ tilesetId, zoom, x, y })
 
-      if (!tile) {
-        // TODO: Improve error handling here?
-        throw new NotFoundError(
-          `Tileset id = ${tilesetId}, [${zoom}, ${x}, ${y}]`
-        )
+        tilesApi.putTile({
+          tilesetId,
+          zoom,
+          x,
+          y,
+          data: tile.data,
+          etag: tile.etag,
+        })
       }
 
       return {
@@ -150,13 +135,6 @@ function createTilesApi({
       }
     },
     putTile({ tilesetId, zoom, x, y, data, etag }) {
-      const upstreamTileUrl = getUpstreamTileUrl({
-        tilesetId,
-        zoom,
-        x,
-        y,
-      })
-
       const quadKey = tileToQuadKey({ x, y, zoom })
 
       const transaction = db.transaction(() => {

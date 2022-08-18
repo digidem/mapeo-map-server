@@ -2,6 +2,7 @@ const test = require('tape')
 const path = require('path')
 const nock = require('nock')
 
+const { DUMMY_MB_ACCESS_TOKEN } = require('../test-helpers/constants')
 const createServer = require('../test-helpers/create-server')
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
 const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
@@ -17,8 +18,6 @@ const sampleMbTilesPath = path.resolve(
   __dirname,
   '../fixtures/mbtiles/raster/countries-png.mbtiles'
 )
-
-const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
 
 /**
  * @param {string} endpointPath
