@@ -9,8 +9,8 @@
   },
   "scripts": {
     "dev": "ts-node-dev --files --transpile-only --respawn --no-notify ./server.ts | pino-pretty",
-    "build": "npm run clean && tsc -b",
-    "clean": "rm -rf ./dist",
+    "build": "npm run clean && node scripts/generate-sdf.js && tsc -b",
+    "clean": "rm -rf ./dist ./sdf",
     "test": "npm run build && npm run test-only",
     "test-only": "c8 node_modules/.bin/tape \"test/**/*.test.js\" | tap-arc",
     "posttest": "c8 report --reporter=text-lcov > ./coverage/lcov.info",
@@ -30,6 +30,7 @@
   "license": "MIT",
   "files": [
     "dist",
+    "sdf",
     "prisma/migrations"
   ],
   "dependencies": {
