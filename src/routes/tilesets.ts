@@ -14,6 +14,13 @@ const GetTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
 })
 
+// Clients like Mapbox will pass the access token in the querystring
+// but at the moment, we do not use it for anything since the persisted
+// upstream url will already have it included if required
+const GetTilesetQuerystringSchema = T.Object({
+  access_token: T.Optional(T.String()),
+})
+
 const GetTileParamsSchema = T.Object({
   tilesetId: T.String(),
   zoom: T.Number(),
@@ -56,14 +63,18 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  fastify.get<{ Params: Static<typeof GetTilesetParamsSchema> }>(
+  fastify.get<{
+    Params: Static<typeof GetTilesetParamsSchema>
+    Querystring: Static<typeof GetTilesetQuerystringSchema>
+  }>(
     '/:tilesetId',
     {
       schema: {
-        params: GetTilesetParamsSchema,
         response: {
           200: TileJSONSchema,
         },
+        params: GetTilesetParamsSchema,
+        querystring: GetTilesetQuerystringSchema,
       },
     },
     async function (request) {
@@ -74,6 +85,7 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     }
   )
 
+  // TODO: Update body to include an optional `upstreamUrl` field so that we can fetch from upstream?
   fastify.post<{ Body: TileJSON }>(
     '/',
     {

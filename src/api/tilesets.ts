@@ -1,4 +1,3 @@
-import { FastifyInstance } from 'fastify'
 import mem from 'mem'
 import QuickLRU from 'quick-lru'
 
@@ -12,9 +11,17 @@ import {
   ParseError,
   UpstreamJsonValidationError,
 } from './errors'
+import { normalizeSourceURL } from '../lib/mapbox_urls'
+import { UpstreamResponse } from '../lib/upstream_requests_manager'
 
 export interface TilesetsApi {
-  createTileset(tileset: TileJSON, baseApiUrl: string): TileJSON & IdResource
+  createTileset(
+    tileset: TileJSON,
+    baseApiUrl: string,
+    // `upstreamUrl` should be an http-based url
+    // e.g. for a mapbox url, it should be "https://api.mapbox.com/..."
+    options?: { etag?: string; upstreamUrl?: string }
+  ): TileJSON & IdResource
   getTileset(id: string, baseApiUrl: string): TileJSON & IdResource
   getTilesetInfo(id: string): {
     tilejson: TileJSON
@@ -24,7 +31,8 @@ export interface TilesetsApi {
   putTileset(
     id: string,
     tileset: TileJSON,
-    baseApiUrl: string
+    baseApiUrl: string,
+    options?: { etag?: string | null }
   ): TileJSON & IdResource
 }
 
@@ -72,8 +80,25 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
     cache: new QuickLRU({ maxSize: 10 }),
   })
 
+  async function fetchUpstreamTilejson(
+    url: string,
+    etag?: string
+  ): Promise<{ tilejson: TileJSON; etag?: string }> {
+    const response = await upstreamRequestsManager.getUpstream({
+      url,
+      etag,
+      responseType: 'json',
+    })
+
+    if (!validateTileJSON(response.data)) {
+      throw new UpstreamJsonValidationError(url, validateTileJSON.errors)
+    }
+
+    return { tilejson: response.data, etag: response.etag }
+  }
+
   const tilesetsApi: TilesetsApi = {
-    createTileset(tilejson, baseApiUrl: string) {
+    createTileset(tilejson, baseApiUrl, { etag, upstreamUrl } = {}) {
       const tilesetId = getTilesetId(tilejson)
 
       if (tilesetExists(tilesetId)) {
@@ -90,14 +115,18 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
         format: TileJSON['format']
         tilejson: string
         upstreamTileUrls?: string
+        upstreamUrl?: string
+        etag?: string
       }>(
-        'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls) ' +
-          'VALUES (:id, :tilejson, :format, :upstreamTileUrls)'
+        'INSERT INTO Tileset (id, tilejson, format, upstreamTileUrls, upstreamUrl, etag) ' +
+          'VALUES (:id, :tilejson, :format, :upstreamTileUrls, :upstreamUrl, :etag)'
       ).run({
         id: tilesetId,
         format: tilejson.format,
         tilejson: JSON.stringify(tilejson),
         upstreamTileUrls,
+        upstreamUrl,
+        etag,
       })
 
       return {
@@ -125,23 +154,15 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
         throw new ParseError(err)
       }
 
-      async function fetchOnlineResource(url: string, etag?: string) {
-        const { data } = await upstreamRequestsManager.getUpstream({
-          url,
-          etag,
-          responseType: 'json',
-        })
-
-        if (!validateTileJSON(data)) {
-          // TODO: Do we want to throw here?
-          throw new UpstreamJsonValidationError(url, validateTileJSON.errors)
-        }
-
-        if (data) tilesetsApi.putTileset(id, data, baseApiUrl)
-      }
-
+      // The saved upstreamUrl should be the normalized url
+      // which will contain an access token if needed
       if (row.upstreamUrl) {
-        fetchOnlineResource(row.upstreamUrl, row.etag).catch(noop)
+        fetchUpstreamTilejson(row.upstreamUrl, row.etag)
+          .then(({ tilejson, etag }) => {
+            tilesetsApi.putTileset(id, tilejson, baseApiUrl, { etag })
+          })
+          // TODO: Log error
+          .catch(noop)
       }
 
       return { ...tilejson, tiles: [getTileUrl(baseApiUrl, id)], id }
@@ -168,7 +189,7 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
 
       return tilesets
     },
-    putTileset(id, tilejson, baseApiUrl) {
+    putTileset(id, tilejson, baseApiUrl, { etag } = {}) {
       if (id !== tilejson.id) {
         throw new MismatchedIdError(id, tilejson.id)
       }
@@ -197,6 +218,13 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
             ? undefined
             : JSON.stringify(tilejson.tiles),
       })
+
+      // We only update the etag if one is explicitly passed as a string or null value
+      if (etag !== undefined) {
+        db.prepare<{ id: string; etag: string | null }>(
+          'UPDATE Tileset SET etag = :etag WHERE id = :id'
+        ).run({ id, etag })
+      }
 
       mem.clear(memoizedGetTilesetInfo)
 
