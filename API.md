@@ -66,4 +66,8 @@ Subscribe to progress information for an import. This is a [Server-Sent Events (
 Messages that are received will have the following fields when deserialized:
 
 - `type: string`: Type indicating the type of progress message. Can be one of the following values:
-  - `"progress"`:
+  - `"progress"`: Import is still in progress
+  - `"complete"`: Import is complete
+- `importId: string`: ID for import
+- `soFar: number`: Number of assets successfully imported so far
+- `total: number`: Total number of assets to be imported
