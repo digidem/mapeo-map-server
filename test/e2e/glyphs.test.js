@@ -2,6 +2,7 @@ const test = require('tape')
 const nock = require('nock')
 
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
+const { DUMMY_MB_ACCESS_TOKEN } = require('../test-helpers/constants')
 const createServer = require('../test-helpers/create-server')
 const {
   defaultMockHeaders,
@@ -10,8 +11,6 @@ const {
 } = require('../test-helpers/server-mocks')
 // This disables upstream requests (e.g. simulates offline)
 require('../test-helpers/server-mocks')
-
-const DUMMY_MB_ACCESS_TOKEN = 'pk.abc123'
 
 // Nonideal proxy to identify what a response sends back
 const OPEN_SANS_REGULAR_CONTENT_LENGTH = 74892
@@ -363,7 +362,7 @@ test(
       400,
       '400 status code forwarded'
     )
-    t.equal(getGlyphsTooManyFontsResponse.json().code, 'FORWARDED_UPSTREAM_400')
+    t.equal(getGlyphsTooManyFontsResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
     const getGlyphsUnauthorizedResponse = await server.inject({
       method: 'GET',
@@ -383,7 +382,7 @@ test(
       403,
       '403 status code forwarded'
     )
-    t.equal(getGlyphsUnauthorizedResponse.json().code, 'FORWARDED_UPSTREAM_403')
+    t.equal(getGlyphsUnauthorizedResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
     t.ok(mockedGlyphsScope.isDone(), 'upstream glyphs requests were made')
   }
@@ -403,8 +402,6 @@ test(
     const expectedGlyphsUrl = `http://localhost:80/fonts/{fontstack}/{range}.pbf?styleId=${styleId}`
 
     t.equal(style.glyphs, expectedGlyphsUrl)
-
-    const mockedGlyphsScope = nock('https://api.mapbox.com/')
 
     const getGlyphsResponse = await server.inject({
       method: 'GET',

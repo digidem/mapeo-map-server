@@ -1,3 +1,4 @@
+import { URL } from 'url'
 import { createHash, randomBytes } from 'crypto'
 import base32 from 'base32.js'
 import { Type as T, TSchema, Static } from '@sinclair/typebox'
@@ -58,3 +59,15 @@ export function getBaseApiUrl(request: FastifyRequest) {
 // https://github.com/sinclairzx81/typebox#unsafe-types
 export const NullableSchema = <S extends TSchema>(schema: S) =>
   T.Unsafe<Static<S> | null>({ ...schema, nullable: true })
+
+
+export function removeSearchParams(
+  url: string,
+  paramsToRemove: string[]
+): string {
+  const u = new URL(url)
+  paramsToRemove.forEach((s) => u.searchParams.delete(s))
+  return u.toString()
+}
+
+export function noop() {}

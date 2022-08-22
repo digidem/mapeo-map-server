@@ -2,7 +2,6 @@ import got from 'got'
 
 import { isMapboxURL, normalizeSourceURL } from '../lib/mapbox_urls'
 import {
-  DEFAULT_RASTER_SOURCE_ID,
   StyleJSON,
   createIdFromStyleUrl,
   createRasterStyle,
@@ -63,7 +62,7 @@ function createStylesApi({
   api: Pick<Api, 'createTileset'>
   context: Context
 }): StylesApi {
-  const { db } = context
+  const { db, upstreamRequestsManager } = context
 
   function getStyleUrl(baseApiUrl: string, styleId: string): string {
     return `${baseApiUrl}/styles/${styleId}`
@@ -180,15 +179,22 @@ function createStylesApi({
           `Currently only sources defined with \`source.url\` are supported (referencing a TileJSON), but this style.json has a source '${sourceId}' that does not have a \`url\` property`
         )
       }
+
       if (isMapboxURL(source.url) && !accessToken) {
         throw new MBAccessTokenRequiredError()
       }
 
-      const upstreamUrl = normalizeSourceURL(source.url, accessToken)
+      const normalizedUpstreamSourceUrl = normalizeSourceURL(
+        source.url,
+        accessToken
+      )
 
-      const tilejson = await got(upstreamUrl).json()
+      const tilesetResponse = await upstreamRequestsManager.getUpstream({
+        url: normalizedUpstreamSourceUrl,
+        responseType: 'json',
+      })
 
-      if (!validateTileJSON(tilejson)) {
+      if (!validateTileJSON(tilesetResponse.data)) {
         // TODO: Write these errors to UnsupportedSourceError.message
 
         throw new UnsupportedSourceError(
@@ -200,10 +206,16 @@ function createStylesApi({
       // one offline copy of sources that are referenced from multiple styles,
       // e.g. lots of styles created on Mapbox will use the
       // mapbox.mapbox-streets-v7 source
-      const tilesetId = getTilesetId(tilejson)
+      const tilesetId = getTilesetId(tilesetResponse.data)
 
       if (!tilesetExists(tilesetId)) {
-        api.createTileset(tilejson, baseApiUrl)
+        api.createTileset(tilesetResponse.data, baseApiUrl, {
+          etag: tilesetResponse.etag,
+          // Using the normalized url here means that the querystrings
+          // that may contain platform-specific parameters (e.g. access token)
+          // will be persisted in the db, allowing them to be reused by other styles.
+          upstreamUrl: normalizedUpstreamSourceUrl,
+        })
       } else {
         // TODO: Should we update an existing tileset here?
         // api.putTileset(tilesetId, tilejson)
@@ -292,6 +304,7 @@ function createStylesApi({
 
       const sourceIdToTilesetId: { [sourceId: string]: string } = {}
 
+      // In this case, the style will only have 1 source
       Object.keys(style.sources).forEach((sourceId) => {
         sourceIdToTilesetId[sourceId] = tilesetId
       })

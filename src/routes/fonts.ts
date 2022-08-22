@@ -1,11 +1,11 @@
 import { FastifyPluginAsync } from 'fastify'
-import { HTTPError, RequestError } from 'got'
+import { HTTPError } from 'got'
 import { Static, Type as T } from '@sinclair/typebox'
 
 import {
-  NotFoundError,
-  OFFLINE_ERROR_CODES,
   createForwardedUpstreamError,
+  isOfflineError,
+  isNotFoundError,
 } from '../api/errors'
 import { DEFAULT_STATIC_FONT, createStaticGlyphPath } from '../lib/glyphs'
 
@@ -36,17 +36,6 @@ const GetGlyphsResponse200 = T.String({
   contentEncoding: 'binary',
   contentMediaType: 'application/x-protobuf',
 })
-
-function isOfflineError(err: unknown) {
-  return err instanceof RequestError && OFFLINE_ERROR_CODES.includes(err.code)
-}
-
-function isNotFoundError(err: unknown) {
-  return (
-    err instanceof NotFoundError ||
-    (err instanceof HTTPError && err.response.statusCode === 404)
-  )
-}
 
 const fonts: FastifyPluginAsync = async function (fastify) {
   // TODO: This endpoint may need to mirror the fonts api errors provided by Mapbox
@@ -110,7 +99,7 @@ const fonts: FastifyPluginAsync = async function (fastify) {
         if (err instanceof HTTPError) {
           throw new (createForwardedUpstreamError(err.response.statusCode))(
             err.response.url,
-            err.response.statusMessage
+            err.message
           )
         }
 
