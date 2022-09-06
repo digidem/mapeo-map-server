@@ -188,7 +188,7 @@ Get information about an import that has occurred or is occurring. This is a sub
 
 Subscribe to progress information for an import. This is a [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) endpoint, so it's expected to be used with an [EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) by the client.
 
-Messages that are received will have the following fields when deserialized:
+Messages that are received will have a `data` field with the following structure when deserialized:
 
 - `type: string`: Type indicating the type of progress message. Can be one of the following values:
   - `"progress"`: Import is still in progress
@@ -196,3 +196,29 @@ Messages that are received will have the following fields when deserialized:
 - `importId: string`: ID for import
 - `soFar: number`: Number of assets successfully imported so far
 - `total: number`: Total number of assets to be imported
+
+If a requested import is already completed or has errored, responds with `204 No Content`, which should prevent the event source from attempting to reconnect. Generally, the client should explicitly close the event source when:
+
+1. Receiving a message and the deserialized `type` value in the event data is either `"complete"` or `"progress"`.
+2. Receiving an error
+
+```js
+const evtSource = new EventSource(
+  'http://localhost:3000/imports/progress/some-import-id'
+)
+
+evtSource.onmessage = (event) => {
+  const message = JSON.parse(event.data)
+
+  if (message.type === 'complete') {
+    evtSource.close()
+    return
+  }
+
+  // Do something with message...
+}
+
+evtSource.onerror = (event) => {
+  evtSource.close()
+}
+```
