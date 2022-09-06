@@ -113,3 +113,21 @@ Delete a style. Returns a `204 No Content` code if successful.
   - `id?: string`: The ID to assign the created. If not provided, one will be randomly generated. This will only be used if the `style` param is provided. **Note that this will be ignored if the `url` param is provided**.
 
 Create a style, either by fetching a StyleJSON definition from an upstream source, or providing the raw payload of valid definition. Returns the resulting StyleJSON that adheres to the [StyleJSON spec](https://docs.mapbox.com/mapbox-gl-js/style-spec/root/).
+
+## Sprites
+
+### `GET /styles/:styleId/sprites/:spriteInfo.png`
+
+- Params
+  - `styleId: string`: The ID of the style.
+  - `spriteInfo: string`: The name of the sprite asset. May or may not include a scale factor at the end, such as `@2x`, `@3x`, etc. See [Mapbox docs](https://docs.mapbox.com/api/maps/styles/#retrieve-a-sprite-image-or-json) for more information.
+
+Retrieve a sprite image for a style. Note that this is usually used by a map client (based on a style definition) and not directly by the end user ([more info](https://docs.mapbox.com/mapbox-gl-js/style-spec/sprite/#loading-sprite-files)).
+
+### `GET /styles/:styleId/sprites/:spriteInfo.json`
+
+- Params
+  - `styleId: string`: The ID of the style.
+  - `spriteInfo: string`: The name of the sprite asset. May or may not include a scale factor at the end, such as `@2x`, `@3x`, etc. See [Mapbox docs](https://docs.mapbox.com/api/maps/styles/#retrieve-a-sprite-image-or-json) for more information.
+
+Retrieve the sprite JSON document for a style. Note that this is usually used by a map client (based on a style definition) and not directly by the end user ([more info](https://docs.mapbox.com/mapbox-gl-js/style-spec/sprite/#loading-sprite-files)).
