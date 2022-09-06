@@ -36,6 +36,10 @@ export interface Queries {
     importedResources: number
     importedBytes: number
   }>
+  setImportError: Statement<{
+    id: string
+    error: string
+  }>
   completeImport: Statement<{
     id: string
     importedResources: number
@@ -67,5 +71,12 @@ export type MessageComplete = {
   total: number
 }
 
+export type MessageError = {
+  type: 'error'
+  importId: string
+  soFar: number
+  total: number
+}
+
 // Message types received by the port (main thread)
-export type PortMessage = MessageProgress | MessageComplete
+export type PortMessage = MessageProgress | MessageComplete | MessageError

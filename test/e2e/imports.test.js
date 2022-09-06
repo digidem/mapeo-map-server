@@ -230,8 +230,7 @@ test('GET /imports/progress/:importId - EventSource forced to close after single
   })
 })
 
-// Failing test
-test.skip('GET /imports/:importId after deferred import error shows error state', async (t) => {
+test('GET /imports/:importId after deferred import error shows error state', async (t) => {
   const server = createServer(t)
   // This mbtiles file has one of the tile_data fields set to null. This causes
   // the import to initially report progress, but fail when it reaches the null

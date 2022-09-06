@@ -1,6 +1,7 @@
 // @ts-check
 const Database = require('better-sqlite3')
 
+const { IMPORT_ERRORS } = require('./imports')
 const { extractMBTilesMetadata } = require('./mbtiles')
 const { tileToQuadKey } = require('./tiles')
 const { hash, encodeBase32 } = require('./utils')
@@ -63,6 +64,9 @@ function importMbTiles({
       'UPDATE Import SET importedResources = :importedResources, importedBytes = :importedBytes, ' +
         'lastUpdated = CURRENT_TIMESTAMP WHERE id = :id'
     ),
+    setImportError: db.prepare(
+      "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = :error WHERE id = :id"
+    ),
     completeImport: db.prepare(
       'UPDATE Import SET importedResources = :importedResources, importedBytes = :importedBytes, ' +
         "state = 'complete', lastUpdated = CURRENT_TIMESTAMP, finished = CURRENT_TIMESTAMP WHERE id = :id"
@@ -109,7 +113,37 @@ function importMbTiles({
   let bytesSoFar = 0
   let lastProgressEvent = 0
 
-  for (const { data, x, y, z } of tileRows) {
+  for (const row of tileRows) {
+    const tileRowError = validateTileRow(row)
+
+    if (tileRowError) {
+      // TODO: Introduce a new import error type that reflects unexpected row info?
+      queries.setImportError.run({ id: importId, error: IMPORT_ERRORS.UNKNOWN })
+
+      const baseMessage = {
+        importId,
+        soFar: bytesSoFar,
+        total: totalBytes,
+      }
+
+      // Ensure at least one progress event is emitted before throwing (because of throttle)
+      if (!lastProgressEvent) {
+        port.postMessage({
+          ...baseMessage,
+          type: 'progress',
+        })
+      }
+
+      port.postMessage({
+        ...baseMessage,
+        type: 'error',
+      })
+
+      throw tileRowError
+    }
+
+    const { data, x, y, z } = row
+
     const quadKey = tileToQuadKey({ zoom: z, x, y: (1 << z) - 1 - y })
 
     const tileHash = hash(data).toString('hex')
@@ -175,4 +209,27 @@ function importMbTiles({
 
   db.close()
   mbTilesDb.close()
+}
+
+/**
+ * Creates an error indicating which fields from a tile row are unexpectedly null
+ *
+ * @param {{[key: string]: *}} row
+ * @returns {?Error}
+ */
+function validateTileRow(row) {
+  /** @type {string[]} */
+  const invalidFields = []
+
+  Object.entries(row).forEach(([field, value]) => {
+    if (value == null) {
+      invalidFields.push(field)
+    }
+  })
+
+  if (invalidFields.length === 0) return null
+
+  return new Error(
+    `Tile row has unexpected null fields: ${invalidFields.join(',')}`
+  )
 }

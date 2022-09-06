@@ -3,7 +3,15 @@ import { Static, Type as T } from '@sinclair/typebox'
 
 import { NullableSchema } from './utils'
 
-const ImportErrorSchema = T.Union([T.Literal('TIMEOUT'), T.Literal('UNKNOWN')])
+export const IMPORT_ERRORS = {
+  TIMEOUT: 'TIMEOUT',
+  UNKNOWN: 'UNKNOWN',
+} as const
+
+const ImportErrorSchema = T.Union([
+  T.Literal(IMPORT_ERRORS.TIMEOUT),
+  T.Literal(IMPORT_ERRORS.UNKNOWN),
+])
 export type ImportError = Static<typeof ImportErrorSchema>
 
 const ImportState = T.Union([
