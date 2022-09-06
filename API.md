@@ -162,7 +162,7 @@ Retrieve a tile for a given tileset. Note that this is usually used by a map cli
 ### `GET /imports/:importId`
 
 - Params:
-  - `importId`: The ID for the desired import.
+  - `importId: string`: The ID for the desired import.
 
 Get information about an import that has occurred or is occurring. This is a subset of what's represented in the database, which includes information such as the type of import, its state and progress, and important timestamps. An import can represent a variety of different assets, such as tiles or style-related assets like fonts, glyphs, etc. The payload will look like this:
 
@@ -184,7 +184,7 @@ Get information about an import that has occurred or is occurring. This is a sub
 ### `GET /imports/progress/:importId`
 
 - Params:
-  - `importId`: The ID for the desired import.
+  - `importId: string`: The ID for the desired import.
 
 Subscribe to progress information for an import. This is a [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) endpoint, so it's expected to be used with an [EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) by the client.
 
