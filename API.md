@@ -106,7 +106,7 @@ Delete a style. Returns a `204 No Content` code if successful.
 
 ### `POST /styles`
 
-- Params
+- Body
   - `accessToken?: string`: Access token used to make upstream requests to the provider. Note that this access token will be persisted in the database and used for subsequent upstream requests.
   - `url: string`: The upstream URL to fetch the style from.
   - `style: StyleJSON`: A valid [StyleJSON](https://docs.mapbox.com/mapbox-gl-js/style-spec/root/) payload. **Note that this will be ignored if the `url` param is provided**.
@@ -131,3 +131,56 @@ Retrieve a sprite image for a style. Note that this is usually used by a map cli
   - `spriteInfo: string`: The name of the sprite asset. May or may not include a scale factor at the end, such as `@2x`, `@3x`, etc. See [Mapbox docs](https://docs.mapbox.com/api/maps/styles/#retrieve-a-sprite-image-or-json) for more information.
 
 Retrieve the sprite JSON document for a style. Note that this is usually used by a map client (based on a style definition) and not directly by the end user ([more info](https://docs.mapbox.com/mapbox-gl-js/style-spec/sprite/#loading-sprite-files)).
+
+## Tilesets
+
+### `GET /tilesets`
+
+Retrieve a list of all tilesets. Each tileset adheres to the [TileJSON spec](https://github.com/mapbox/tilejson-spec) with a guarantee of an `id` field.
+
+### `GET /tilesets/:tilesetId`
+
+- Params
+  - `tilesetId: string`: The ID of the tileset.
+
+Retrieve the tilejson definition of a tileset. Adheres to the [TileJSON spec](https://github.com/mapbox/tilejson-spec).
+
+### `POST /tilesets`
+
+- Body
+  - A valid TileJSON definition that adheres to the [TileJSON spec](https://github.com/mapbox/tilejson-spec).
+
+Create a tileset. Returns the created tileset TileJSON if successful.
+
+### `PUT /tilesets/:tilesetId`
+
+- Params
+  - `tilesetId: string`: The ID of the tileset.
+- Body
+  - A valid TileJSON definition that adheres to the [TileJSON spec](https://github.com/mapbox/tilejson-spec).
+
+Update a tileset. Returns the updated tileset TileJSON if successful.
+
+### `POST /tilesets/import`
+
+- Body
+  - `filePath: string`: An absolute path to the location of the file to import.
+
+Create a tileset by importing an existing file. If successful, a response with the following payload will be returned:
+
+- `import: { id: string }`: Information about the import that is created. The `id` can be used to get the information about the import or its progress (see [Imports](#imports)).
+- `tileset: TileJSON`: The tileset that is created, adhering to the [TileJSON spec](https://github.com/mapbox/tilejson-spec).
+
+As of now, only [MBTiles](https://github.com/mapbox/mbtiles-spec) files are supported, although there are plans to support other kinds of imports in the future.
+
+## Tiles
+
+### `GET /tilesets/:tilesetId/:zoom/:x/:y`
+
+- Params
+  - `tilesetId`: The ID of the tileset.
+  - `zoom: number`: The zoom level of the tile.
+  - `x: number`: The x coordinate of the tile.
+  - `y: number`: The y coordinate of the tile.
+
+Retrieve a tile for a given tileset. Note that this is usually used by a map client (based on a style definition) and not directly by the end user ([more info](https://docs.mapbox.com/mapbox-gl-js/style-spec/sources/)).
