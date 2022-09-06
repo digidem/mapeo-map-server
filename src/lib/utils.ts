@@ -2,9 +2,9 @@ import { URL } from 'url'
 import { createHash, randomBytes } from 'crypto'
 import base32 from 'base32.js'
 import { Type as T, TSchema, Static } from '@sinclair/typebox'
+import { FastifyRequest } from 'fastify'
 
 import { TileJSON } from './tilejson'
-import { FastifyRequest } from 'fastify'
 
 // Not cryptographically secure, but sha1 results in shorter / more manageable
 // ids for filenames and in the URL, should be fine for our use-case
@@ -59,7 +59,6 @@ export function getBaseApiUrl(request: FastifyRequest) {
 // https://github.com/sinclairzx81/typebox#unsafe-types
 export const NullableSchema = <S extends TSchema>(schema: S) =>
   T.Unsafe<Static<S> | null>({ ...schema, nullable: true })
-
 
 export function removeSearchParams(
   url: string,
