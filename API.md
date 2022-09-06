@@ -71,3 +71,45 @@ Messages that are received will have the following fields when deserialized:
 - `importId: string`: ID for import
 - `soFar: number`: Number of assets successfully imported so far
 - `total: number`: Total number of assets to be imported
+
+## Styles
+
+### `GET /styles`
+
+Retrieve a list of information about all styles. Each item has the following fields:
+
+- `id: string`: ID of the style
+- `bytesStored: number`: The number of bytes that the style occupies. This currently only accounts for the tiles that are associated with the style. In the future, this should include other assets such as glyphs and sprites.
+- `name: string`: The name of the style.
+- `url: string`: The map server URL that points to the style resource.
+
+### `GET /styles/:styleId`
+
+- Params
+  - `styleId: string`: The ID for the style.
+
+Retrieve the StyleJSON for a style. Adheres to the [StyleJSON spec](https://docs.mapbox.com/mapbox-gl-js/style-spec/root/).
+
+### `GET /styles/:styleId/preview`
+
+- Params
+  - `styleId: string`: The ID for the style.
+
+Fetch the assets used to preview a style in a web page. Uses [Mapbox GL JS](https://github.com/mapbox/mapbox-gl-js/) for rendering. Mostly helpful for debugging purposes.
+
+### `DELETE /styles/:styleId`
+
+- Params
+  - `styleId: string`: The ID for the style.
+
+Delete a style. Returns a `204 No Content` code if successful.
+
+### `POST /styles`
+
+- Params
+  - `accessToken?: string`: Access token used to make upstream requests to the provider. Note that this access token will be persisted in the database and used for subsequent upstream requests.
+  - `url: string`: The upstream URL to fetch the style from.
+  - `style: StyleJSON`: A valid [StyleJSON](https://docs.mapbox.com/mapbox-gl-js/style-spec/root/) payload. **Note that this will be ignored if the `url` param is provided**.
+  - `id?: string`: The ID to assign the created. If not provided, one will be randomly generated. This will only be used if the `style` param is provided. **Note that this will be ignored if the `url` param is provided**.
+
+Create a style, either by fetching a StyleJSON definition from an upstream source, or providing the raw payload of valid definition. Returns the resulting StyleJSON that adheres to the [StyleJSON spec](https://docs.mapbox.com/mapbox-gl-js/style-spec/root/).
