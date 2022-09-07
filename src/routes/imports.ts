@@ -4,6 +4,11 @@ import { PassThrough } from 'readable-stream'
 
 import { PortMessage } from '../lib/mbtiles_import_worker'
 import { serializeSSE, addSSEHeaders, type EventMessage } from '../lib/sse'
+import { ImportRecordSchema } from '../lib/imports'
+
+const GetImportParamsSchema = T.Object({
+  importId: T.String(),
+})
 
 const GetImportProgressParamsSchema = T.Object({
   importId: T.String(),
@@ -12,11 +17,15 @@ const GetImportProgressParamsSchema = T.Object({
 const SSE_RETRY_INTERVAL = 5000
 
 const imports: FastifyPluginAsync = async function (fastify) {
-  fastify.get<{ Params: Static<typeof GetImportProgressParamsSchema> }>(
+  fastify.get<{ Params: Static<typeof GetImportParamsSchema> }>(
     '/:importId',
     {
       schema: {
-        params: GetImportProgressParamsSchema,
+        description: 'Get information about an import',
+        params: GetImportParamsSchema,
+        response: {
+          200: ImportRecordSchema,
+        },
       },
     },
     async function (request) {
@@ -28,6 +37,8 @@ const imports: FastifyPluginAsync = async function (fastify) {
     '/progress/:importId',
     {
       schema: {
+        description: 'Subscribe to import progress info',
+        produces: ['text/event-stream', 'application/json'],
         params: GetImportProgressParamsSchema,
       },
     },

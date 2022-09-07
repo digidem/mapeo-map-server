@@ -30,8 +30,9 @@
   "license": "MIT",
   "files": [
     "dist",
-    "sdf",
-    "prisma/migrations"
+    "prisma/migrations",
+    "API.md",
+    "sdf"
   ],
   "dependencies": {
     "@fastify/error": "^2.0.0",
@@ -40,7 +41,7 @@
     "@mapbox/sphericalmercator": "^1.2.0",
     "@mapbox/whoots-js": "^3.1.0",
     "@maplibre/maplibre-gl-style-spec": "^16.0.0",
-    "@sinclair/typebox": "^0.23.5",
+    "@sinclair/typebox": "^0.24.28",
     "@types/readable-stream": "^2.3.14",
     "ajv": "^8.11.0",
     "base32.js": "^0.1.0",

@@ -50,6 +50,10 @@ Creates the map server instance
 - `mapServerOpts (required)`: Options object to customize the map server instance. Options include:
   - `dbPath: string (required)`: File path that points to the SQLite database to use. If the file does not exist, it will be created.
 
+## API Documentation
+
+API documentation is available in the [API.md](/API.md) and by accessing the `/docs` endpoint of the server when it's running.
+
 ## Technical Details
 
 - [Fastify](https://fastify.io/) for creating the server.

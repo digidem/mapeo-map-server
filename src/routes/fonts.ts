@@ -10,14 +10,31 @@ import {
 import { DEFAULT_STATIC_FONT, createStaticGlyphPath } from '../lib/glyphs'
 
 const GetGlyphsParams = T.Object({
-  fontstack: T.String(),
-  start: T.Number(),
-  end: T.Number(),
+  fontstack: T.String({ description: 'A comma-separated list of fonts' }),
+  start: T.Number({
+    description: 'A multiple of `256` between `0` and `65280`',
+  }),
+  end: T.Number({ description: '`start` plus `255`' }),
 })
 
 const GetGlyphsQuerystring = T.Object({
-  access_token: T.Optional(T.String()),
-  styleId: T.Optional(T.String()),
+  access_token: T.Optional(
+    T.String({
+      description: 'Access token used to make upstream requests',
+    })
+  ),
+  styleId: T.Optional(
+    T.String({
+      description:
+        'ID of style requesting this font range (necessary for making upstream requests)',
+    })
+  ),
+})
+
+const GetGlyphsResponse200 = T.String({
+  description: 'Protocol buffer-encoded SDF values',
+  contentEncoding: 'binary',
+  contentMediaType: 'application/x-protobuf',
 })
 
 const fonts: FastifyPluginAsync = async function (fastify) {
@@ -30,8 +47,14 @@ const fonts: FastifyPluginAsync = async function (fastify) {
     '/:fontstack/:start-:end.pbf',
     {
       schema: {
+        description:
+          'Retrieve a range of font glyphs. Uses a fallback font if no matching local or upstream fonts are available',
         params: GetGlyphsParams,
         querystring: GetGlyphsQuerystring,
+        produces: ['application/x-protobuf', 'application/json'],
+        response: {
+          200: GetGlyphsResponse200,
+        },
       },
     },
     async function (request, reply) {
