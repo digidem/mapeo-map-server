@@ -4,6 +4,14 @@ A less verbose (although incomplete) variation of this documentation can be foun
 
 Params of interest are prefixed by a colon (`:`) in the listed endpoint.
 
+## Table of contents
+
+- [Styles](#styles)
+- [Sprites](#sprites)
+- [Fonts](#fonts)
+- [Tilesets](#tilesets)
+- [Tiles](#tiles)
+
 ---
 
 ## Styles
