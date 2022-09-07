@@ -11,6 +11,7 @@ Params of interest are prefixed by a colon (`:`) in the listed endpoint.
 - [Fonts](#fonts)
 - [Tilesets](#tilesets)
 - [Tiles](#tiles)
+- [Imports](#imports)
 
 ---
 
@@ -201,13 +202,14 @@ Messages that are received will have a `data` field with the following structure
 - `type: string`: Type indicating the type of progress message. Can be one of the following values:
   - `"progress"`: Import is still in progress
   - `"complete"`: Import is complete
+  - `"error"`: Error occurred during import
 - `importId: string`: ID for import
 - `soFar: number`: Number of assets successfully imported so far
 - `total: number`: Total number of assets to be imported
 
 If a requested import is already completed or has errored, responds with `204 No Content`, which should prevent the event source from attempting to reconnect. Generally, the client should explicitly close the event source when:
 
-1. Receiving a message and the deserialized `type` value in the event data is either `"complete"` or `"progress"`.
+1. Receiving a message and the deserialized `type` value in the event data is either `"complete"` or `"error"`.
 2. Receiving an error
 
 ```js
@@ -218,7 +220,7 @@ const evtSource = new EventSource(
 evtSource.onmessage = (event) => {
   const message = JSON.parse(event.data)
 
-  if (message.type === 'complete') {
+  if (message.type === 'complete' || message.type === 'error') {
     evtSource.close()
     return
   }

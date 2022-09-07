@@ -132,7 +132,9 @@ function createImportsApi({
             // If a sqlite error is raised and the import has not started
             // we assume that there is an issue reading the mbtiles file provided
             const isMbTilesIssue =
-              err?.code.startsWith('SQLITE') && !importStarted
+              typeof err?.code === 'string' &&
+              err.code.startsWith('SQLITE') &&
+              !importStarted
 
             // FYI this will be called when piscina.destroy() in the onClose hook
             rej(isMbTilesIssue ? new MBTilesCannotReadError(err.code) : err)
