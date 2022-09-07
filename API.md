@@ -1,6 +1,6 @@
 # API Documentation
 
-A less verbose (although incomplete) variation of this documentation can be found at the `/docs` endpoint of the map server when it is run.
+A less verbose (although incomplete) variation of this documentation can be found at the `/docs` endpoint of the map server when it is running.
 
 Params of interest are prefixed by a colon (`:`) in the listed endpoint.
 
@@ -54,7 +54,7 @@ Delete a style. Returns a `204 No Content` code if successful.
   - `style: StyleJSON`: A valid [StyleJSON](https://docs.mapbox.com/mapbox-gl-js/style-spec/root/) payload. **Note that this will be ignored if the `url` param is provided**.
   - `id?: string`: The ID to assign the created. If not provided, one will be randomly generated. This will only be used if the `style` param is provided. **Note that this will be ignored if the `url` param is provided**.
 
-Create a style, either by fetching a StyleJSON definition from an upstream source, or providing the raw payload of valid definition. Returns the resulting StyleJSON that adheres to the [StyleJSON spec](https://docs.mapbox.com/mapbox-gl-js/style-spec/root/).
+Create a style, either by fetching a StyleJSON definition from an upstream source, or providing the raw payload of a valid definition. Returns the resulting StyleJSON that adheres to the [StyleJSON spec](https://docs.mapbox.com/mapbox-gl-js/style-spec/root/).
 
 ---
 
@@ -103,8 +103,8 @@ This endpoint goes through the following steps to determine what to respond with
    - If the upstream request succeeds, forward that response.
    - If the upstream request fails due to:
      - a non-404 upstream HTTP error, forward the error
-     - lack of internet connection or a Not Found error (404), go to step 3
-3. Return the glyph range using the default pre-bundled font (Opens Sans)
+     - lack of internet connection or a `440 Not Found` error, go to step 3
+3. Return the glyph range using the default pre-bundled font ([Opens Sans](https://www.opensans.com/))
 
 ---
 
@@ -156,7 +156,7 @@ As of now, only [MBTiles](https://github.com/mapbox/mbtiles-spec) files are supp
 ### `GET /tilesets/:tilesetId/:zoom/:x/:y`
 
 - Params
-  - `tilesetId`: The ID of the tileset.
+  - `tilesetId: string`: The ID of the tileset.
   - `zoom: number`: The zoom level of the tile.
   - `x: number`: The x coordinate of the tile.
   - `y: number`: The y coordinate of the tile.
