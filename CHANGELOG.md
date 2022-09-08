@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.0.0-alpha.9](https://github.com/digidem/mapeo-map-server/compare/v1.0.0-alpha.8...v1.0.0-alpha.9) (2022-09-08)
+
+
+### Bug Fixes
+
+* improve handling of import progress endpoint when import error occurs ([#68](https://github.com/digidem/mapeo-map-server/issues/68)) ([20f4b0f](https://github.com/digidem/mapeo-map-server/commit/20f4b0fa5b0be4bd933f11543c3b6f28a019716c))
+
 ## [1.0.0-alpha.8](https://github.com/digidem/mapeo-map-server/compare/v1.0.0-alpha.7...v1.0.0-alpha.8) (2022-08-19)
 
 
