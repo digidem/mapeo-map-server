@@ -356,3 +356,5 @@ test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or
   t.equal(stylesRes.statusCode, 200)
   t.same(stylesRes.json(), [], 'no styles created')
 })
+
+// TODO: Add test for worker timeout

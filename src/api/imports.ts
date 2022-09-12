@@ -171,8 +171,6 @@ function createImportsApi({
               db.prepare(
                 "UPDATE Import SET state = 'error', finished = CURRENT_TIMESTAMP, error = 'TIMEOUT' WHERE id = ?"
               ).run(importId)
-            } else {
-              api.deleteStyle(styleId, baseApiUrl)
             }
           } catch (err) {
             // TODO: This could potentially throw when the db is closed already. Need to properly handle/report
