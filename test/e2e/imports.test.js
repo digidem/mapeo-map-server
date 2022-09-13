@@ -230,6 +230,7 @@ test('GET /imports/progress/:importId - EventSource forced to close after single
   })
 })
 
+// TODO: Potentially flaky test
 test('GET /imports/:importId after deferred import error shows error state', async (t) => {
   const server = createServer(t)
   // This mbtiles file has one of the tile_data fields set to null. This causes
