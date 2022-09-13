@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.0.0-alpha.10](https://github.com/digidem/mapeo-map-server/compare/v1.0.0-alpha.9...v1.0.0-alpha.10) (2022-09-13)
+
+
+### Bug Fixes
+
+* avoid redundant attempt to delete style when import worker timeout occurs ([#77](https://github.com/digidem/mapeo-map-server/issues/77)) ([fef0a60](https://github.com/digidem/mapeo-map-server/commit/fef0a608db6f6ec93022a23b41e180f2e8a8a63f))
+
 ## [1.0.0-alpha.9](https://github.com/digidem/mapeo-map-server/compare/v1.0.0-alpha.8...v1.0.0-alpha.9) (2022-09-08)
 
 
