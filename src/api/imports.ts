@@ -23,7 +23,11 @@ export interface ImportsApi {
   importMBTiles(
     filePath: string,
     baseApiUrl: string
-  ): Promise<{ import: IdResource; tileset: TileJSON & IdResource }>
+  ): Promise<{
+    import: IdResource
+    style?: IdResource
+    tileset: TileJSON & IdResource
+  }>
 }
 
 function createImportsApi({
@@ -148,7 +152,11 @@ function createImportsApi({
           if (message.type === 'progress') {
             importStarted = true
             port2.off('message', handleFirstProgressMessage)
-            res({ import: { id: message.importId }, tileset })
+            res({
+              import: { id: message.importId },
+              style: { id: styleId },
+              tileset,
+            })
           }
         }
 

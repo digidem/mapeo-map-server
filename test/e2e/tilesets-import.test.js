@@ -119,8 +119,6 @@ test('POST /tilesets/import creates tileset', async (t) => {
 test('POST /tilesets/import creates style for created tileset', async (t) => {
   const server = createServer(t)
 
-  const checkedStyleIds = new Set()
-
   for (fixture of fixtures) {
     const importResponse = await server.inject({
       method: 'POST',
@@ -130,27 +128,12 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 
     const {
       tileset: { id: createdTilesetId },
+      style: { id: createdStyleId },
     } = importResponse.json()
-
-    const getStylesResponse = await server.inject({
-      method: 'GET',
-      url: '/styles',
-    })
-
-    const styleInfo = getStylesResponse
-      .json()
-      .find((info) => !checkedStyleIds.has(info.id))
-
-    t.ok(
-      styleInfo.bytesStored !== null && styleInfo.bytesStored > 0,
-      'tiles used by style take up storage space'
-    )
-
-    const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
     const styleGetResponse = await server.inject({
       method: 'GET',
-      url: styleInfo.url,
+      url: `styles/${createdStyleId}`,
     })
 
     t.equal(styleGetResponse.statusCode, 200)
@@ -160,6 +143,8 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
     const sources = Object.values(style.sources)
 
     t.equal(sources.length, 1, 'style has one source')
+
+    const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
 
     t.equal(
       sources[0].url,
@@ -174,7 +159,23 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 
     t.ok(allLayersPointToSource, 'all layers point to a source')
 
-    checkedStyleIds.add(styleInfo.id)
+    const getStylesResponse = await server.inject({
+      method: 'GET',
+      url: '/styles',
+    })
+
+    const styleInfo = getStylesResponse
+      .json()
+      .find((info) => info.id === createdStyleId)
+
+    t.ok(
+      styleInfo.bytesStored !== null && styleInfo.bytesStored > 0,
+      'tiles used by style take up storage space'
+    )
+
+    const expectedStyleUrl = `http://localhost:80/styles/${createdStyleId}`
+
+    t.equal(styleInfo.url, expectedStyleUrl)
   }
 })
 

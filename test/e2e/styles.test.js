@@ -352,7 +352,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
 })
 
 test('DELETE /styles/:styleId works for style created from tileset import', async (t) => {
-  t.plan(4)
+  t.plan(5)
 
   const server = createServer(t)
 
@@ -364,57 +364,31 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 
   const {
     tileset: { id: createdTilesetId },
+    style: { id: createdStyleId },
   } = importResponse.json()
 
-  const getStylesResponse = await server.inject({
+  const getStyleResponseBefore = await server.inject({
     method: 'GET',
-    url: '/styles',
+    url: `/styles/${createdStyleId}`,
   })
 
-  const stylesList = getStylesResponse.json()
-
-  const expectedSourceUrl = `http://localhost:80/tilesets/${createdTilesetId}`
-
-  const styles = await Promise.all(
-    stylesList.map(({ url, id }) =>
-      server
-        .inject({
-          method: 'GET',
-          url,
-        })
-        .then((response) => response.json())
-        .then((style) => ({ ...style, id }))
-    )
-  )
-
-  const matchingStyle = styles.find((style) =>
-    Object.values(style.sources).find((source) => {
-      if ('url' in source && source.url) {
-        return source.url === expectedSourceUrl
-      }
-    })
-  )
-
-  if (!matchingStyle) {
-    t.fail('Could not find style created by import')
-    return
-  }
+  t.equal(getStyleResponseBefore.statusCode, 200, 'style created')
 
   const responseDelete = await server.inject({
     method: 'DELETE',
-    url: `/styles/${matchingStyle.id}`,
+    url: `/styles/${createdStyleId}`,
   })
 
   t.equal(responseDelete.statusCode, 204)
 
   t.equal(responseDelete.body, '')
 
-  const responseGet = await server.inject({
+  const getStyleResponseAfter = await server.inject({
     method: 'GET',
-    url: `/styles/${matchingStyle.id}`,
+    url: `/styles/${createdStyleId}`,
   })
 
-  t.equal(responseGet.statusCode, 404, 'style is properly deleted')
+  t.equal(getStyleResponseAfter.statusCode, 404, 'style is properly deleted')
 
   const tilesetResponseGet = await server.inject({
     method: 'GET',
