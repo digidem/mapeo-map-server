@@ -39,7 +39,7 @@ function createImportsApi({
     getImport(importId) {
       const row: ImportRecord | undefined = db
         .prepare(
-          'SELECT state, error, importedResources, totalResources, importedBytes, totalBytes, ' +
+          'SELECT id, state, error, importedResources, totalResources, importedBytes, totalBytes, ' +
             'started, finished, lastUpdated FROM Import WHERE id = ?'
         )
         .get(importId)

@@ -22,10 +22,8 @@ const ImportState = T.Union([
 export type ImportState = Static<typeof ImportState>
 
 const BASE_RECORD_SCHEMA_INPUT = {
-  // error: NullableSchema(ImportErrorSchema),
+  id: T.String(),
   started: T.String(),
-  // lastUpdated: NullableSchema(T.String()),
-  // finished: NullableSchema(T.String()),
   importedResources: T.Number({ minimum: 0 }),
   totalResources: T.Number({ minimum: 0 }),
   importedBytes: NullableSchema(T.Number({ minimum: 0 })),
