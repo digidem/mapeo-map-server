@@ -39,7 +39,7 @@ const ActiveImportRecordSchema = T.Object({
   lastUpdated: NullableSchema(T.String()),
   finished: T.Null(),
 })
-type ActiveImportRecord = Static<typeof ActiveImportRecordSchema>
+export type ActiveImportRecord = Static<typeof ActiveImportRecordSchema>
 
 const CompleteImportRecordSchema = T.Object({
   ...BASE_RECORD_SCHEMA_INPUT,
@@ -48,7 +48,7 @@ const CompleteImportRecordSchema = T.Object({
   lastUpdated: T.String(),
   finished: T.String(),
 })
-type CompleteImportRecord = Static<typeof CompleteImportRecordSchema>
+export type CompleteImportRecord = Static<typeof CompleteImportRecordSchema>
 
 const ErrorImportRecordSchema = T.Object({
   ...BASE_RECORD_SCHEMA_INPUT,
@@ -57,7 +57,7 @@ const ErrorImportRecordSchema = T.Object({
   lastUpdated: T.String(),
   finished: T.String(),
 })
-type ErrorImportRecord = Static<typeof ErrorImportRecordSchema>
+export type ErrorImportRecord = Static<typeof ErrorImportRecordSchema>
 
 export const ImportRecordSchema = T.Union([
   ActiveImportRecordSchema,

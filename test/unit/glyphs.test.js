@@ -1,6 +1,4 @@
 const test = require('tape')
-const fs = require('fs')
-const path = require('path')
 
 const { isValidGlyphsRange } = require('../../dist/lib/glyphs')
 

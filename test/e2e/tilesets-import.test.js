@@ -23,28 +23,6 @@ const vectorMbTilesMissingJsonRowPath = path.join(
 
 const fixtures = [rasterMbTilesPath, vectorMbTilesPath]
 
-async function fetchAllStyles(server) {
-  const getStylesResponse = await server.inject({
-    method: 'GET',
-    url: '/styles',
-  })
-
-  const stylesInfo = getStylesResponse.json()
-
-  const fetchStylePromises = stylesInfo.map((info) =>
-    server
-      .inject({
-        method: 'GET',
-        url: styleInfo.url,
-      })
-      .then((resp) => resp.json())
-  )
-
-  const styleResponses = await Promise.all(fetchStylePromises)
-
-  return { info: stylesInfo, styles: styleResponses }
-}
-
 /**
  * @param {*} vectorLayers
  * @returns {boolean}
