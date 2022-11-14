@@ -25,7 +25,7 @@ export interface ImportsApi {
     baseApiUrl: string
   ): Promise<{
     import: IdResource
-    style?: IdResource
+    style: IdResource | null
     tileset: TileJSON & IdResource
   }>
 }
