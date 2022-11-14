@@ -146,6 +146,7 @@ Update a tileset. Returns the updated tileset TileJSON if successful.
 Create a tileset by importing an existing file. If successful, a response with the following payload will be returned:
 
 - `import: { id: string }`: Information about the import that is created. The `id` can be used to get the information about the import or its progress (see [Imports](#imports)).
+- `style: { id: string } | null`: Information about the style that is created. As of now, a style is automatically generated for a MBTiles import. There may be cases where this behavior changes based on import type, so this field can potentially be `null`.
 - `tileset: TileJSON`: The tileset that is created, adhering to the [TileJSON spec](https://github.com/mapbox/tilejson-spec).
 
 As of now, only [MBTiles](https://github.com/mapbox/mbtiles-spec) files are supported, although there are plans to support other kinds of imports in the future.
