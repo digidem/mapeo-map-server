@@ -34,7 +34,7 @@ function createFontStack(...fonts) {
  * @returns {{id: string, style: import('../../dist/lib/stylejson').StyleJSON}}
  */
 async function createStyle(server, t) {
-  const mockedTilesetScope = nock('https://api.mapbox.com')
+  nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })

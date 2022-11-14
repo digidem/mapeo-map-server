@@ -401,7 +401,7 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 test('DELETE /styles/:styleId deletes tilesets that are only referenced by the deleted style', async (t) => {
   const server = createServer(t)
 
-  const mockedTilesetScope = nock('https://api.mapbox.com')
+  nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
@@ -476,7 +476,7 @@ test('DELETE /styles/:styleId deletes tilesets that are only referenced by the d
 test('DELETE /styles/:styleId does not delete referenced tilesets that are also referenced by other styles', async (t) => {
   const server = createServer(t)
 
-  const mockedTilesetScope = nock('https://api.mapbox.com')
+  nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .times(4)
@@ -550,7 +550,7 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
   })
 
   const { id: styleIdAB, style: styleAB } = createStyleABResponse.json()
-  const { id: styleIdBC, style: styleBC } = createStyleBCResponse.json()
+  const { style: styleBC } = createStyleBCResponse.json()
 
   t.notDeepEqual(
     styleAB.sources,
@@ -633,7 +633,7 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 
 test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns correct sprite asset', async (t) => {
   const server = createServer(t)
 
-  const mockedTilesetScope = nock('https://api.mapbox.com')
+  nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
@@ -712,7 +712,7 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns corr
 test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an available fallback asset', async (t) => {
   const server = createServer(t)
 
-  const mockedTilesetScope = nock('https://api.mapbox.com')
+  nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
@@ -802,7 +802,7 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an a
 test('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
   const server = createServer(t)
 
-  const mockedTilesetScope = nock('https://api.mapbox.com')
+  nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })

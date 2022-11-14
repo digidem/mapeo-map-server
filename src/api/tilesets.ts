@@ -11,8 +11,6 @@ import {
   ParseError,
   UpstreamJsonValidationError,
 } from './errors'
-import { normalizeSourceURL } from '../lib/mapbox_urls'
-import { UpstreamResponse } from '../lib/upstream_requests_manager'
 
 export interface TilesetsApi {
   createTileset(
