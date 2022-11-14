@@ -1,5 +1,3 @@
-import got from 'got'
-
 import { isMapboxURL, normalizeSourceURL } from '../lib/mapbox_urls'
 import {
   StyleJSON,
