@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.0.0-alpha.11](https://github.com/digidem/mapeo-map-server/compare/v1.0.0-alpha.10...v1.0.0-alpha.11) (2022-11-14)
+
+
+### Features
+
+* include style id in response for tileset import endpoint ([#82](https://github.com/digidem/mapeo-map-server/issues/82)) ([3ce4e4e](https://github.com/digidem/mapeo-map-server/commit/3ce4e4e8d310ba5c1f1b708598ead09dd235e674))
+
+
+### Bug Fixes
+
+* add id field to GET /import endpoint response ([#86](https://github.com/digidem/mapeo-map-server/issues/86)) ([2a139f4](https://github.com/digidem/mapeo-map-server/commit/2a139f4fd63355d4d524974943a47cf706982de3))
+
 ## [1.0.0-alpha.10](https://github.com/digidem/mapeo-map-server/compare/v1.0.0-alpha.9...v1.0.0-alpha.10) (2022-09-13)
 
 
