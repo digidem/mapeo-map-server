@@ -176,7 +176,8 @@ Retrieve a tile for a given tileset. Note that this is usually used by a map cli
 
 Get information about an import that has occurred or is occurring. This is a subset of what's represented in the database, which includes information such as the type of import, its state and progress, and important timestamps. An import can represent a variety of different assets, such as tiles or style-related assets like fonts, glyphs, etc. The payload will look like this:
 
-- `state: string`: the state of the import that was executed. Currently one of the following values:
+- `id: string`: The id of the import as represented in the database. This should be the same as the `:importId` param that is provided in this case.
+- `state: string`: The state of the import that was executed. Currently one of the following values:
   - `"active"`: The import is currently running and in progress.
   - `"complete"`: The import finished succesfully without error.
   - `"error"`: The import stopped due to some error. If the server is stopped while an import is running, an import will be marked as with this state on the next startup.
