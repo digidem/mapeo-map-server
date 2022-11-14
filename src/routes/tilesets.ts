@@ -45,6 +45,7 @@ const ImportMBTilesRequestBodySchema = T.Object({
 
 const ImportMBTilesResponseBodySchema = T.Object({
   import: T.Object({ id: T.String() }),
+  style: T.Union([T.Object({ id: T.String() }), T.Null()]),
   tileset: TileJSONSchema,
 })
 
