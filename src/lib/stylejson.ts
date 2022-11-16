@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/ban-types */
-// @ts-ignore
-import { validate as validateStyleJSON } from '@maplibre/maplibre-gl-style-spec'
-
 import {
+  validate as validateStyleJSON,
   LayerSpecification,
   StyleSpecification as StyleJSON,
-} from './style-spec'
+  ValidationError,
+} from '@maplibre/maplibre-gl-style-spec'
+
 import { TileJSON } from './tilejson'
 import { encodeBase32, hash, removeSearchParams } from './utils'
 
@@ -37,11 +37,13 @@ async function uncompositeStyle(style: StyleJSON): Promise<StyleJSON> {
 }
 
 function validate(style: unknown): asserts style is StyleJSON {
-  const errors = validateStyleJSON(style)
+  const errors = validateStyleJSON(style as any)
 
   if (errors.length > 0) {
     // TODO: not sure what the best thing to throw here is
-    throw new Error(errors.map((err: Error) => err.message).join('\n'))
+    throw new Error(
+      errors.map((err: ValidationError) => err.message).join('\n')
+    )
   }
 }
 
