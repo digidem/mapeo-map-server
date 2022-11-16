@@ -27,7 +27,7 @@ export function getFontStacks(style: StyleJSON): string[] {
         ) {
           if (Array.isArray(textFontValue[2][1])) {
             fontStacks.add(textFontValue[2][1].join(','))
-          } else {
+          } else if (typeof textFontValue[2][1] === 'string') {
             fontStacks.add(textFontValue[2][1])
           }
         } else if (textFontValue[0] === 'literal') {
