@@ -4,42 +4,47 @@
 
 An in-progress offline map style and tile server for Mapeo.
 
-`npm install @mapeo/map-server`
+`npm install @mapeo/map-server better-sqlite3`
 
-*⚠️ This is alpha software. No guarantees can be made about the stability of the API at the moment, so proceed with caution. 😄*
+_⚠️ This is alpha software. No guarantees can be made about the stability of the API at the moment, so proceed with caution. 😄_
 
 ## Features
 
-- [X] Manages tiles and tilesets (TileJSON)
+- [x] Manages tiles and tilesets (TileJSON)
 
-- [X] Manages Mapbox map styles
+- [x] Manages Mapbox map styles
 
-- [X] Supports importing MBTile files as tilesets
-  - [X] Supports getting import progress
+- [x] Supports importing MBTile files as tilesets
+
+  - [x] Supports getting import progress
 
 - [ ] Provides info related to downloads and storage
-
 
 ## Usage
 
 The default export is a factory function for creating a map server instance, which is built on top of [Fastify](https://www.fastify.io/). Basic usage is as follows:
 
 ```js
+// better-sqlite3 is a peer dependency and must be installed manually.
+const Database = require('better-sqlite3')
 // If you're using TypeScript, you may want to use one of the following import syntaxes to get type definitions:
 // - `require('@mapeo/map-server').default`
 // - `import createMapServer from '@mapeo/map-server'
-const createMapServer = require("@mapeo/map-server");
+const createMapServer = require('@mapeo/map-server')
 
 // Create the server instance
-const mapServer = createMapServer({ logger: true }, { dbPath: "./example.db" });
+const mapServer = createMapServer(
+  { logger: true },
+  { data: new Database('./example.db') }
+)
 
 // Run the server!
 mapServer.listen(3000, function (err) {
   if (err) {
-    mapServer.log.error(err);
-    process.exit(1);
+    mapServer.log.error(err)
+    process.exit(1)
   }
-});
+})
 ```
 
 ### `createServer(fastifyOpts, mapServerOpts): FastifyInstance`
@@ -48,7 +53,7 @@ Creates the map server instance
 
 - `fastifyOpts (optional)`: Options object to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
 - `mapServerOpts (required)`: Options object to customize the map server instance. Options include:
-  - `dbPath: string (required)`: File path that points to the SQLite database to use. If the file does not exist, it will be created.
+  - `database: BetterSqlite3.Database (required)`: [BetterSqlite3](https://github.com/WiseLibs/better-sqlite3) database instance representing the SQLite database to use.
 
 ## API Documentation
 

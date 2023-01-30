@@ -1,6 +1,7 @@
 const tmp = require('tmp')
 const path = require('path')
 const fs = require('fs')
+const Db = require('better-sqlite3')
 
 const createMapServer = require('../..')
 
@@ -26,7 +27,7 @@ function createServer(t) {
 
   const server = createMapServer(
     { logger: false, forceCloseConnections: true },
-    { dbPath }
+    { database: new Db(dbPath) }
   )
 
   t.teardown(async () => {

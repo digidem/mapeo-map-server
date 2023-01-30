@@ -1,4 +1,4 @@
-import Database, { Database as DatabaseInstance } from 'better-sqlite3'
+import Db, { Database } from 'better-sqlite3'
 import { FastifyPluginAsync } from 'fastify'
 import fp from 'fastify-plugin'
 import path from 'path'
@@ -16,12 +16,12 @@ import createTilesApi, { TilesApi } from './tiles'
 import createTilesetsApi, { TilesetsApi } from './tilesets'
 
 export interface MapServerOptions {
-  dbPath: string
+  database: Database
 }
 
 export interface Context {
   activeImports: Map<string, MessagePort>
-  db: DatabaseInstance
+  db: Database
   piscina: Piscina
   upstreamRequestsManager: UpstreamRequestsManager
 }
@@ -81,9 +81,7 @@ function createApi(context: Context): Api {
   }
 }
 
-function init(dbPath: string): Context {
-  const db = new Database(dbPath)
-
+function init(db: Database): Context {
   // Enable auto-vacuum by setting it to incremental mode
   // This has to be set before the anything on the db instance is called!
   // https://www.sqlite.org/pragma.html#pragma_auto_vacuum
@@ -120,13 +118,15 @@ function init(dbPath: string): Context {
 
 const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   fastify,
-  { dbPath }
+  { database }
 ) => {
-  if (dbPath == null)
-    throw new Error('Map server option `dbPath` must be specified')
+  if (database == null || !(database instanceof Db))
+    throw new Error(
+      `Instance of BetterSqlite3.Database must be specified for 'database' option (https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md#class-database)`
+    )
 
   // Create context once for each fastify instance
-  const context = init(dbPath)
+  const context = init(database)
 
   const api = createApi(context)
 
