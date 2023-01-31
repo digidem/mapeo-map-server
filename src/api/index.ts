@@ -1,4 +1,4 @@
-import Db, { Database } from 'better-sqlite3'
+import { Database } from 'better-sqlite3'
 import { FastifyPluginAsync } from 'fastify'
 import fp from 'fastify-plugin'
 import path from 'path'
@@ -120,7 +120,7 @@ const ApiPlugin: FastifyPluginAsync<MapServerOptions> = async (
   fastify,
   { database }
 ) => {
-  if (database == null || !(database instanceof Db))
+  if (database == null)
     throw new Error(
       `Instance of BetterSqlite3.Database must be specified for 'database' option (https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md#class-database)`
     )
