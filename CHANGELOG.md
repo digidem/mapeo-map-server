@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.0.0-alpha.12](https://github.com/digidem/mapeo-map-server/compare/v1.0.0-alpha.11...v1.0.0-alpha.12) (2023-02-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* accept database instance instead of path when creating server  (#93)
+
+### Features
+
+* accept database instance instead of path when creating server  ([#93](https://github.com/digidem/mapeo-map-server/issues/93)) ([17d5fa8](https://github.com/digidem/mapeo-map-server/commit/17d5fa867463b4cfbe3fbd90d6642ad422034031))
+
 ## [1.0.0-alpha.11](https://github.com/digidem/mapeo-map-server/compare/v1.0.0-alpha.10...v1.0.0-alpha.11) (2022-11-14)
 
 
