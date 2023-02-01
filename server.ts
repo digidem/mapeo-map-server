@@ -1,9 +1,10 @@
 import 'make-promises-safe'
+import Database from 'better-sqlite3'
 
 import createMapServer, { MapServerOptions } from './src/app'
 
 const mapServerOpts: MapServerOptions = {
-  dbPath: './example.db',
+  database: new Database('./example.db'),
 }
 
 // Require the framework and instantiate it
