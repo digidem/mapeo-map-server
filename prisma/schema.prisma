@@ -86,7 +86,7 @@ model OfflineArea {
   id          String   @id
   zoomLevel   Int
   boundingBox String // Comma-separated string of 4 floats
-  name        String
+  name        String?
   style       Style    @relation(fields: [styleId], references: [id])
   styleId     String
   imports     Import[]
