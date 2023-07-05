@@ -35,7 +35,7 @@ const createMapServer = require('@mapeo/map-server')
 // Create the server instance
 const mapServer = createMapServer(
   { logger: true },
-  { data: new Database('./example.db') }
+  { database: new Database('./example.db') }
 )
 
 // Run the server!
