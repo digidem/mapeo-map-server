@@ -4,16 +4,19 @@ import FastifyStatic from '@fastify/static'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
 import api, { type MapServerOptions } from './api'
+import StaticStylesPlugin, { StaticStylesPluginOptions } from './static-styles'
 import { SDF_STATIC_DIR } from './lib/glyphs'
 import * as routes from './routes'
 
+type ServerOptions = MapServerOptions & Partial<StaticStylesPluginOptions>
+
 function createServer(
   fastifyOpts: FastifyServerOptions = {},
-  mapServerOpts: MapServerOptions
+  serverOpts: ServerOptions
 ): FastifyInstance {
   const fastify = createFastify(fastifyOpts)
 
-  fastify.register(api, mapServerOpts)
+  fastify.register(api, serverOpts)
 
   fastify.register(FastifyStatic, {
     root: SDF_STATIC_DIR,
@@ -25,6 +28,12 @@ function createServer(
       }
     },
   })
+
+  if (serverOpts.staticStylesDir) {
+    fastify.register(StaticStylesPlugin, {
+      staticStylesDir: serverOpts.staticStylesDir,
+    })
+  }
 
   fastify.register(fastifySwagger, {
     swagger: {
@@ -49,4 +58,8 @@ export default createServer
 
 module.exports = createServer
 
-export { type MapServerOptions }
+export {
+  type MapServerOptions,
+  type StaticStylesPluginOptions,
+  type ServerOptions,
+}

@@ -1,14 +1,16 @@
 import 'make-promises-safe'
 import Database from 'better-sqlite3'
+import path from 'path'
 
-import createMapServer, { MapServerOptions } from './src/app'
+import createMapServer, { ServerOptions } from './src/app'
 
-const mapServerOpts: MapServerOptions = {
+const serverOpts: ServerOptions = {
   database: new Database('./example.db'),
+  staticStylesDir: path.resolve(__dirname, 'static-styles'),
 }
 
 // Require the framework and instantiate it
-const mapServer = createMapServer({ logger: true }, mapServerOpts)
+const mapServer = createMapServer({ logger: true }, serverOpts)
 
 // Run the server!
 mapServer.listen(3000, function (err) {
