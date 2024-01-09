@@ -32,6 +32,7 @@ function createServer(
   if (serverOpts.staticStylesDir) {
     fastify.register(StaticStylesPlugin, {
       staticStylesDir: serverOpts.staticStylesDir,
+      prefix: '/static-styles',
     })
   }
 

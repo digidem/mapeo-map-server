@@ -13,8 +13,6 @@ export interface StaticStylesPluginOptions {
   staticStylesDir: string
 }
 
-const STATIC_STYLES_ROUTE_PREFIX = '/static-styles'
-
 function extractAsarFile(archive: string, filename: string) {
   try {
     return asar.extractFile(archive, filename)
@@ -84,6 +82,8 @@ const StaticStylesPlugin: FastifyPluginAsync<
 > = async (fastify, { staticStylesDir }) => {
   if (!staticStylesDir) throw new Error('Need to provide staticStylesDir')
 
+  /// Plugin-scoped helpers
+
   async function handleStyleTileGet(
     req: FastifyRequest<{
       Params: Static<typeof GetStaticStyleTileParamsSchema>
@@ -93,8 +93,10 @@ const StaticStylesPlugin: FastifyPluginAsync<
     const result = getStyleTileInfo(staticStylesDir, req.params)
 
     if (!result) {
-      const { tileId, z, x, y } = req.params
-      throw new NotFoundError(`Tileset id = ${tileId}, [${z}, ${x}, ${y}]`)
+      const { tileId, z, x, y, ext } = req.params
+      throw new NotFoundError(
+        `Tileset id = ${tileId}, ext=${ext}, [${z}, ${x}, ${y}]`
+      )
     }
 
     const { data, mimeType, shouldGzip } = result
@@ -110,10 +112,12 @@ const StaticStylesPlugin: FastifyPluginAsync<
     res.send(data)
   }
 
+  /// Registered routes
+
   fastify.get<{
     Params: Static<typeof GetStaticStyleTileParamsSchema>
   }>(
-    `${STATIC_STYLES_ROUTE_PREFIX}/:id/tiles/:tileId/:z/:y/:x.:ext`,
+    `/:id/tiles/:tileId/:z/:y/:x.:ext`,
     { schema: { params: GetStaticStyleTileParamsSchema } },
     handleStyleTileGet
   )
@@ -121,19 +125,25 @@ const StaticStylesPlugin: FastifyPluginAsync<
   fastify.get<{
     Params: Static<typeof GetStaticStyleTileParamsSchema>
   }>(
-    `${STATIC_STYLES_ROUTE_PREFIX}/:id/tiles/:tileId/:z/:y/:x`,
+    `/:id/tiles/:tileId/:z/:y/:x`,
     { schema: { params: GetStaticStyleTileParamsSchema } },
     handleStyleTileGet
   )
 
   fastify.register(FastifyStatic, {
     root: staticStylesDir,
-    prefix: STATIC_STYLES_ROUTE_PREFIX,
     decorateReply: false,
   })
 }
 
-export default fp(StaticStylesPlugin, {
-  fastify: '3.x',
-  name: 'static-styles',
-})
+export default fp(
+  async function (fastify, opts: StaticStylesPluginOptions) {
+    // Needed in order for route prefix to work
+    // https://fastify.dev/docs/latest/Reference/Routes/#route-prefixing
+    fastify.register(StaticStylesPlugin, opts)
+  },
+  {
+    fastify: '3.x',
+    name: 'static-styles',
+  }
+)
