@@ -1,4 +1,5 @@
 import path from 'path'
+import { promises as fs } from 'fs'
 import fp from 'fastify-plugin'
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { Static, Type as T } from '@sinclair/typebox'
@@ -8,6 +9,7 @@ import asar from '@electron/asar'
 import mime from 'mime'
 
 import { NotFoundError } from './api/errors'
+import { getBaseApiUrl } from './lib/utils'
 
 export interface StaticStylesPluginOptions {
   staticStylesDir: string
@@ -77,6 +79,14 @@ const GetStaticStyleTileParamsSchema = T.Object({
   ext: T.Optional(T.String()),
 })
 
+const ListStaticStylesReplySchema = T.Array(
+  T.Object({
+    id: T.String(),
+    name: T.Union([T.String(), T.Null()]),
+    url: T.String(),
+  })
+)
+
 const StaticStylesPlugin: FastifyPluginAsync<
   StaticStylesPluginOptions
 > = async (fastify, { staticStylesDir }) => {
@@ -113,6 +123,52 @@ const StaticStylesPlugin: FastifyPluginAsync<
   }
 
   /// Registered routes
+
+  fastify.get<{
+    Reply: Static<typeof ListStaticStylesReplySchema>
+  }>(
+    '/',
+    { schema: { response: { 200: ListStaticStylesReplySchema } } },
+    async (req) => {
+      const styleDirFiles = await fs.readdir(staticStylesDir)
+
+      const result = (
+        await Promise.all(
+          styleDirFiles.map(async (filename) => {
+            const stat = await fs.stat(path.join(staticStylesDir, filename))
+            if (!stat.isDirectory()) return null
+
+            let styleJson
+
+            try {
+              const styleJsonContent = await fs.readFile(
+                path.join(staticStylesDir, filename, 'style.json'),
+                'utf-8'
+              )
+
+              styleJson = JSON.parse(styleJsonContent)
+            } catch (err) {
+              return null
+            }
+
+            return {
+              id: filename,
+              name: typeof styleJson.name === 'string' ? styleJson.name : null,
+              // TODO: What should this URL point to?
+              url: new URL(fastify.prefix + '/' + filename, getBaseApiUrl(req))
+                .href,
+            }
+          })
+        )
+      ).filter(
+        <V extends Static<typeof ListStaticStylesReplySchema>[number] | null>(
+          v: V
+        ): v is NonNullable<V> => v !== null
+      )
+
+      return result
+    }
+  )
 
   fastify.get<{
     Params: Static<typeof GetStaticStyleTileParamsSchema>
