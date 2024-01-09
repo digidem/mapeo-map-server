@@ -1,5 +1,5 @@
 import path from 'path'
-import { promises as fs } from 'fs'
+import { Stats, promises as fs } from 'fs'
 import fp from 'fastify-plugin'
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { Static, Type as T } from '@sinclair/typebox'
@@ -87,12 +87,20 @@ const ListStaticStylesReplySchema = T.Array(
   })
 )
 
+const GetStyleJsonParamsSchema = T.Object({
+  id: T.String(),
+})
+
 const StaticStylesPlugin: FastifyPluginAsync<
   StaticStylesPluginOptions
 > = async (fastify, { staticStylesDir }) => {
   if (!staticStylesDir) throw new Error('Need to provide staticStylesDir')
 
   /// Plugin-scoped helpers
+
+  const normalizedPrefix = fastify.prefix.endsWith('/')
+    ? fastify.prefix
+    : fastify.prefix + '/'
 
   async function handleStyleTileGet(
     req: FastifyRequest<{
@@ -155,7 +163,7 @@ const StaticStylesPlugin: FastifyPluginAsync<
               id: filename,
               name: typeof styleJson.name === 'string' ? styleJson.name : null,
               // TODO: What should this URL point to?
-              url: new URL(fastify.prefix + '/' + filename, getBaseApiUrl(req))
+              url: new URL(normalizedPrefix + filename, getBaseApiUrl(req))
                 .href,
             }
           })
@@ -167,6 +175,43 @@ const StaticStylesPlugin: FastifyPluginAsync<
       )
 
       return result
+    }
+  )
+
+  fastify.get<{ Params: Static<typeof GetStyleJsonParamsSchema> }>(
+    `/:id/style.json`,
+    { schema: { params: GetStyleJsonParamsSchema } },
+    async (req, res) => {
+      const { id } = req.params
+
+      let stat: Stats
+      let data: string | Buffer
+
+      try {
+        const filePath = path.join(staticStylesDir, id, 'style.json')
+        stat = await fs.stat(filePath)
+        data = await fs.readFile(filePath, 'utf-8')
+      } catch (err) {
+        throw new NotFoundError(`id = ${id}, style.json`)
+      }
+
+      data = Buffer.from(
+        data.replace(
+          /\{host\}/gm,
+          'http://' + req.headers.host + normalizedPrefix + id
+        )
+      )
+      res.header('Content-Type', 'application/json; charset=utf-8')
+      res.header('Last-Modified', new Date(stat.mtime).toUTCString())
+      res.header('Cache-Control', 'max-age=' + 5 * 60) // 5 minutes
+      res.header('Content-Length', data.length)
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since'
+      )
+      res.header('Access-Control-Allow-Origin', '*')
+
+      res.send(data)
     }
   )
 
