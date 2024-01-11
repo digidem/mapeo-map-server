@@ -37,6 +37,43 @@ test('list static styles', async (t) => {
   )
 })
 
+test('get style.json', async (t) => {
+  const server = setup(t)
+
+  const styleIds = fs.readdirSync(fixturesPath)
+
+  const address = await server.listen(0)
+
+  await Promise.all(
+    styleIds.map(async (styleId) => {
+      const rawStyleJson = fs.readFileSync(
+        path.join(fixturesPath, styleId, 'style.json'),
+        'utf-8'
+      )
+
+      const response = await server.inject({
+        method: 'GET',
+        url: `/${styleId}/style.json`,
+      })
+
+      t.is(response.statusCode, 200)
+
+      const data = response.json()
+
+      t.not(
+        data,
+        JSON.parse(rawStyleJson),
+        'response data is different from raw style file content'
+      )
+      t.deepEqual(
+        data,
+        JSON.parse(rawStyleJson.replace(/\{host\}/gm, `${address}/${styleId}`)),
+        'response data has correct'
+      )
+    })
+  )
+})
+
 test('get sprite.json', async (t) => {
   const server = setup(t)
 

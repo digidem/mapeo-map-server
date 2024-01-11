@@ -1,3 +1,4 @@
+import assert from 'assert'
 import path from 'path'
 import { Stats, promises as fs } from 'fs'
 import fp from 'fastify-plugin'
@@ -194,11 +195,16 @@ const routes: FastifyPluginAsync<StaticStylesPluginOptions> = async (
         throw new NotFoundError(`id = ${id}, style.json`)
       }
 
+      const address = req.server.server.address()
+      assert(address)
+
+      const hostname =
+        typeof address === 'string'
+          ? address
+          : `${address.address}:${address.port}`
+
       data = Buffer.from(
-        data.replace(
-          /\{host\}/gm,
-          'http://' + req.headers.host + normalizedPrefix + id
-        )
+        data.replace(/\{host\}/gm, 'http://' + hostname + normalizedPrefix + id)
       )
       res.header('Content-Type', 'application/json; charset=utf-8')
       res.header('Last-Modified', new Date(stat.mtime).toUTCString())
