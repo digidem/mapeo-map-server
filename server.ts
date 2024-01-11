@@ -6,7 +6,7 @@ import createMapServer, { ServerOptions } from './src/app'
 
 const serverOpts: ServerOptions = {
   database: new Database('./example.db'),
-  staticStylesDir: path.resolve(__dirname, 'static-styles'),
+  staticStylesDir: path.resolve(__dirname, 'test', 'fixtures', 'static-styles'),
 }
 
 // Require the framework and instantiate it

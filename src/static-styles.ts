@@ -91,11 +91,10 @@ const GetStyleJsonParamsSchema = T.Object({
   id: T.String(),
 })
 
-const StaticStylesPlugin: FastifyPluginAsync<
-  StaticStylesPluginOptions
-> = async (fastify, { staticStylesDir }) => {
-  if (!staticStylesDir) throw new Error('Need to provide staticStylesDir')
-
+const routes: FastifyPluginAsync<StaticStylesPluginOptions> = async (
+  fastify,
+  { staticStylesDir }
+) => {
   /// Plugin-scoped helpers
 
   const normalizedPrefix = fastify.prefix.endsWith('/')
@@ -237,14 +236,17 @@ const StaticStylesPlugin: FastifyPluginAsync<
   })
 }
 
-export default fp(
-  async function (fastify, opts: StaticStylesPluginOptions) {
-    // Needed in order for route prefix to work
-    // https://fastify.dev/docs/latest/Reference/Routes/#route-prefixing
-    fastify.register(StaticStylesPlugin, opts)
-  },
-  {
-    fastify: '3.x',
-    name: 'static-styles',
-  }
-)
+const StaticStylesPlugin: FastifyPluginAsync<
+  StaticStylesPluginOptions
+> = async (fastify, opts) => {
+  if (!opts.staticStylesDir) throw new Error('Need to provide staticStylesDir')
+
+  // Needed in order for route prefix to work
+  // https://fastify.dev/docs/latest/Reference/Routes/#route-prefixing
+  fastify.register(routes, opts)
+}
+
+export default fp(StaticStylesPlugin, {
+  fastify: '3.x',
+  name: 'static-styles',
+})
