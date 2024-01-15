@@ -6,7 +6,6 @@ import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { Static, Type as T } from '@sinclair/typebox'
 import FastifyStatic from '@fastify/static'
 import asar from '@electron/asar'
-// TODO: Need NodeNext module resolution enabled in order to do 'mime/lite'
 import mime from 'mime'
 
 import { NotFoundError } from './api/errors'
