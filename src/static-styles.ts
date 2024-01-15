@@ -238,7 +238,7 @@ const routes: FastifyPluginAsync<StaticStylesPluginOptions> = async (
 
   fastify.register(FastifyStatic, {
     root: staticStylesDir,
-    // decorateReply: false,
+    decorateReply: false,
     // res type documented in @fastify/static@5 docs is misleading
     setHeaders: (res: any, path: string) => {
       if (path.toLowerCase().endsWith('.pbf')) {
