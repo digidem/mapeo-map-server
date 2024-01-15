@@ -31,10 +31,10 @@ function getStyleTileInfo(
   mimeType: string | null
   shouldGzip: boolean
 } {
-  const { id, tileId, z, y, x } = params
+  const { id, tileId, z, x, y } = params
   let { ext } = params
 
-  const fileBasename = path.join(z.toString(), y.toString(), x.toString())
+  const fileBasename = path.join(z.toString(), x.toString(), y.toString())
   const asarPath = path.join(baseDirectory, id, 'tiles', tileId + '.asar')
 
   let data: Buffer | undefined
@@ -222,7 +222,7 @@ const routes: FastifyPluginAsync<StaticStylesPluginOptions> = async (
   fastify.get<{
     Params: Static<typeof GetStaticStyleTileParamsSchema>
   }>(
-    `/:id/tiles/:tileId/:z/:y/:x.:ext`,
+    `/:id/tiles/:tileId/:z/:x/:y.:ext`,
     { schema: { params: GetStaticStyleTileParamsSchema } },
     handleStyleTileGet
   )
@@ -230,7 +230,7 @@ const routes: FastifyPluginAsync<StaticStylesPluginOptions> = async (
   fastify.get<{
     Params: Static<typeof GetStaticStyleTileParamsSchema>
   }>(
-    `/:id/tiles/:tileId/:z/:y/:x`,
+    `/:id/tiles/:tileId/:z/:x/:y`,
     { schema: { params: GetStaticStyleTileParamsSchema } },
     handleStyleTileGet
   )
