@@ -18,16 +18,20 @@ module.exports = createServer
 
 /**
  * @param {import('tape').Test} t
- * @returns {import('fastify').FastifyInstance}
+ * @returns {import('fastify').FastifyInstance & { testListen: () => Promise<string> }}
  */
 function createServer(t) {
   const { name: dataDir, removeCallback } = tmp.dirSync({ unsafeCleanup: true })
 
   const dbPath = path.resolve(dataDir, 'test.db')
 
-  const server = createMapServer(
-    { logger: false, forceCloseConnections: true },
-    { database: new Db(dbPath) }
+  const server = Object.assign(
+    createMapServer(
+      { logger: false, forceCloseConnections: true },
+      { database: new Db(dbPath) }
+    ),
+    // Use 127.0.0.1 to avoid IPv6 connection issues.
+    { testListen: () => server.listen(0, '127.0.0.1') }
   )
 
   t.teardown(async () => {
