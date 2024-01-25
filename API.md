@@ -190,7 +190,7 @@ Get information about an import that has occurred or is occurring. This is a sub
 - `totalBytes: number | null`: Similar to `totalResources`, but for the storage amount if applicable.
 - `started: string`: An ISO 8601 formatted timestamp indicating when the import started.
 - `lastUpdated: string | null`: An ISO 8601 formatted timestamp indicating when the import record was last updated.
-- `finished: string | null`: An ISO 8601 formatted timestamp indicating when the import finished. The will be a non-null value if the import completed or errored i.e. a `state ` of either `"complete"` or `"error"`.
+- `finished: string | null`: An ISO 8601 formatted timestamp indicating when the import finished. The will be a non-null value if the import completed or errored i.e. a `state` of either `"complete"` or `"error"`.
 
 ### `GET /imports/progress/:importId`
 
