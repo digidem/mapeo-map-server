@@ -1,5 +1,4 @@
 import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
-import fastifySwagger from '@fastify/swagger'
 import FastifyStatic from '@fastify/static'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
@@ -24,18 +23,6 @@ function createServer(
         res.setHeader('Content-Type', 'application/x-protobuf')
       }
     },
-  })
-
-  fastify.register(fastifySwagger, {
-    swagger: {
-      info: {
-        title: 'Mapeo Map Server',
-        // Change when package.json version changes
-        version: '1.0.0-alpha.2',
-      },
-    },
-    routePrefix: '/docs',
-    exposeRoute: true,
   })
 
   for (const name of Object.keys(routes) as Array<keyof typeof routes>) {

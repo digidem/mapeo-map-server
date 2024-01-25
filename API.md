@@ -1,7 +1,5 @@
 # API Documentation
 
-A less verbose (although incomplete) variation of this documentation can be found at the `/docs` endpoint of the map server when it is running.
-
 Params of interest are prefixed by a colon (`:`) in the listed endpoint.
 
 ## Table of contents

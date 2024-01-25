@@ -21,7 +21,6 @@ const imports: FastifyPluginAsync = async function (fastify) {
     '/:importId',
     {
       schema: {
-        description: 'Get information about an import',
         params: GetImportParamsSchema,
         response: {
           200: ImportRecordSchema,
@@ -37,8 +36,6 @@ const imports: FastifyPluginAsync = async function (fastify) {
     '/progress/:importId',
     {
       schema: {
-        description: 'Subscribe to import progress info',
-        produces: ['text/event-stream', 'application/json'],
         params: GetImportProgressParamsSchema,
       },
     },

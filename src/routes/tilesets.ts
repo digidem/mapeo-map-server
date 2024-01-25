@@ -91,8 +91,6 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     '/',
     {
       schema: {
-        description:
-          'Create a new tileset from a TileJSON that references online tiles',
         body: TileJSONSchema,
         response: {
           200: TileJSONSchema,
@@ -119,7 +117,6 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     '/:tilesetId/:zoom/:x/:y',
     {
       schema: {
-        description: 'Get a single tile from a tileset',
         params: GetTileParamsSchema,
         querystring: GetTileQuerystringSchema,
       },
@@ -171,7 +168,6 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     '/:tilesetId',
     {
       schema: {
-        description: 'Update a single tileset using a TileJSON',
         body: TileJSONSchema,
         params: PutTilesetParamsSchema,
       },
