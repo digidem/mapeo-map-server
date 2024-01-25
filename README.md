@@ -57,7 +57,7 @@ Creates the map server instance
 
 ## API Documentation
 
-API documentation is available in the [API.md](/API.md) and by accessing the `/docs` endpoint of the server when it's running.
+API documentation is available in [API.md](/API.md).
 
 ## Technical Details
 

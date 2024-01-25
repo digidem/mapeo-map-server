@@ -47,11 +47,8 @@ const fonts: FastifyPluginAsync = async function (fastify) {
     '/:fontstack/:start-:end.pbf',
     {
       schema: {
-        description:
-          'Retrieve a range of font glyphs. Uses a fallback font if no matching local or upstream fonts are available',
         params: GetGlyphsParams,
         querystring: GetGlyphsQuerystring,
-        produces: ['application/x-protobuf', 'application/json'],
         response: {
           200: GetGlyphsResponse200,
         },
