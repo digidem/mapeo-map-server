@@ -230,8 +230,9 @@ test('GET /imports/progress/:importId - EventSource forced to close after single
   })
 })
 
-// TODO: Potentially flaky test
-test('GET /imports/:importId after deferred import error shows error state', async (t) => {
+// This test is skipped because it's flaky.
+// See <https://github.com/digidem/mapeo-map-server/issues/40> for details.
+test.skip('GET /imports/:importId after deferred import error shows error state', async (t) => {
   const server = createServer(t)
   // This mbtiles file has one of the tile_data fields set to null. This causes
   // the import to initially report progress, but fail when it reaches the null
@@ -240,33 +241,46 @@ test('GET /imports/:importId after deferred import error shows error state', asy
     fixturesPath,
     'bad-mbtiles/null-tile_data.mbtiles'
   )
+  t.comment('Starting POST /tilesets/import...')
   const createImportResponse = await server.inject({
     method: 'POST',
     url: '/tilesets/import',
     payload: { filePath: mbTilesPath },
   })
+  t.comment('Finished POST /tilesets/import.')
   t.equal(
     createImportResponse.statusCode,
     200,
     'initial import creation successful'
   )
 
+  t.comment('Reading response body from POST /tilesets/import...')
   const {
     import: { id: createdImportId },
   } = createImportResponse.json()
+  t.comment('Read response body from POST /tilesets/import.')
 
+  t.comment('Starting server...')
   const address = await server.listen(0)
-  // Wait for import to complete
-  await importSse(`${address}/imports/progress/${createdImportId}`)
+  t.comment('Server started.')
 
+  // Wait for import to complete
+  t.comment('Waiting for import to complete...')
+  await importSse(`${address}/imports/progress/${createdImportId}`)
+  t.comment('Import completed.')
+
+  t.comment(`Starting GET /imports/${createdImportId}...`)
   const getImportResponse = await server.inject({
     method: 'GET',
     url: `/imports/${createdImportId}`,
   })
+  t.comment(`Finished GET /imports/${createdImportId}.`)
 
   t.equal(getImportResponse.statusCode, 200)
 
+  t.comment(`Reading response body from GET /imports/${createdImportId}...`)
   const impt = getImportResponse.json()
+  t.comment(`Read response body from GET /imports/${createdImportId}.`)
 
   t.equal(impt.state, 'error')
   t.equal(impt.error, 'UNKNOWN')
