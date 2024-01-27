@@ -4,11 +4,8 @@ import { PassThrough } from 'readable-stream'
 
 import { PortMessage } from '../lib/mbtiles_import_worker'
 import { serializeSSE, addSSEHeaders, type EventMessage } from '../lib/sse'
-import { ImportRecordSchema } from '../lib/imports'
 
-const GetImportParamsSchema = T.Object({
-  importId: T.String(),
-})
+import { NotFoundError } from '../api/errors'
 
 const GetImportProgressParamsSchema = T.Object({
   importId: T.String(),
@@ -17,21 +14,6 @@ const GetImportProgressParamsSchema = T.Object({
 const SSE_RETRY_INTERVAL = 5000
 
 const imports: FastifyPluginAsync = async function (fastify) {
-  fastify.get<{ Params: Static<typeof GetImportParamsSchema> }>(
-    '/:importId',
-    {
-      schema: {
-        params: GetImportParamsSchema,
-        response: {
-          200: ImportRecordSchema,
-        },
-      },
-    },
-    async function (request) {
-      return this.api.getImport(request.params.importId)
-    }
-  )
-
   fastify.get<{ Params: Static<typeof GetImportProgressParamsSchema> }>(
     '/progress/:importId',
     {
@@ -42,8 +24,8 @@ const imports: FastifyPluginAsync = async function (fastify) {
     async function (request, reply) {
       const { importId } = request.params
       // Respond with 404 and close connection if import does not exist
-      // Sends standard error in body as JSON (no SSE headers)
       const importProgress = this.api.getImport(importId)
+      if (!importProgress) throw NotFoundError(importId)
 
       addSSEHeaders(reply)
 

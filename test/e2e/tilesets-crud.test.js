@@ -7,7 +7,9 @@ const {
 } = require('../../dist/lib/stylejson')
 
 const { DUMMY_MB_ACCESS_TOKEN } = require('../test-helpers/constants')
-const createServer = require('../test-helpers/create-server')
+const {
+  createFastifyServer: createServer,
+} = require('../test-helpers/create-server')
 const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
 const {
   defaultMockHeaders,

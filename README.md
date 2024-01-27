@@ -22,7 +22,7 @@ _⚠️ This is alpha software. No guarantees can be made about the stability of
 
 ## Usage
 
-The default export is a factory function for creating a map server instance, which is built on top of [Fastify](https://www.fastify.io/). Basic usage is as follows:
+The default export is a function for creating a map server instance. Basic usage is as follows:
 
 ```js
 // better-sqlite3 is a peer dependency and must be installed manually.
@@ -33,27 +33,19 @@ const Database = require('better-sqlite3')
 const createMapServer = require('@mapeo/map-server')
 
 // Create the server instance
-const mapServer = createMapServer(
-  { logger: true },
-  { database: new Database('./example.db') }
-)
+const mapServer = createMapServer({ database: new Database('./example.db') })
 
 // Run the server!
-mapServer.listen(3000, function (err) {
-  if (err) {
-    mapServer.log.error(err)
-    process.exit(1)
-  }
-})
+await mapServer.listen(3000)
 ```
 
-### `createServer(fastifyOpts, mapServerOpts): FastifyInstance`
+### `createServer(opts): MapServer`
 
 Creates the map server instance
 
-- `fastifyOpts (optional)`: Options object to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
-- `mapServerOpts (required)`: Options object to customize the map server instance. Options include:
+- `opts (required)`: Options object to customize the map server instance. Options include:
   - `database: BetterSqlite3.Database (required)`: [BetterSqlite3](https://github.com/WiseLibs/better-sqlite3) database instance representing the SQLite database to use.
+  - `fastifyOpts (optional)`: Options object to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
 
 ## API Documentation
 
