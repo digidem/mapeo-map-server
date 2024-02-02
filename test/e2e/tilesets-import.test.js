@@ -224,7 +224,7 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
     return count
   }
 
-  const address = await server.testListen()
+  const address = await server.listen(0, '127.0.0.1')
 
   // Completely arbitrary proportion of original source's count where it's not suspiciously too low,
   // to account for a potentially incomplete/faulty import
@@ -269,7 +269,7 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 test('POST /tilesets/import subsequent imports do not affect storage calculation for existing styles', async (t) => {
   const server = createServer(t)
 
-  const address = await server.testListen()
+  const address = await server.listen(0, '127.0.0.1')
 
   // Creates and waits for import to finish
   async function requestImport(fixture) {

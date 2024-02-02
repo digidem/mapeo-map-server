@@ -74,7 +74,7 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
     import: { id: createdImportId },
   } = createImportResponse.json()
 
-  const address = await server.testListen()
+  const address = await server.listen(0, '127.0.0.1')
   const messages = await importSse(
     `${address}/imports/progress/${createdImportId}`
   )
@@ -134,7 +134,7 @@ test('GET /imports/progress/:importId when import is already completed returns s
     import: { id: createdImportId },
   } = createImportResponse.json()
 
-  const address = await server.testListen()
+  const address = await server.listen(0, '127.0.0.1')
   const progressEndpoint = `${address}/imports/progress/${createdImportId}`
 
   // Wait for the import to complete before attempting actual test
@@ -178,7 +178,7 @@ test.skip('GET /imports/:importId after deferred import error shows error state'
   t.comment('Read response body from POST /tilesets/import.')
 
   t.comment('Starting server...')
-  const address = await server.testListen()
+  const address = await server.listen(0, '127.0.0.1')
   t.comment('Server started.')
 
   // Wait for import to complete
