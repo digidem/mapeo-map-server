@@ -175,7 +175,6 @@ test('POST /styles when providing valid style returns resource with id and alter
     t.same(
       { ...source, ...ignoredSourceFields },
       {
-        // @ts-ignore
         ...sampleStyleJSON.sources[sourceId],
         ...ignoredSourceFields,
       },

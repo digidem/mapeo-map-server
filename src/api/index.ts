@@ -1,4 +1,3 @@
-// @ts-ignore
 import type { Database } from 'better-sqlite3'
 import { FastifyPluginAsync } from 'fastify'
 import fp from 'fastify-plugin'
