@@ -20,11 +20,15 @@ const vectorMbTilesMissingJsonRowPath = path.join(
   __dirname,
   '../fixtures/bad-mbtiles/vector-missing-json-row.mbtiles'
 )
+const mbTilesMissingNameMetadataPath = path.join(
+  __dirname,
+  '../fixtures/bad-mbtiles/missing-name-metadata.mbtiles'
+)
 
 const fixtures = [rasterMbTilesPath, vectorMbTilesPath]
 
 /**
- * @param {*} vectorLayers
+ * @param {unknown} vectorLayers
  * @returns {boolean}
  */
 function isValidVectorLayersValue(vectorLayers) {
@@ -50,14 +54,20 @@ test('POST /tilesets/import fails when providing path for non-existent file', as
 test('POST /tilesets/import fails when mbtiles file has bad metadata', async (t) => {
   const server = createServer(t)
 
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: vectorMbTilesMissingJsonRowPath },
-  })
+  await Promise.all(
+    [vectorMbTilesMissingJsonRowPath, mbTilesMissingNameMetadataPath].map(
+      async (filePath) => {
+        const importResponse = await server.inject({
+          method: 'POST',
+          url: '/tilesets/import',
+          payload: { filePath },
+        })
 
-  t.equal(importResponse.statusCode, 400)
-  t.equal(importResponse.json().code, 'FST_MBTILES_INVALID_METADATA')
+        t.equal(importResponse.statusCode, 400)
+        t.equal(importResponse.json().code, 'FST_MBTILES_INVALID_METADATA')
+      }
+    )
+  )
 })
 
 test('POST /tilesets/import creates tileset', async (t) => {
