@@ -54,20 +54,14 @@ test('POST /tilesets/import fails when providing path for non-existent file', as
 test('POST /tilesets/import fails when mbtiles file has bad metadata', async (t) => {
   const server = createServer(t)
 
-  await Promise.all(
-    [vectorMbTilesMissingJsonRowPath, mbTilesMissingNameMetadataPath].map(
-      async (filePath) => {
-        const importResponse = await server.inject({
-          method: 'POST',
-          url: '/tilesets/import',
-          payload: { filePath },
-        })
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: vectorMbTilesMissingJsonRowPath },
+  })
 
-        t.equal(importResponse.statusCode, 400)
-        t.equal(importResponse.json().code, 'FST_MBTILES_INVALID_METADATA')
-      }
-    )
-  )
+  t.equal(importResponse.statusCode, 400)
+  t.equal(importResponse.json().code, 'FST_MBTILES_INVALID_METADATA')
 })
 
 test('POST /tilesets/import creates tileset', async (t) => {
@@ -165,6 +159,31 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 
     t.equal(styleInfo.url, expectedStyleUrl)
   }
+})
+
+test('POST /tilesets/import fills in a default name if missing from metadata', async (t) => {
+  const server = createServer(t)
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: mbTilesMissingNameMetadataPath },
+  })
+
+  t.equal(importResponse.statusCode, 200)
+
+  const { tileset: createdTileset } = importResponse.json()
+
+  const tilesetGetResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${createdTileset.id}`,
+  })
+
+  t.equal(tilesetGetResponse.statusCode, 200)
+
+  const tileset = tilesetGetResponse.json()
+
+  t.equal(tileset.name, 'missing-name-metadata')
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {

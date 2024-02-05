@@ -72,9 +72,11 @@ function createImportsApi({
         throw new MBTilesImportTargetMissingError(filePath)
       }
 
+      const fallbackName = path.basename(filePath, '.mbtiles')
+
       let tilejson: TileJSON
       try {
-        tilejson = mbTilesToTileJSON(mbTilesDb)
+        tilejson = mbTilesToTileJSON(mbTilesDb, fallbackName)
       } finally {
         mbTilesDb.close()
       }

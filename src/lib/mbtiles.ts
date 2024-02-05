@@ -8,10 +8,7 @@ import {
 } from './tilejson'
 import { TileHeaders } from './tiles'
 import { generateId } from './utils'
-import {
-  MBTilesInvalidMetadataError,
-  UnsupportedMBTilesFormatError,
-} from '../api/errors'
+import { UnsupportedMBTilesFormatError } from '../api/errors'
 
 type ValidMBTilesFormat = TileJSON['format']
 
@@ -73,8 +70,11 @@ export function isValidMBTilesFormat(
   return VALID_MBTILES_FORMATS.includes(format as ValidMBTilesFormat)
 }
 
-export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
-  const metadata = extractMBTilesMetadata(mbTilesDb)
+export function mbTilesToTileJSON(
+  mbTilesDb: DatabaseInstance,
+  fallbackName: string
+): TileJSON {
+  const metadata = extractMBTilesMetadata(mbTilesDb, fallbackName)
 
   return {
     ...metadata,
@@ -91,16 +91,18 @@ export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
 /**
  * Extract the metadata from an MBTiles database.
  *
- * `name` and `format` are required. Other fields are ignored if they are invalid.
+ * `format` is required. `fallbackName` is provided as a fallback for `name` if the file is invalid and lacks one. Other fields are ignored if they are invalid.
  *
  * References [node-mbtiles's implementation][0].
  *
- * @throws {MBTilesInvalidMetadataError} when the name is missing or empty
  * @throws {UnsupportedMBTilesFormatError} when the format is missing or invalid
  *
  * [0]: https://github.com/mapbox/node-mbtiles/blob/03220bc2fade2ba197ea2bab9cc44033f3a0b37e/lib/mbtiles.js#L256-L387
  */
-export function extractMBTilesMetadata(mbTilesDb: DatabaseInstance): Metadata {
+export function extractMBTilesMetadata(
+  mbTilesDb: DatabaseInstance,
+  fallbackName: string
+): Metadata {
   const rawMetadata: Map<string, string> = mbTilesDb
     .prepare('SELECT name, value FROM metadata')
     .all()
@@ -117,12 +119,7 @@ export function extractMBTilesMetadata(mbTilesDb: DatabaseInstance): Metadata {
     }, new Map())
 
   const metadata: Metadata = {
-    name: (() => {
-      const name = rawMetadata.get('name')
-      if (name) return name
-      console.warn('MBTiles is missing a name')
-      throw new MBTilesInvalidMetadataError()
-    })(),
+    name: rawMetadata.get('name') || fallbackName,
 
     format: (() => {
       const format = rawMetadata.get('format')
