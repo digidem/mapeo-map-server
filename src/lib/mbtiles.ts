@@ -103,20 +103,20 @@ export function extractMBTilesMetadata(
   mbTilesDb: DatabaseInstance,
   fallbackName: string
 ): Metadata {
-  const rawMetadata: Map<string, string> = mbTilesDb
+  const rawMetadata = new Map<string, string>()
+  mbTilesDb
     .prepare('SELECT name, value FROM metadata')
     .all()
-    .reduce((result, { name, value }: { name: unknown; value: unknown }) => {
+    .forEach(({ name, value }: { name: unknown; value: unknown }) => {
       if (typeof name === 'string' && typeof value === 'string') {
-        result.set(name, value)
+        rawMetadata.set(name, value)
       } else {
         console.warn('MBTiles extractor received a non-string metadata row', {
           name,
           value,
         })
       }
-      return result
-    }, new Map())
+    })
 
   const metadata: Metadata = {
     name: rawMetadata.get('name') || fallbackName,
