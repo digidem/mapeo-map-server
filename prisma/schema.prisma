@@ -32,6 +32,9 @@ model Tile {
   tilesetId String
 
   @@id([quadKey, tilesetId])
+
+  // Makes foreign key lookups much faster.
+  @@index([tileHash, tilesetId])
 }
 
 model Tileset {

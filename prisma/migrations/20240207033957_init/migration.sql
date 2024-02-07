@@ -91,4 +91,7 @@ CREATE TABLE "Import" (
 );
 
 -- CreateIndex
+CREATE INDEX "Tile_tileHash_tilesetId_idx" ON "Tile"("tileHash", "tilesetId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Import_areaId_key" ON "Import"("areaId");

@@ -333,6 +333,10 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   t.equal(responsePost.statusCode, 200)
   t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
 
+  // Style deletion used to be very slow. This timeout ensures we don't have a regression.
+  // See <https://github.com/digidem/mapeo-map-server/pull/116>
+  t.timeoutAfter(15_000)
+
   const responseDelete = await server.inject({
     method: 'DELETE',
     url: `/styles/${id}`,
