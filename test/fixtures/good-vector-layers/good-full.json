@@ -1,0 +1,14 @@
+{
+  "id": "tl_2016_us_county",
+  "description": "Census counties",
+  "minzoom": 0,
+  "maxzoom": 5,
+  "fields": {
+    "ALAND": "Number",
+    "AWATER": "Number",
+    "GEOID": "String",
+    "MTFCC": "String",
+    "NAME": "String",
+    "OTHER": "Boolean"
+  }
+}

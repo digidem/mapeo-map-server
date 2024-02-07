@@ -6,7 +6,7 @@ import { MessageChannel, MessagePort } from 'worker_threads'
 import { ImportRecord } from '../lib/imports'
 import { PortMessage } from '../lib/mbtiles_import_worker'
 import { TileJSON, validateTileJSON } from '../lib/tilejson'
-import { isValidMBTilesFormat, mbTilesToTileJSON } from '../lib/mbtiles'
+import { mbTilesToTileJSON } from '../lib/mbtiles'
 import { generateId, getTilesetId } from '../lib/utils'
 import { Api, Context, IdResource } from '.'
 import {
@@ -14,7 +14,6 @@ import {
   MBTilesImportTargetMissingError,
   MBTilesInvalidMetadataError,
   NotFoundError,
-  UnsupportedMBTilesFormatError,
 } from './errors'
 
 export interface ImportsApi {
@@ -73,15 +72,13 @@ function createImportsApi({
         throw new MBTilesImportTargetMissingError(filePath)
       }
 
-      const tilejson = mbTilesToTileJSON(mbTilesDb)
+      const fallbackName = path.basename(filePath, '.mbtiles')
 
-      mbTilesDb.close()
-
-      const formatSupported =
-        tilejson.format && isValidMBTilesFormat(tilejson.format)
-
-      if (!formatSupported) {
-        throw new UnsupportedMBTilesFormatError()
+      let tilejson: TileJSON
+      try {
+        tilejson = mbTilesToTileJSON(mbTilesDb, fallbackName)
+      } finally {
+        mbTilesDb.close()
       }
 
       if (!validateTileJSON(tilejson)) {

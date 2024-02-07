@@ -20,11 +20,15 @@ const vectorMbTilesMissingJsonRowPath = path.join(
   __dirname,
   '../fixtures/bad-mbtiles/vector-missing-json-row.mbtiles'
 )
+const mbTilesMissingNameMetadataPath = path.join(
+  __dirname,
+  '../fixtures/bad-mbtiles/missing-name-metadata.mbtiles'
+)
 
 const fixtures = [rasterMbTilesPath, vectorMbTilesPath]
 
 /**
- * @param {*} vectorLayers
+ * @param {unknown} vectorLayers
  * @returns {boolean}
  */
 function isValidVectorLayersValue(vectorLayers) {
@@ -155,6 +159,35 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 
     t.equal(styleInfo.url, expectedStyleUrl)
   }
+})
+
+test('POST /tilesets/import fills in a default name if missing from metadata', async (t) => {
+  const server = createServer(t)
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: mbTilesMissingNameMetadataPath },
+  })
+
+  t.equal(importResponse.statusCode, 200)
+
+  const { tileset: createdTileset } = importResponse.json()
+
+  const tilesetGetResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${createdTileset.id}`,
+  })
+
+  t.equal(tilesetGetResponse.statusCode, 200)
+
+  const tileset = tilesetGetResponse.json()
+
+  t.equal(
+    tileset.name,
+    'missing-name-metadata',
+    'Fallback name matches file name'
+  )
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {

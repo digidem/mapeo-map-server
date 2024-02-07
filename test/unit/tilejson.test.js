@@ -1,26 +1,50 @@
 // @ts-check
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 const test = require('tape')
 
-const { validateTileJSON } = require('../../dist/lib/tilejson')
+const {
+  validateTileJSON,
+  validateVectorLayerSchema,
+} = require('../../dist/lib/tilejson')
 
-test('Bad tileJSON fails validation', (t) => {
-  const dir = path.join(__dirname, '../fixtures/bad-tilejson')
-  const files = fs.readdirSync(dir)
-  for (const file of files) {
-    const tilejson = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'))
-    t.notOk(validateTileJSON(tilejson), `${file} fails validation`)
+const fixturesDir = path.join(__dirname, '..', 'fixtures')
+
+test('Bad tileJSON fails validation', async (t) => {
+  for await (const { name, data } of readFixturesIn('bad-tilejson')) {
+    t.notOk(validateTileJSON(data), `${name} fails validation`)
   }
-  t.end()
 })
 
-test('Good tileJSON passes validation', (t) => {
-  const dir = path.join(__dirname, '../fixtures/good-tilejson')
-  const files = fs.readdirSync(dir)
-  for (const file of files) {
-    const tilejson = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'))
-    t.ok(validateTileJSON(tilejson), `${file} passes validation`)
+test('Good tileJSON passes validation', async (t) => {
+  for await (const { name, data } of readFixturesIn('good-tilejson')) {
+    t.ok(validateTileJSON(data), `${name} passes validation`)
   }
-  t.end()
 })
+
+test('Bad vector layer fails validation', async (t) => {
+  for await (const { name, data } of readFixturesIn('bad-vector-layers')) {
+    t.notOk(validateVectorLayerSchema(data), `${name} fails validation`)
+  }
+})
+
+test('Good vector layer passes validation', async (t) => {
+  for await (const { name, data } of readFixturesIn('good-vector-layers')) {
+    t.ok(validateVectorLayerSchema(data), `${name} passes validation`)
+  }
+})
+
+/**
+ * @param {string} subdir
+ * @returns <AsyncGenerator<{ name: string, data: unknown }>>
+ */
+async function* readFixturesIn(subdir) {
+  const dirPath = path.join(fixturesDir, subdir)
+  for await (const { name } of await fs.opendir(dirPath)) {
+    const fixturePath = path.join(dirPath, name)
+    yield {
+      name,
+      data: JSON.parse(await fs.readFile(fixturePath, 'utf8')),
+    }
+  }
+}
