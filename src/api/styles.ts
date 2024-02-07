@@ -339,16 +339,18 @@ function createStylesApi({
         .pluck(true)
         .all({ styleId: id })
 
-      const tilesetsSqlList = tilesetsToDelete.map((id) => `'${id}'`).join(',')
+      const tilesetsBindParameters = tilesetsToDelete.map(() => `?`).join(',')
 
       db.transaction(() => {
         db.prepare(
-          `DELETE FROM Tile WHERE tilesetId IN (${tilesetsSqlList})`
-        ).run()
-        db.prepare(`DELETE FROM Tileset WHERE id IN (${tilesetsSqlList})`).run()
+          `DELETE FROM Tile WHERE tilesetId IN (${tilesetsBindParameters})`
+        ).run(tilesetsToDelete)
         db.prepare(
-          `DELETE FROM TileData WHERE tilesetId IN (${tilesetsSqlList})`
-        ).run()
+          `DELETE FROM Tileset WHERE id IN (${tilesetsBindParameters})`
+        ).run(tilesetsToDelete)
+        db.prepare(
+          `DELETE FROM TileData WHERE tilesetId IN (${tilesetsBindParameters})`
+        ).run(tilesetsToDelete)
         db.prepare(
           'DELETE FROM Import WHERE areaId IN (SELECT id FROM OfflineArea WHERE styleId = ?)'
         ).run(id)
