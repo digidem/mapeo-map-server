@@ -53,8 +53,6 @@ export interface Metadata {
   version?: string
   /** Vector layers describe layers of vector tile data */
   vector_layers?: VectorLayer[]
-  /** Nonstandard tiling scheme added in reference implementation */
-  scheme?: 'xyz' | 'tms'
 }
 
 export const VALID_MBTILES_FORMATS: ValidMBTilesFormat[] = [
@@ -156,10 +154,6 @@ export function extractMBTilesMetadata(
       rawVectorLayers.every((layer) => validateVectorLayerSchema(layer))
         ? rawVectorLayers
         : undefined,
-
-    // TODO: Extracted from reference implementation but not sure if it applies for us
-    // https://github.com/mapbox/node-mbtiles/blob/03220bc2fade2ba197ea2bab9cc44033f3a0b37e/lib/mbtiles.js#L300
-    scheme: 'xyz',
   }
 
   return ensureCenter(ensureBounds(ensureZooms(metadata, mbTilesDb), mbTilesDb))
