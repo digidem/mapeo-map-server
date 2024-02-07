@@ -118,15 +118,21 @@ export function extractMBTilesMetadata(
       }
     })
 
+  const format = rawMetadata.get('format')
+  if (!format || !isValidMBTilesFormat(format)) {
+    throw new UnsupportedMBTilesFormatError()
+  }
+
+  const rawType = rawMetadata.get('type')
+
+  const rawVectorLayers = parseJsonObject(
+    rawMetadata.get('json')
+  )?.vector_layers
+
   const metadata: Metadata = {
     name: rawMetadata.get('name') || fallbackName,
 
-    format: (() => {
-      const format = rawMetadata.get('format')
-      if (format && isValidMBTilesFormat(format)) return format
-      console.warn('MBTiles has an invalid (or missing) format')
-      throw new UnsupportedMBTilesFormatError()
-    })(),
+    format,
 
     bounds: parseFloatList(rawMetadata.get('bounds'), 4),
 
@@ -140,24 +146,16 @@ export function extractMBTilesMetadata(
 
     description: rawMetadata.get('description'),
 
-    type: (() => {
-      const rawType = rawMetadata.get('type')
-      return rawType === 'overlay' || rawType === 'baselayer'
-        ? rawType
-        : undefined
-    })(),
+    type:
+      rawType === 'overlay' || rawType === 'baselayer' ? rawType : undefined,
 
     version: rawMetadata.get('version'),
 
-    vector_layers: (() => {
-      const rawVectorLayers = parseJsonObject(
-        rawMetadata.get('json')
-      )?.vector_layers
-      return Array.isArray(rawVectorLayers) &&
-        rawVectorLayers.every((layer) => validateVectorLayerSchema(layer))
+    vector_layers:
+      Array.isArray(rawVectorLayers) &&
+      rawVectorLayers.every((layer) => validateVectorLayerSchema(layer))
         ? rawVectorLayers
-        : undefined
-    })(),
+        : undefined,
 
     // TODO: Extracted from reference implementation but not sure if it applies for us
     // https://github.com/mapbox/node-mbtiles/blob/03220bc2fade2ba197ea2bab9cc44033f3a0b37e/lib/mbtiles.js#L300
