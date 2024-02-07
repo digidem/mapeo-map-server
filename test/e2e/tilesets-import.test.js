@@ -183,7 +183,11 @@ test('POST /tilesets/import fills in a default name if missing from metadata', a
 
   const tileset = tilesetGetResponse.json()
 
-  t.equal(tileset.name, 'missing-name-metadata')
+  t.equal(
+    tileset.name,
+    'missing-name-metadata',
+    'Fallback name matches file name'
+  )
 })
 
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
