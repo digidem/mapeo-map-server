@@ -55,9 +55,6 @@
     "readable-stream": "^3.6.0",
     "uuid": "^8.3.2"
   },
-  "peerDependencies": {
-    "better-sqlite3": ">=8.7.0"
-  },
   "devDependencies": {
     "@fastify/etag": "^3.0.0",
     "@mapbox/point-geometry": "^0.1.0",
