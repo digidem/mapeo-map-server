@@ -4,7 +4,7 @@
 
 An in-progress offline map style and tile server for Mapeo.
 
-`npm install @mapeo/map-server better-sqlite3`
+`npm install @mapeo/map-server`
 
 _⚠️ This is alpha software. No guarantees can be made about the stability of the API at the moment, so proceed with caution. 😄_
 
@@ -25,8 +25,6 @@ _⚠️ This is alpha software. No guarantees can be made about the stability of
 The default export is a factory function for creating a map server instance, which is built on top of [Fastify](https://www.fastify.io/). Basic usage is as follows:
 
 ```js
-// better-sqlite3 is a peer dependency and must be installed manually.
-const Database = require('better-sqlite3')
 // If you're using TypeScript, you may want to use one of the following import syntaxes to get type definitions:
 // - `require('@mapeo/map-server').default`
 // - `import createMapServer from '@mapeo/map-server'
@@ -35,7 +33,7 @@ const createMapServer = require('@mapeo/map-server')
 // Create the server instance
 const mapServer = createMapServer(
   { logger: true },
-  { database: new Database('./example.db') }
+  { storagePath: './map-server-example.db' }
 )
 
 // Run the server!
@@ -53,7 +51,7 @@ Creates the map server instance
 
 - `fastifyOpts (optional)`: Options object to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
 - `mapServerOpts (required)`: Options object to customize the map server instance. Options include:
-  - `database: BetterSqlite3.Database (required)`: [BetterSqlite3](https://github.com/WiseLibs/better-sqlite3) database instance representing the SQLite database to use.
+  - `storagePath: string (required)`: Path to use for persistent map server storage. Happens to be a SQLite database under the hood, but consumers should treat this as an opaque path managed exclusively by the map server.
 
 ## API Documentation
 
