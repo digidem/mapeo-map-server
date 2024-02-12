@@ -13,11 +13,10 @@ import {
   MBTilesCannotReadError,
   MBTilesImportTargetMissingError,
   MBTilesInvalidMetadataError,
-  NotFoundError,
 } from './errors'
 
 export interface ImportsApi {
-  getImport(importId: string): ImportRecord
+  getImport(importId: string): ImportRecord | undefined
   getImportPort(importId: string): MessagePort | undefined
   importMBTiles(
     filePath: string,
@@ -40,18 +39,12 @@ function createImportsApi({
 
   return {
     getImport(importId) {
-      const row: ImportRecord | undefined = db
+      return db
         .prepare(
           'SELECT id, state, error, importedResources, totalResources, importedBytes, totalBytes, ' +
             'started, finished, lastUpdated FROM Import WHERE id = ?'
         )
         .get(importId)
-
-      if (!row) {
-        throw NotFoundError(importId)
-      }
-
-      return row
     },
     getImportPort(importId) {
       return activeImports.get(importId)

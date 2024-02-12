@@ -1,68 +1,90 @@
-import { Database } from 'better-sqlite3'
-import { Static, Type as T } from '@sinclair/typebox'
-
-import { NullableSchema } from './utils'
+import type { Database } from 'better-sqlite3'
 
 export const IMPORT_ERRORS = {
   TIMEOUT: 'TIMEOUT',
   UNKNOWN: 'UNKNOWN',
 } as const
 
-const ImportErrorSchema = T.Union([
-  T.Literal(IMPORT_ERRORS.TIMEOUT),
-  T.Literal(IMPORT_ERRORS.UNKNOWN),
-])
-export type ImportError = Static<typeof ImportErrorSchema>
+/**
+ * An error code that describes what kind of error occurred with an import. Currently one of the following values:
+ *
+ * - "TIMEOUT": A timeout error occurred during the import.
+ * - "UNKNOWN": Error occurred for an unknown reason, usually causing the server to shut down unexpectedly.
+ */
+type ImportError = keyof typeof IMPORT_ERRORS
 
-const ImportState = T.Union([
-  T.Literal('complete'),
-  T.Literal('active'),
-  T.Literal('error'),
-])
-export type ImportState = Static<typeof ImportState>
-
-const BASE_RECORD_SCHEMA_INPUT = {
-  id: T.String(),
-  started: T.String(),
-  importedResources: T.Number({ minimum: 0 }),
-  totalResources: T.Number({ minimum: 0 }),
-  importedBytes: NullableSchema(T.Number({ minimum: 0 })),
-  totalBytes: NullableSchema(T.Number({ minimum: 0 })),
+type ImportRecordBase = {
+  /**
+   * The id of the import as represented in the database. This should be the same as the `:importId` param that is provided in this case.
+   */
+  id: string
+  /**
+   * An ISO 8601 formatted timestamp indicating when the import started.
+   */
+  started: string
+  /**
+   * The number of assets (for example, tiles) that have been successfully imported so far.
+   */
+  importedResources: number
+  /**
+   * The total number of assets (for example, tiles) that have been detected for import.
+   */
+  totalResources: number
+  /**
+   * Similar to `importedResources`, but for the storage amount if applicable.
+   */
+  importedBytes: null | number
+  /**
+   * Similar to `totalResources`, but for the storage amount if applicable.
+   */
+  totalBytes: null | number
 }
 
-const ActiveImportRecordSchema = T.Object({
-  ...BASE_RECORD_SCHEMA_INPUT,
-  state: T.Literal('active'),
-  error: T.Null(),
-  lastUpdated: NullableSchema(T.String()),
-  finished: T.Null(),
-})
-export type ActiveImportRecord = Static<typeof ActiveImportRecordSchema>
+type ActiveImportRecord = ImportRecordBase & {
+  /**
+   * "active" when this import is currently in progress.
+   */
+  state: 'active'
+  error: null
+  /**
+   * An ISO 8601 formatted timestamp indicating when the import was last updated. Can be `null` if the import hasn't started yet.
+   */
+  lastUpdated: null | string
+  /**
+   * An ISO 8601 formatted timestamp indicating when the import finished.
+   * The will be a non-null value if the import completed or errored i.e. a `state` of either "complete" or "error".
+   */
+  finished: null
+}
 
-const CompleteImportRecordSchema = T.Object({
-  ...BASE_RECORD_SCHEMA_INPUT,
-  state: T.Literal('complete'),
-  error: T.Null(),
-  lastUpdated: T.String(),
-  finished: T.String(),
-})
-export type CompleteImportRecord = Static<typeof CompleteImportRecordSchema>
+type CompleteImportRecord = ImportRecordBase & {
+  /**
+   * "complete" when this import finished successfully.
+   */
+  state: 'complete'
+  error: null
+  lastUpdated: string
+  finished: string
+}
 
-const ErrorImportRecordSchema = T.Object({
-  ...BASE_RECORD_SCHEMA_INPUT,
-  state: T.Literal('error'),
-  error: ImportErrorSchema,
-  lastUpdated: T.String(),
-  finished: T.String(),
-})
-export type ErrorImportRecord = Static<typeof ErrorImportRecordSchema>
+type ErrorImportRecord = ImportRecordBase & {
+  /**
+   * "error" when this import stopped due to some error.
+   * If the server is stopped while an import is running, the import will be marked as "error".
+   */
+  state: 'error'
+  /**
+   * The error that caused this import to stop. Only present if the state is "error".
+   */
+  error: ImportError
+  lastUpdated: string
+  finished: string
+}
 
-export const ImportRecordSchema = T.Union([
-  ActiveImportRecordSchema,
-  CompleteImportRecordSchema,
-  ErrorImportRecordSchema,
-])
-export type ImportRecord = Static<typeof ImportRecordSchema>
+export type ImportRecord =
+  | ActiveImportRecord
+  | CompleteImportRecord
+  | ErrorImportRecord
 
 export function convertActiveToError(db: Database) {
   db.prepare(

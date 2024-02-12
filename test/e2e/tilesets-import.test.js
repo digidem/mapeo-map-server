@@ -3,7 +3,9 @@ const path = require('path')
 const Database = require('better-sqlite3')
 
 const importSse = require('../test-helpers/import-sse')
-const createServer = require('../test-helpers/create-server')
+const {
+  createFastifyServer: createServer,
+} = require('../test-helpers/create-server')
 // This disables upstream requests (e.g. simulates offline)
 require('../test-helpers/server-mocks')
 

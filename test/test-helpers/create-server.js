@@ -13,21 +13,22 @@ if (!fs.existsSync(path.resolve(__dirname, '../../prisma/migrations'))) {
   )
 }
 
-module.exports = createServer
+exports.createServer = createServer
+exports.createFastifyServer = createFastifyServer
 
 /**
  * @param {import('tape').Test} t
- * @returns {import('fastify').FastifyInstance}
+ * @returns {import('../../src/map-server.ts')}
  */
 function createServer(t) {
   const { name: dataDir, removeCallback } = tmp.dirSync({ unsafeCleanup: true })
 
   const storagePath = path.resolve(dataDir, 'test.db')
 
-  const server = createMapServer(
-    { logger: false, forceCloseConnections: true },
-    { storagePath },
-  )
+  const server = createMapServer({
+    fastifyOpts: { logger: false, forceCloseConnections: true },
+    storagePath,
+  })
 
   t.teardown(async () => {
     await server.close()
@@ -35,4 +36,12 @@ function createServer(t) {
   })
 
   return server
+}
+
+/**
+ * @param {import('tape').Test} t
+ * @returns {import('fastify').FastifyInstance}
+ */
+function createFastifyServer(t) {
+  return createServer(t).fastifyInstance
 }

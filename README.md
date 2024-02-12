@@ -22,7 +22,7 @@ _⚠️ This is alpha software. No guarantees can be made about the stability of
 
 ## Usage
 
-The default export is a factory function for creating a map server instance, which is built on top of [Fastify](https://www.fastify.io/). Basic usage is as follows:
+The default export is a function for creating a map server instance. Basic usage is as follows:
 
 ```js
 // If you're using TypeScript, you may want to use one of the following import syntaxes to get type definitions:
@@ -31,26 +31,17 @@ The default export is a factory function for creating a map server instance, whi
 const createMapServer = require('@mapeo/map-server')
 
 // Create the server instance
-const mapServer = createMapServer(
-  { logger: true },
-  { storagePath: './map-server-example.db' }
-)
+const mapServer = createMapServer({ storagePath: './map-server-example.db' })
 
 // Run the server!
-mapServer.listen(3000, function (err) {
-  if (err) {
-    mapServer.log.error(err)
-    process.exit(1)
-  }
-})
+await mapServer.listen(3000)
 ```
 
-### `createServer(fastifyOpts, mapServerOpts): FastifyInstance`
+### `createServer(opts): MapServer`
 
 Creates the map server instance
 
-- `fastifyOpts (optional)`: Options object to customize the Fastify instance. Refer to the [official Fastify documentation](https://www.fastify.io/docs/latest/Reference/Server/) for more details.
-- `mapServerOpts (required)`: Options object to customize the map server instance. Options include:
+- `opts (required)`: Options object to customize the map server instance. Options include:
   - `storagePath: string (required)`: Path to use for persistent map server storage. Happens to be a SQLite database under the hood, but consumers should treat this as an opaque path managed exclusively by the map server.
 
 ## API Documentation

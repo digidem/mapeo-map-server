@@ -3,7 +3,9 @@ const nock = require('nock')
 
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
 const { DUMMY_MB_ACCESS_TOKEN } = require('../test-helpers/constants')
-const createServer = require('../test-helpers/create-server')
+const {
+  createFastifyServer: createServer,
+} = require('../test-helpers/create-server')
 const {
   defaultMockHeaders,
   glyphsMockBody,
