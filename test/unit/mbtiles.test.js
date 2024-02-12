@@ -21,7 +21,7 @@ test('Conversion outputs spec-compliant tilejson', (t) => {
   fixturePaths.forEach((p) => {
     const fixtureDb = new Database(p, { readonly: true })
 
-    const tilejson = mbTilesToTileJSON(fixtureDb)
+    const tilejson = mbTilesToTileJSON(fixtureDb, 'fallback name')
 
     fixtureDb.close()
 
