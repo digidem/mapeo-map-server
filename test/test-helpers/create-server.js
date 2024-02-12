@@ -1,7 +1,6 @@
 const tmp = require('tmp')
 const path = require('path')
 const fs = require('fs')
-const Db = require('better-sqlite3')
 
 const createMapServer = require('../..')
 
@@ -24,11 +23,11 @@ exports.createFastifyServer = createFastifyServer
 function createServer(t) {
   const { name: dataDir, removeCallback } = tmp.dirSync({ unsafeCleanup: true })
 
-  const dbPath = path.resolve(dataDir, 'test.db')
+  const storagePath = path.resolve(dataDir, 'test.db')
 
   const server = createMapServer({
     fastifyOpts: { logger: false, forceCloseConnections: true },
-    database: new Db(dbPath),
+    storagePath,
   })
 
   t.teardown(async () => {

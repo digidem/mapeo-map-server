@@ -36,6 +36,10 @@ const VectorLayerSchema = T.Object({
   source_name: T.Optional(T.String()),
 })
 
+export type VectorLayer = Static<typeof VectorLayerSchema>;
+
+export const validateVectorLayerSchema = ajv.compile(VectorLayerSchema)
+
 ajv.addKeyword('kind').addKeyword('modifier')
 
 /**

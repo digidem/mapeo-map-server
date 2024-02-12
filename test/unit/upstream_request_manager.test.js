@@ -1,5 +1,5 @@
 // @ts-check
-const Fastify = require('fastify')
+const { fastify: Fastify } = require('fastify')
 const Etag = require('@fastify/etag')
 const test = require('tape')
 
@@ -15,7 +15,10 @@ function createServer() {
   let payload = Buffer.from(JSON.stringify({ hello: 'world' }))
   /** @type {{payload: *, statusCode: number, headers: *}[]} */
   const responses = []
-  server.register(Etag)
+
+  // We use an `any` type here because the type definition for the etag plugin
+  // seems to be incorrect; this works at runtime.
+  server.register(/** @type {*} */ (Etag))
 
   server.get('/', async () => {
     return payload

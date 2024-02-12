@@ -1,9 +1,14 @@
 import SphericalMercator from '@mapbox/sphericalmercator'
 import { Database as DatabaseInstance } from 'better-sqlite3'
 
-import { TileJSON } from './tilejson'
+import {
+  type TileJSON,
+  type VectorLayer,
+  validateVectorLayerSchema,
+} from './tilejson'
 import { TileHeaders } from './tiles'
 import { generateId } from './utils'
+import { UnsupportedMBTilesFormatError } from '../api/errors'
 
 type ValidMBTilesFormat = TileJSON['format']
 
@@ -46,7 +51,8 @@ export interface Metadata {
    * should be a number, but node-mbtiles implements this as a string, which
    * is the same as TileJSON */
   version?: string
-  json?: string
+  /** Vector layers describe layers of vector tile data */
+  vector_layers?: VectorLayer[]
 }
 
 export const VALID_MBTILES_FORMATS: ValidMBTilesFormat[] = [
@@ -62,8 +68,11 @@ export function isValidMBTilesFormat(
   return VALID_MBTILES_FORMATS.includes(format as ValidMBTilesFormat)
 }
 
-export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
-  const metadata = extractMBTilesMetadata(mbTilesDb)
+export function mbTilesToTileJSON(
+  mbTilesDb: DatabaseInstance,
+  fallbackName: string
+): TileJSON {
+  const metadata = extractMBTilesMetadata(mbTilesDb, fallbackName)
 
   return {
     ...metadata,
@@ -77,47 +86,112 @@ export function mbTilesToTileJSON(mbTilesDb: DatabaseInstance): TileJSON {
   }
 }
 
-// Reference implementations from:
-// https://github.com/mapbox/node-mbtiles/blob/03220bc2fade2ba197ea2bab9cc44033f3a0b37e/lib/mbtiles.js#L256-L387
-// https://github.com/yuiseki/mbtiles2tilejson/blob/a21c3fb14502cf2cee73bc6362602ace23fa061b/src/index.ts#L28-L60
-export function extractMBTilesMetadata(mbTilesDb: DatabaseInstance): Metadata {
-  const metadata: any = {}
-
+/**
+ * Extract the metadata from an MBTiles database.
+ *
+ * `format` is required. `fallbackName` is provided as a fallback for `name` if the file is invalid and lacks one. Other fields are ignored if they are invalid.
+ *
+ * References [node-mbtiles's implementation][0].
+ *
+ * @throws {UnsupportedMBTilesFormatError} when the format is missing or invalid
+ *
+ * [0]: https://github.com/mapbox/node-mbtiles/blob/03220bc2fade2ba197ea2bab9cc44033f3a0b37e/lib/mbtiles.js#L256-L387
+ */
+export function extractMBTilesMetadata(
+  mbTilesDb: DatabaseInstance,
+  fallbackName: string
+): Metadata {
+  const rawMetadata = new Map<string, string>()
   mbTilesDb
     .prepare('SELECT name, value FROM metadata')
     .all()
-    .forEach((row: { name: string; value: string }) => {
-      switch (row.name) {
-        case 'json':
-          try {
-            const jsondata = JSON.parse(row.value)
-            Object.keys(jsondata).reduce((result, key) => {
-              result[key] = result[key] || jsondata[key]
-              return result
-            }, metadata)
-          } catch (err) {
-            // TODO: Throw some error here
-          }
-          break
-        case 'minzoom':
-        case 'maxzoom':
-          metadata[row.name] = parseInt(row.value, 10)
-          break
-        case 'center':
-        case 'bounds':
-          metadata[row.name] = row.value.split(',').map(parseFloat)
-          break
-        default:
-          metadata[row.name] = row.value
-          break
+    .forEach(({ name, value }: { name: unknown; value: unknown }) => {
+      if (typeof name === 'string' && typeof value === 'string') {
+        rawMetadata.set(name, value)
+      } else {
+        console.warn('MBTiles extractor received a non-string metadata row', {
+          name,
+          value,
+        })
       }
     })
 
-  // TODO: Extracted from reference implementation but not sure if it applies for us
-  // https://github.com/mapbox/node-mbtiles/blob/03220bc2fade2ba197ea2bab9cc44033f3a0b37e/lib/mbtiles.js#L300
-  metadata.scheme = 'xyz'
+  const format = rawMetadata.get('format')
+  if (!format || !isValidMBTilesFormat(format)) {
+    throw new UnsupportedMBTilesFormatError()
+  }
+
+  const rawType = rawMetadata.get('type')
+
+  const rawVectorLayers = parseJsonObject(
+    rawMetadata.get('json')
+  )?.vector_layers
+
+  const metadata: Metadata = {
+    name: rawMetadata.get('name') || fallbackName,
+
+    format,
+
+    bounds: parseFloatList(rawMetadata.get('bounds'), 4),
+
+    center: parseFloatList(rawMetadata.get('center'), 3),
+
+    minzoom: parseSafeInt(rawMetadata.get('minzoom')),
+
+    maxzoom: parseSafeInt(rawMetadata.get('maxzoom')),
+
+    attribution: rawMetadata.get('attribution'),
+
+    description: rawMetadata.get('description'),
+
+    type:
+      rawType === 'overlay' || rawType === 'baselayer' ? rawType : undefined,
+
+    version: rawMetadata.get('version'),
+
+    vector_layers:
+      Array.isArray(rawVectorLayers) &&
+      rawVectorLayers.every((layer) => validateVectorLayerSchema(layer))
+        ? rawVectorLayers
+        : undefined,
+  }
 
   return ensureCenter(ensureBounds(ensureZooms(metadata, mbTilesDb), mbTilesDb))
+}
+
+function parseFloatList(
+  s: unknown,
+  size: 3
+): undefined | [number, number, number]
+function parseFloatList(
+  s: unknown,
+  size: 4
+): undefined | [number, number, number, number]
+function parseFloatList(s: unknown, size: number): undefined | number[] {
+  if (typeof s !== 'string') return
+  const result = s.split(',', size + 1).map(parseFloat)
+  const isValid = result.length === size && result.every(Number.isFinite)
+  return isValid ? result : undefined
+}
+
+function parseSafeInt(s: unknown): undefined | number {
+  if (typeof s !== 'string') return
+  const result = parseInt(s, 10)
+  return Number.isSafeInteger(result) ? result : undefined
+}
+
+function parseJsonObject(s: unknown): undefined | Record<string, unknown> {
+  if (typeof s !== 'string') return
+  let result: unknown
+  try {
+    result = JSON.parse(s)
+  } catch (_) {
+    return undefined
+  }
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    return result as Record<string, unknown>
+  }
+  return
 }
 
 function ensureZooms<Metadata extends Partial<TileJSON>>(

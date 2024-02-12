@@ -22,11 +22,15 @@ const vectorMbTilesMissingJsonRowPath = path.join(
   __dirname,
   '../fixtures/bad-mbtiles/vector-missing-json-row.mbtiles'
 )
+const mbTilesMissingNameMetadataPath = path.join(
+  __dirname,
+  '../fixtures/bad-mbtiles/missing-name-metadata.mbtiles'
+)
 
 const fixtures = [rasterMbTilesPath, vectorMbTilesPath]
 
 /**
- * @param {*} vectorLayers
+ * @param {unknown} vectorLayers
  * @returns {boolean}
  */
 function isValidVectorLayersValue(vectorLayers) {
@@ -159,6 +163,35 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
   }
 })
 
+test('POST /tilesets/import fills in a default name if missing from metadata', async (t) => {
+  const server = createServer(t)
+
+  const importResponse = await server.inject({
+    method: 'POST',
+    url: '/tilesets/import',
+    payload: { filePath: mbTilesMissingNameMetadataPath },
+  })
+
+  t.equal(importResponse.statusCode, 200)
+
+  const { tileset: createdTileset } = importResponse.json()
+
+  const tilesetGetResponse = await server.inject({
+    method: 'GET',
+    url: `/tilesets/${createdTileset.id}`,
+  })
+
+  t.equal(tilesetGetResponse.statusCode, 200)
+
+  const tileset = tilesetGetResponse.json()
+
+  t.equal(
+    tileset.name,
+    'missing-name-metadata',
+    'Fallback name matches file name'
+  )
+})
+
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
   t.plan(10)
 
@@ -226,7 +259,7 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
     return count
   }
 
-  const address = await server.listen(0)
+  const address = await server.listen(0, '127.0.0.1')
 
   // Completely arbitrary proportion of original source's count where it's not suspiciously too low,
   // to account for a potentially incomplete/faulty import
@@ -271,7 +304,7 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 test('POST /tilesets/import subsequent imports do not affect storage calculation for existing styles', async (t) => {
   const server = createServer(t)
 
-  const address = await server.listen(0)
+  const address = await server.listen(0, '127.0.0.1')
 
   // Creates and waits for import to finish
   async function requestImport(fixture) {

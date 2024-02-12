@@ -1,4 +1,5 @@
 // @ts-check
+const path = require('node:path')
 const Database = require('better-sqlite3')
 
 const { IMPORT_ERRORS } = require('./imports')
@@ -84,7 +85,9 @@ function importMbTiles({
   const { bytes: totalBytes, tiles: totalTiles } =
     queries.getMbTilesImportTotals()
 
-  const mbTilesMetadata = extractMBTilesMetadata(mbTilesDb)
+  const fallbackName = path.parse(dbPath).name
+
+  const mbTilesMetadata = extractMBTilesMetadata(mbTilesDb, fallbackName)
 
   const areaId = encodeBase32(hash(`area:${tilesetId}`))
 

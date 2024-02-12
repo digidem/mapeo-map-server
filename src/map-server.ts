@@ -1,7 +1,7 @@
 import * as path from 'path'
 import { MessagePort } from 'worker_threads'
 import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
-import type { Database } from 'better-sqlite3'
+import Database, { type Database as DatabaseInstance } from 'better-sqlite3'
 import Piscina from 'piscina'
 import FastifyStatic from '@fastify/static'
 
@@ -19,16 +19,15 @@ export default class MapServer {
 
   #api: Api
   #activeImports = new Map<string, MessagePort>()
-  #db: Database
+  #db: DatabaseInstance
   #piscina: Piscina
   #upstreamRequestsManager = new UpstreamRequestsManager()
 
   constructor({
     fastifyOpts = {},
-    database,
-  }: Readonly<{ fastifyOpts?: FastifyServerOptions; database: Database }>) {
-    setUpDatabase(database)
-    this.#db = database
+    storagePath,
+  }: Readonly<{ fastifyOpts?: FastifyServerOptions; storagePath: string }>) {
+    this.#db = createDatabase(storagePath)
 
     this.#piscina = createPiscina()
 
@@ -56,10 +55,8 @@ export default class MapServer {
     return this.#api.getImport(importId)
   }
 
-  listen(
-    ...args: Parameters<FastifyInstance['listen']>
-  ): ReturnType<FastifyInstance['listen']> {
-    return this.fastifyInstance.listen(...args)
+  listen(port: number | string, host?: string): Promise<string> {
+    return this.fastifyInstance.listen(port, host)
   }
 
   async close() {
@@ -86,22 +83,26 @@ export default class MapServer {
   }
 }
 
-function setUpDatabase(db: Database) {
+function createDatabase(dbPath: string): DatabaseInstance {
+  const result = new Database(dbPath)
+
   // Enable auto-vacuum by setting it to incremental mode
   // This has to be set before the anything on the db instance is called!
   // https://www.sqlite.org/pragma.html#pragma_auto_vacuum
   // https://www.sqlite.org/pragma.html#pragma_incremental_vacuum
-  db.pragma('auto_vacuum = INCREMENTAL')
+  result.pragma('auto_vacuum = INCREMENTAL')
 
   // Enable WAL for potential performance benefits
   // https://github.com/JoshuaWise/better-sqlite3/blob/master/docs/performance.md
-  db.pragma('journal_mode = WAL')
+  result.pragma('journal_mode = WAL')
 
-  migrate(db, path.resolve(__dirname, '../prisma/migrations'))
+  migrate(result, path.resolve(__dirname, '../prisma/migrations'))
 
   // Any import with an `active` state on startup most likely failed due to the server process stopping
   // so we update these import records to have an error state
-  convertActiveImportsToErrorImports(db)
+  convertActiveImportsToErrorImports(result)
+
+  return result
 }
 
 function createPiscina() {

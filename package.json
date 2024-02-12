@@ -5,13 +5,14 @@
   "main": "dist/app.js",
   "types": "dist/app.d.ts",
   "engines": {
-    "node": ">=12"
+    "node": ">=16.17.1"
   },
   "scripts": {
     "dev": "ts-node-dev --files --transpile-only --respawn --no-notify ./server.ts | pino-pretty",
     "build": "npm run clean && node scripts/generate-sdf.js && tsc -b",
     "clean": "rm -rf ./dist ./sdf",
-    "pretest": "npm run build",
+    "pretest": "npm run build && npm run test:types",
+    "test:types": "tsc --noEmit -p tsconfig.test.json",
     "test": "c8 node_modules/.bin/tape \"test/**/*.test.js\" | tap-arc",
     "posttest": "c8 report --reporter=text-lcov > ./coverage/lcov.info",
     "lint": "eslint '*/**/*.{js,ts,tsx}' --fix && tsc --noEmit",
@@ -44,6 +45,7 @@
     "@types/readable-stream": "^2.3.15",
     "ajv": "^8.11.0",
     "base32.js": "^0.1.0",
+    "better-sqlite3": "^8.7.0",
     "fastify": "^3.29.0",
     "fastify-plugin": "^3.0.1",
     "got": "^11.8.5",
@@ -54,9 +56,6 @@
     "quick-lru": "^5.1.1",
     "readable-stream": "^3.6.0",
     "uuid": "^8.3.2"
-  },
-  "peerDependencies": {
-    "better-sqlite3": ">=7.6.0"
   },
   "devDependencies": {
     "@fastify/etag": "^3.0.0",
@@ -75,7 +74,6 @@
     "@types/uuid": "^8.3.4",
     "@typescript-eslint/eslint-plugin": "^5.43.0",
     "@typescript-eslint/parser": "^5.43.0",
-    "better-sqlite3": "^7.6.2",
     "c8": "^7.12.0",
     "eslint": "^8.2.0",
     "eslint-config-prettier": "^8.3.0",

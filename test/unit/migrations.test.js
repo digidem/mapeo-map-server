@@ -9,7 +9,7 @@ const Database = require('better-sqlite3')
 const { migrate } = require('../../dist/lib/migrations')
 
 /**
- * @typedef {import('../../dist/lib/migrations').Migration Migration}
+ * @typedef {import('../../dist/lib/migrations').Migration} Migration
  */
 
 tmp.setGracefulCleanup()
@@ -38,7 +38,7 @@ const fixtures = {
         "id" TEXT NOT NULL,
         "first_name" STRING NOT NULL,
         "last_name" STRING NOT NULL,
-    
+
         PRIMARY KEY ("id")
     );
     `,

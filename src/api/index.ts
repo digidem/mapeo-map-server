@@ -11,7 +11,7 @@ import createTilesApi, { TilesApi } from './tiles'
 import createTilesetsApi, { TilesetsApi } from './tilesets'
 
 export interface MapServerOptions {
-  database: Database
+  storagePath: string
 }
 
 export interface Context {
