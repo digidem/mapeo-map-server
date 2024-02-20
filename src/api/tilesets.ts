@@ -44,8 +44,9 @@ function createTilesetsApi({ context }: { context: Context }): TilesetsApi {
   function tilesetExists(tilesetId: string) {
     return (
       db
-        .prepare('SELECT COUNT(*) AS count FROM Tileset WHERE id = ?')
-        .get(tilesetId).count > 0
+        .prepare('SELECT EXISTS (SELECT 1 FROM Tileset WHERE id = ?)')
+        .pluck()
+        .get(tilesetId) !== 0
     )
   }
 

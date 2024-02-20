@@ -49,15 +49,15 @@ function createSpritesApi({ context }: { context: Context }): SpritesApi {
     const query =
       pixelDensity === undefined
         ? db
-            .prepare('SELECT COUNT(*) AS count FROM Sprite WHERE id = ?')
+            .prepare('SELECT EXISTS (SELECT 1 FROM Sprite WHERE id = ?)')
             .bind(spriteId)
         : db
             .prepare<{ spriteId: string; pixelDensity: number }>(
-              'SELECT COUNT(*) AS count FROM Sprite WHERE id = :spriteId AND pixelDensity = :pixelDensity'
+              'SELECT EXISTS (SELECT 1 FROM Sprite WHERE id = :spriteId AND pixelDensity = :pixelDensity)'
             )
             .bind({ spriteId, pixelDensity })
 
-    return query.get().count > 0
+    return query.pluck().get() !== 0
   }
 
   return {
