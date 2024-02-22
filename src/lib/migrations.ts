@@ -28,9 +28,10 @@ export function migrate(db: Database, migrationsDirPath: string) {
   const migrationsTableExists =
     db
       .prepare(
-        "SELECT COUNT(name) as count FROM sqlite_master WHERE type = 'table' AND name = '_prisma_migrations'"
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type IS 'table' AND name IS '_prisma_migrations')"
       )
-      .get().count > 0
+      .pluck()
+      .get() !== 0
 
   if (!migrationsTableExists) {
     // Taken from `prisma-engines` with a slight alteration to how we store dates (we want more granular):

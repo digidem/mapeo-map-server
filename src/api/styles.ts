@@ -95,8 +95,9 @@ function createStylesApi({
   function styleExists(styleId: string) {
     return (
       db
-        .prepare('SELECT COUNT(*) AS count FROM Style WHERE id = ?')
-        .get(styleId).count > 0
+        .prepare('SELECT EXISTS (SELECT 1 FROM Style WHERE id = ?)')
+        .pluck()
+        .get(styleId) !== 0
     )
   }
 
@@ -145,8 +146,9 @@ function createStylesApi({
   function tilesetExists(tilesetId: string) {
     return (
       db
-        .prepare('SELECT COUNT(*) AS count FROM Tileset WHERE id = ?')
-        .get(tilesetId).count > 0
+        .prepare('SELECT EXISTS (SELECT 1 FROM Tileset WHERE id = ?)')
+        .pluck()
+        .get(tilesetId) !== 0
     )
   }
 
