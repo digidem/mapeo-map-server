@@ -8,11 +8,7 @@ const { tileToQuadKey } = require('./tiles')
 const { hash, encodeBase32 } = require('./utils')
 
 /** @typedef {import('better-sqlite3').Database} Database */
-
-/**
- * @template P
- * @typedef {import('better-sqlite3').Statement<P>} Statement
- */
+/** @typedef {import('better-sqlite3').Statement} Statement */
 
 const PROGRESS_THROTTLE = 200 // ms
 
