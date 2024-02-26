@@ -1,13 +1,14 @@
 import path from 'path'
 import Database, { Database as DatabaseInstance } from 'better-sqlite3'
 import { EventEmitter } from 'events'
-import { MessageChannel, MessagePort } from 'worker_threads'
+import { fromEvents } from 'iterpal'
+import { MessageChannel } from 'worker_threads'
 
 import { ImportRecord } from '../lib/imports'
 import { PortMessage } from '../lib/mbtiles_import_worker'
 import { TileJSON, validateTileJSON } from '../lib/tilejson'
 import { mbTilesToTileJSON } from '../lib/mbtiles'
-import { generateId, getTilesetId } from '../lib/utils'
+import { generateId, getTilesetId, ExhaustivenessError } from '../lib/utils'
 import { Api, Context, IdResource } from '.'
 import {
   MBTilesCannotReadError,
@@ -17,7 +18,7 @@ import {
 
 export interface ImportsApi {
   getImport(importId: string): ImportRecord | undefined
-  getImportPort(importId: string): MessagePort | undefined
+  getImportProgress(importId: string): AsyncIterableIterator<PortMessage>
   importMBTiles(
     filePath: string,
     baseApiUrl: string
@@ -46,8 +47,32 @@ function createImportsApi({
         )
         .get(importId)
     },
-    getImportPort(importId) {
-      return activeImports.get(importId)
+    async *getImportProgress(this: ImportsApi, importId) {
+      const importState = this.getImport(importId)?.state
+      switch (importState) {
+        case undefined:
+        case 'complete':
+        case 'error':
+          return
+        case 'active':
+          break
+        default:
+          throw new ExhaustivenessError(importState)
+      }
+
+      const port = activeImports.get(importId)
+      if (!port) {
+        throw new Error(
+          'Internal error: import is active but no port was found'
+        )
+      }
+
+      const messageEvents: AsyncIterable<any> = fromEvents(port, 'message')
+      for await (const { data } of messageEvents) {
+        assertIsPortMessage(data)
+        yield data
+        if (data.type !== 'progress') break
+      }
     },
     importMBTiles(filePath: string, baseApiUrl: string) {
       const filePathWithExtension =
@@ -138,7 +163,8 @@ function createImportsApi({
             workerDone = true
           })
 
-        function handleFirstProgressMessage(message: PortMessage) {
+        function handleFirstProgressMessage(message: unknown) {
+          assertIsPortMessage(message)
           if (message.type === 'progress') {
             importStarted = true
             port2.off('message', handleFirstProgressMessage)
@@ -193,3 +219,23 @@ function createImportsApi({
 }
 
 export default createImportsApi
+
+function assertIsPortMessage(value: unknown): asserts value is PortMessage {
+  const isValid =
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof value === 'object' &&
+    'type' in value &&
+    'importId' in value &&
+    'soFar' in value &&
+    'total' in value &&
+    (value.type === 'progress' ||
+      value.type === 'complete' ||
+      value.type === 'error') &&
+    typeof value.importId === 'string' &&
+    typeof value.soFar === 'number' &&
+    typeof value.total === 'number'
+  if (!isValid) {
+    throw new Error('Expected a port message')
+  }
+}

@@ -1,11 +1,9 @@
 const test = require('tape')
 const path = require('path')
 const Database = require('better-sqlite3')
+const { discard } = require('iterpal')
 
-const importSse = require('../test-helpers/import-sse')
-const {
-  createFastifyServer: createServer,
-} = require('../test-helpers/create-server')
+const { createServer } = require('../test-helpers/create-server')
 // This disables upstream requests (e.g. simulates offline)
 require('../test-helpers/server-mocks')
 
@@ -40,8 +38,20 @@ function isValidVectorLayersValue(vectorLayers) {
   return vectorLayers.every((layer) => layer.id && layer.fields)
 }
 
+/**
+ * @param {ReturnType<typeof createServer>} server
+ * @param {string} importId
+ * @returns {Promise<void>}
+ */
+async function importCompleted(server, importId) {
+  await discard(server.getImportProgress(importId))
+  const importState = server.getImport(importId)?.state
+  if (importState === 'complete') return
+  throw new Error(`Import did not complete. State is ${importState}`)
+}
+
 test('POST /tilesets/import fails when providing path for non-existent file', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -54,7 +64,7 @@ test('POST /tilesets/import fails when providing path for non-existent file', as
 })
 
 test('POST /tilesets/import fails when mbtiles file has bad metadata', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -67,7 +77,7 @@ test('POST /tilesets/import fails when mbtiles file has bad metadata', async (t)
 })
 
 test('POST /tilesets/import creates tileset', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   for (const fixture of fixtures) {
     const importResponse = await server.inject({
@@ -101,9 +111,9 @@ test('POST /tilesets/import creates tileset', async (t) => {
 })
 
 test('POST /tilesets/import creates style for created tileset', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
-  for (fixture of fixtures) {
+  for (const fixture of fixtures) {
     const importResponse = await server.inject({
       method: 'POST',
       url: '/tilesets/import',
@@ -164,7 +174,7 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 })
 
 test('POST /tilesets/import fills in a default name if missing from metadata', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -195,7 +205,7 @@ test('POST /tilesets/import fills in a default name if missing from metadata', a
 test('POST /tilesets/import multiple times using same source file works', async (t) => {
   t.plan(10)
 
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   async function requestImport(fixture) {
     return await server.inject({
@@ -246,6 +256,7 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
 test('POST /tilesets/import storage used by tiles is roughly equivalent to that of source', async (t) => {
   const server = createServer(t)
+  const { fastifyInstance } = server
 
   function getMbTilesByteCount(fixture) {
     const mbTilesDb = new Database(fixture, { readonly: true })
@@ -259,8 +270,6 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
     return count
   }
 
-  const address = await server.listen(0, '127.0.0.1')
-
   // Completely arbitrary proportion of original source's count where it's not suspiciously too low,
   // to account for a potentially incomplete/faulty import
   const minimumProportion = 0.8
@@ -271,7 +280,7 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 
     const {
       import: { id: createdImportId },
-    } = await server
+    } = await fastifyInstance
       .inject({
         method: 'POST',
         url: '/tilesets/import',
@@ -279,9 +288,9 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
       })
       .then((resp) => resp.json())
 
-    await importSse(`${address}/imports/progress/${createdImportId}`)
+    await importCompleted(server, createdImportId)
 
-    const styleInfo = await server
+    const styleInfo = await fastifyInstance
       .inject({
         method: 'GET',
         url: '/styles',
@@ -303,27 +312,25 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 // TODO: This may eventually become a failing test if styles that share tiles reuse new ones that are stored
 test('POST /tilesets/import subsequent imports do not affect storage calculation for existing styles', async (t) => {
   const server = createServer(t)
-
-  const address = await server.listen(0, '127.0.0.1')
+  const { fastifyInstance } = server
 
   // Creates and waits for import to finish
   async function requestImport(fixture) {
     const {
       import: { id: createdImportId },
-    } = await server
+    } = await fastifyInstance
       .inject({
         method: 'POST',
         url: '/tilesets/import',
         payload: { filePath: fixture },
       })
       .then((resp) => resp.json())
-
-    return await importSse(`${address}/imports/progress/${createdImportId}`)
+    await importCompleted(server, createdImportId)
   }
 
   await requestImport(rasterMbTilesPath)
 
-  const rasterStyleBefore = await server
+  const rasterStyleBefore = await fastifyInstance
     .inject({
       method: 'GET',
       url: '/styles',
@@ -334,7 +341,7 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
   await requestImport(rasterMbTilesPath)
   await requestImport(vectorMbTilesPath)
 
-  const rasterStyleAfter = await server
+  const rasterStyleAfter = await fastifyInstance
     .inject({
       method: 'GET',
       url: '/styles',
@@ -348,7 +355,7 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
 })
 
 test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or styles created', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
   const badMbTilesPath = path.join(
     fixturesPath,
     'bad-mbtiles/missing-tiles-table.mbtiles'

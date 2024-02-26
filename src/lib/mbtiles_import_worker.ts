@@ -1,40 +1,92 @@
-// @ts-check
-const path = require('node:path')
-const Database = require('better-sqlite3')
+import * as path from 'node:path'
+import Database, { type Statement } from 'better-sqlite3'
 
-const { IMPORT_ERRORS } = require('./imports')
-const { extractMBTilesMetadata } = require('./mbtiles')
-const { tileToQuadKey } = require('./tiles')
-const { hash, encodeBase32 } = require('./utils')
-
-/** @typedef {import('better-sqlite3').Database} Database */
-/** @typedef {import('better-sqlite3').Statement} Statement */
+import { IMPORT_ERRORS } from './imports'
+import { extractMBTilesMetadata } from './mbtiles'
+import { tileToQuadKey } from './tiles'
+import { hash, encodeBase32 } from './utils'
 
 const PROGRESS_THROTTLE = 200 // ms
 
-module.exports = importMbTiles
+interface ImportWorkerOptions {
+  dbPath: string
+  importId: string
+  mbTilesDbPath: string
+  styleId: string
+  tilesetId: string
+  port: MessagePort
+}
 
-/**
- * @param {import('./mbtiles_import_worker').ImportWorkerOptions} options
- */
-function importMbTiles({
+interface Queries {
+  getMbTilesImportTotals(): { bytes: number; tiles: number }
+  getMbTilesTileRows(): IterableIterator<{
+    data: Buffer
+    z: number
+    y: number
+    x: number
+  }>
+  upsertOfflineArea: Statement<{
+    id: string
+    zoomLevel: string
+    boundingBox: string
+    name: string
+    styleId: string
+  }>
+  insertImport: Statement<{
+    id: string
+    totalResources: number
+    totalBytes: number
+    areaId: string
+    tilesetId?: string
+  }>
+  updateImport: Statement<{
+    id: string
+    importedResources: number
+    importedBytes: number
+  }>
+  setImportError: Statement<{
+    id: string
+    error: string
+  }>
+  completeImport: Statement<{
+    id: string
+    importedResources: number
+    importedBytes: number
+  }>
+  upsertTileData: Statement<{
+    data: Buffer
+    tileHash: string
+    tilesetId: string
+  }>
+  upsertTile: Statement<{
+    quadKey: string
+    tileHash: string
+    tilesetId: string
+  }>
+}
+
+export type PortMessage = {
+  type: 'progress' | 'complete' | 'error'
+  importId: string
+  soFar: number
+  total: number
+}
+
+export default function importMbTiles({
   dbPath,
   importId,
   mbTilesDbPath,
   tilesetId,
   styleId,
   port,
-}) {
-  /** @type {Database} */
+}: Readonly<ImportWorkerOptions>) {
   const db = new Database(dbPath)
   db.pragma('auto_vacuum = INCREMENTAL')
   db.pragma('journal_mode = WAL')
 
-  /** @type {Database} */
   const mbTilesDb = new Database(mbTilesDbPath, { readonly: true })
 
-  /** @type {import('./mbtiles_import_worker').Queries} */
-  const queries = {
+  const queries: Queries = {
     getMbTilesImportTotals: () =>
       mbTilesDb
         .prepare(
@@ -212,13 +264,9 @@ function importMbTiles({
 
 /**
  * Creates an error indicating which fields from a tile row are unexpectedly null
- *
- * @param {{[key: string]: *}} row
- * @returns {?Error}
  */
-function validateTileRow(row) {
-  /** @type {string[]} */
-  const invalidFields = []
+function validateTileRow(row: Readonly<Record<string, unknown>>): null | Error {
+  const invalidFields: string[] = []
 
   Object.entries(row).forEach(([field, value]) => {
     if (value == null) {

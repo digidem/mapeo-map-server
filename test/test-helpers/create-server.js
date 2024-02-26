@@ -18,7 +18,7 @@ exports.createFastifyServer = createFastifyServer
 
 /**
  * @param {import('tape').Test} t
- * @returns {import('../../src/map-server.ts')}
+ * @returns {ReturnType<import('../../src/map-server.ts')>}
  */
 function createServer(t) {
   const { name: dataDir, removeCallback } = tmp.dirSync({ unsafeCleanup: true })
