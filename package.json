@@ -50,6 +50,7 @@
     "fastify-plugin": "^3.0.1",
     "got": "^11.8.5",
     "is-url": "^1.2.4",
+    "iterpal": "^0.3.0",
     "make-promises-safe": "^5.1.0",
     "mem": "^8.1.1",
     "piscina": "^3.2.0",

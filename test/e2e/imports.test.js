@@ -1,7 +1,6 @@
 const test = require('tape')
 const path = require('path')
 
-const importSse = require('../test-helpers/import-sse')
 const { createServer } = require('../test-helpers/create-server')
 // This disables upstream requests (e.g. simulates offline)
 require('../test-helpers/server-mocks')
@@ -11,48 +10,26 @@ const sampleMbTilesPath = path.join(
   fixturesPath,
   'mbtiles/raster/countries-png.mbtiles'
 )
-const sampleSmallMbTilesPath = path.join(
+const badMbTilesPath = path.join(
   fixturesPath,
-  'mbtiles/raster/countries-png-small.mbtiles'
+  'bad-mbtiles/bad-tile-row.mbtiles'
 )
 
-test('GET /imports/:importId returns 404 error when import does not exist', async (t) => {
+test("getImport() returns undefined if the import doesn't exist", async (t) => {
   const server = createServer(t)
 
-  t.is(server.getImport('abc123'), undefined)
+  t.is(server.getImport('abc123'), undefined, 'no import found')
 })
 
-test('GET /imports/progress/:importId returns 404 error when import does not exist', async (t) => {
-  const server = createServer(t).fastifyInstance
-
-  const getImportProgressResponse = await server.inject({
-    method: 'GET',
-    url: `/imports/progress/abc123`,
-  })
-
-  t.equal(getImportProgressResponse.statusCode, 404)
-})
-
-test('GET /imports/:importId returns import information', async (t) => {
+test('getImportProgress() returns an empty iterable if the import does not exist', async (t) => {
   const server = createServer(t)
-  const { fastifyInstance } = server
 
-  const createImportResponse = await fastifyInstance.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleSmallMbTilesPath },
-  })
-
-  t.equals(createImportResponse.statusCode, 200)
-
-  const {
-    import: { id: createdImportId },
-  } = createImportResponse.json()
-
-  t.ok(server.getImport(createdImportId))
+  for await (const _ of server.getImportProgress('abc123')) {
+    t.fail('should not have any import progress messages')
+  }
 })
 
-test('GET /imports/progress/:importId returns import progress info (SSE)', async (t) => {
+test('successful import', async (t) => {
   const server = createServer(t)
   const { fastifyInstance } = server
 
@@ -61,125 +38,116 @@ test('GET /imports/progress/:importId returns import progress info (SSE)', async
     url: '/tilesets/import',
     payload: { filePath: sampleMbTilesPath },
   })
-
+  t.equals(createImportResponse.statusCode, 200)
   const {
     import: { id: createdImportId },
   } = createImportResponse.json()
 
-  const address = await fastifyInstance.listen(0, '127.0.0.1')
-  const messages = await importSse(
-    `${address}/imports/progress/${createdImportId}`
-  )
+  const createdImport = server.getImport(createdImportId)
+  t.is(createdImport.state, 'active', 'import is active')
+  t.is(createdImport.error, null, 'import has no errors')
+  t.is(createdImport.finished, null, 'import has not finished')
+
+  const messages = []
+  for await (const message of server.getImportProgress(createdImportId)) {
+    messages.push(message)
+  }
+
   t.ok(messages.length > 0, 'at least one message is received')
   t.ok(
     messages.every(({ importId }) => importId === createdImportId),
     'all messages have correct importId'
   )
   const lastMessage = messages[messages.length - 1]
-  t.equal(lastMessage.type, 'complete', 'last message is complete')
-  t.equal(lastMessage.soFar, lastMessage.total)
+  t.equal(lastMessage?.type, 'complete', 'last message is complete')
+  t.equal(lastMessage?.soFar, lastMessage?.total)
 
-  t.equal(
-    server.getImport(createdImportId).state,
-    'complete',
-    'import successfully recorded as complete in db'
+  const completedImport = server.getImport(createdImportId)
+  t.is(completedImport.state, 'complete', 'import is complete')
+  t.is(completedImport.error, null, 'import has no errors')
+  t.is(
+    completedImport.lastUpdated,
+    completedImport.finished,
+    'import has finished'
+  )
+  t.ok(
+    millisecondsBetween(
+      new Date(),
+      sqliteCurrentTimestampToDate(completedImport.finished)
+    ) < 30_000,
+    'finished recently'
   )
 })
-;['complete', 'error'].forEach((lastEventId) => {
-  test(`GET /imports/progress/:importId returns a 204 if last event ID was "${lastEventId}"`, async (t) => {
-    const server = createServer(t).fastifyInstance
 
-    const createImportResponse = await server.inject({
-      method: 'POST',
-      url: '/tilesets/import',
-      payload: { filePath: sampleMbTilesPath },
-    })
-    const {
-      import: { id: createdImportId },
-    } = createImportResponse.json()
-
-    const importProgressResponse = await server.inject({
-      method: 'GET',
-      url: `/imports/progress/${createdImportId}`,
-      headers: { 'Last-Event-ID': lastEventId },
-    })
-
-    t.equal(importProgressResponse.statusCode, 204)
-  })
-})
-
-test('GET /imports/progress/:importId when import is already completed returns single complete event (SSE)', async (t) => {
-  const server = createServer(t).fastifyInstance
-
-  const createImportResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleSmallMbTilesPath },
-  })
-
-  const {
-    import: { id: createdImportId },
-  } = createImportResponse.json()
-
-  const address = await server.listen(0, '127.0.0.1')
-  const progressEndpoint = `${address}/imports/progress/${createdImportId}`
-
-  // Wait for the import to complete before attempting actual test
-  const messages1 = await importSse(progressEndpoint)
-
-  // Conduct actual test
-  const messages2 = await importSse(progressEndpoint)
-  t.equal(messages2.length, 1, 'only one message is received')
-  t.equal(messages2[0].type, 'complete', 'message is complete')
-  t.same(messages2[0], messages1[messages1.length - 1])
-})
-
-// This test is skipped because it's flaky.
-// See <https://github.com/digidem/mapeo-map-server/issues/40> for details.
-test.skip('GET /imports/:importId after deferred import error shows error state', async (t) => {
+test('failed import', async (t) => {
   const server = createServer(t)
   const { fastifyInstance } = server
 
-  // This mbtiles file has one of the tile_data fields set to null. This causes
-  // the import to initially report progress, but fail when it reaches the null
-  // field
-  const mbTilesPath = path.join(
-    fixturesPath,
-    'bad-mbtiles/null-tile_data.mbtiles'
-  )
-  t.comment('Starting POST /tilesets/import...')
   const createImportResponse = await fastifyInstance.inject({
     method: 'POST',
     url: '/tilesets/import',
-    payload: { filePath: mbTilesPath },
+    payload: { filePath: badMbTilesPath },
   })
-  t.comment('Finished POST /tilesets/import.')
-  t.equal(
-    createImportResponse.statusCode,
-    200,
-    'initial import creation successful'
-  )
-
-  t.comment('Reading response body from POST /tilesets/import...')
+  t.equals(createImportResponse.statusCode, 200)
   const {
     import: { id: createdImportId },
   } = createImportResponse.json()
-  t.comment('Read response body from POST /tilesets/import.')
 
-  t.comment('Starting server...')
-  const address = await fastifyInstance.listen(0, '127.0.0.1')
-  t.comment('Server started.')
+  const createdImport = server.getImport(createdImportId)
+  t.is(createdImport.state, 'active', 'import is active')
+  t.is(createdImport.error, null, 'import has no errors yet')
+  t.is(createdImport.finished, null, 'import has not finished')
 
-  // Wait for import to complete
-  t.comment('Waiting for import to complete...')
-  await importSse(`${address}/imports/progress/${createdImportId}`)
-  t.comment('Import completed.')
+  const messages = []
+  for await (const message of server.getImportProgress(createdImportId)) {
+    messages.push(message)
+  }
 
-  t.comment(`Fetching import ${createdImportId}...`)
-  const impt = server.getImport(createdImportId)
-  t.comment(`Fetched import ${createdImportId}.`)
+  t.ok(messages.length > 0, 'at least one message is received')
+  t.ok(
+    messages.every(({ importId }) => importId === createdImportId),
+    'all messages have correct importId'
+  )
+  const lastMessage = messages[messages.length - 1]
+  t.equal(lastMessage?.type, 'error', 'last message is error')
+  t.notEqual(lastMessage?.soFar, lastMessage?.total)
 
-  t.equal(impt.state, 'error')
-  t.equal(impt.error, 'UNKNOWN')
-  t.ok(impt.finished)
+  const completedImport = server.getImport(createdImportId)
+  t.is(completedImport.state, 'error', 'import is in the "error" state')
+  t.is(completedImport.error, 'UNKNOWN', 'import has an error')
+  t.is(
+    completedImport.lastUpdated,
+    completedImport.finished,
+    'import has finished'
+  )
+  t.ok(
+    millisecondsBetween(
+      new Date(),
+      sqliteCurrentTimestampToDate(completedImport.finished)
+    ) < 30_000,
+    'finished recently'
+  )
 })
+
+/**
+ * Convert a SQLite CURRENT_TIMESTAMP string (YYYY-MM-DD HH:MM:SS, in UTC) to a Date.
+ *
+ * @param {string} timestamp
+ * @returns {Date}
+ */
+function sqliteCurrentTimestampToDate(timestamp) {
+  // See <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date#date_time_string_format>.
+  const jsDateTimeString = timestamp.replace(' ', 'T') + 'Z'
+  return new Date(jsDateTimeString)
+}
+
+/**
+ * Return the difference between two Dates in milliseconds. Always returns a positive number.
+ *
+ * @param {Date} a
+ * @param {Date} b
+ * @returns {number}
+ */
+function millisecondsBetween(a, b) {
+  return Math.abs(a.valueOf() - b.valueOf())
+}

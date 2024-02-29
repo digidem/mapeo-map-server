@@ -11,6 +11,7 @@ import { convertActiveToError as convertActiveImportsToErrorImports } from './li
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 import type { ImportRecord } from './lib/imports'
+import type { PortMessage } from './lib/mbtiles_import_worker.d.ts'
 import { SDF_STATIC_DIR } from './lib/glyphs'
 import * as routes from './routes'
 
@@ -53,6 +54,15 @@ export default class MapServer {
    */
   getImport(importId: string): undefined | ImportRecord {
     return this.#api.getImport(importId)
+  }
+
+  /**
+   * Get progress events for an import.
+   *
+   * If the import doesn't exist or is complete, this will return an empty iterable.
+   */
+  getImportProgress(importId: string): AsyncIterableIterator<PortMessage> {
+    return this.#api.getImportProgress(importId)
   }
 
   listen(port: number | string, host?: string): Promise<string> {
