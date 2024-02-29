@@ -1,7 +1,6 @@
 const test = require('tape')
 const path = require('path')
 const Database = require('better-sqlite3')
-const { discard } = require('iterpal')
 
 const { createServer } = require('../test-helpers/create-server')
 // This disables upstream requests (e.g. simulates offline)
@@ -44,7 +43,9 @@ function isValidVectorLayersValue(vectorLayers) {
  * @returns {Promise<void>}
  */
 async function importCompleted(server, importId) {
-  await discard(server.getImportProgress(importId))
+  for await (const _ of server.getImportProgress(importId)) {
+    // Exhaust the import progress
+  }
   const importState = server.getImport(importId)?.state
   if (importState === 'complete') return
   throw new Error(`Import did not complete. State is ${importState}`)

@@ -1,6 +1,5 @@
 const test = require('tape')
 const path = require('path')
-const { arrayFrom, last } = require('iterpal')
 
 const { createServer } = require('../test-helpers/create-server')
 // This disables upstream requests (e.g. simulates offline)
@@ -25,8 +24,9 @@ test("getImport() returns undefined if the import doesn't exist", async (t) => {
 test('getImportProgress() returns an empty iterable if the import does not exist', async (t) => {
   const server = createServer(t)
 
-  const messages = await arrayFrom(server.getImportProgress('abc123'))
-  t.deepEqual(messages, [], 'no messages received')
+  for await (const _ of server.getImportProgress('abc123')) {
+    t.fail('should not have any import progress messages')
+  }
 })
 
 test('successful import', async (t) => {
@@ -48,14 +48,17 @@ test('successful import', async (t) => {
   t.is(createdImport.error, null, 'import has no errors')
   t.is(createdImport.finished, null, 'import has not finished')
 
-  const messages = await arrayFrom(server.getImportProgress(createdImportId))
+  const messages = []
+  for await (const message of server.getImportProgress(createdImportId)) {
+    messages.push(message)
+  }
 
   t.ok(messages.length > 0, 'at least one message is received')
   t.ok(
     messages.every(({ importId }) => importId === createdImportId),
     'all messages have correct importId'
   )
-  const lastMessage = last(messages)
+  const lastMessage = messages[messages.length - 1]
   t.equal(lastMessage?.type, 'complete', 'last message is complete')
   t.equal(lastMessage?.soFar, lastMessage?.total)
 
@@ -95,14 +98,17 @@ test('failed import', async (t) => {
   t.is(createdImport.error, null, 'import has no errors yet')
   t.is(createdImport.finished, null, 'import has not finished')
 
-  const messages = await arrayFrom(server.getImportProgress(createdImportId))
+  const messages = []
+  for await (const message of server.getImportProgress(createdImportId)) {
+    messages.push(message)
+  }
 
   t.ok(messages.length > 0, 'at least one message is received')
   t.ok(
     messages.every(({ importId }) => importId === createdImportId),
     'all messages have correct importId'
   )
-  const lastMessage = last(messages)
+  const lastMessage = messages[messages.length - 1]
   t.equal(lastMessage?.type, 'error', 'last message is error')
   t.notEqual(lastMessage?.soFar, lastMessage?.total)
 
