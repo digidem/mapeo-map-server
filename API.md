@@ -109,10 +109,6 @@ This endpoint goes through the following steps to determine what to respond with
 
 ## Tilesets
 
-### `GET /tilesets`
-
-Retrieve a list of all tilesets. Each tileset adheres to the [TileJSON spec](https://github.com/mapbox/tilejson-spec) with a guarantee of an `id` field.
-
 ### `GET /tilesets/:tilesetId`
 
 - Params

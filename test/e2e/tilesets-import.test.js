@@ -356,12 +356,14 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
 })
 
 test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or styles created', async (t) => {
-  const server = createServer(t).fastifyInstance
+  const server = createServer(t)
+  const { fastifyInstance } = server
+
   const badMbTilesPath = path.join(
     fixturesPath,
     'bad-mbtiles/missing-tiles-table.mbtiles'
   )
-  const importResponse = await server.inject({
+  const importResponse = await fastifyInstance.inject({
     method: 'POST',
     url: '/tilesets/import',
     payload: { filePath: badMbTilesPath },
@@ -370,11 +372,16 @@ test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or
   t.equal(importResponse.statusCode, 400)
   t.equal(importResponse.json().code, 'FST_MBTILES_CANNOT_READ')
 
-  const tilesetsRes = await server.inject({ method: 'GET', url: '/tilesets' })
-  t.equal(tilesetsRes.statusCode, 200)
-  t.same(tilesetsRes.json(), [], 'no tilesets created')
+  t.deepEqual(
+    server.listTilesets('https://example.com'),
+    [],
+    'no tilesets created'
+  )
 
-  const stylesRes = await server.inject({ method: 'GET', url: '/styles' })
+  const stylesRes = await fastifyInstance.inject({
+    method: 'GET',
+    url: '/styles',
+  })
   t.equal(stylesRes.statusCode, 200)
   t.same(stylesRes.json(), [], 'no styles created')
 })
