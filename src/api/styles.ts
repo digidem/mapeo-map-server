@@ -22,6 +22,25 @@ interface SourceIdToTilesetId {
   [sourceId: keyof StyleJSON['sources']]: string
 }
 
+export type StyleResource = IdResource & {
+  /**
+   * The ID of the style.
+   */
+  id: string
+
+  /**
+   * The number of bytes that the style occupies.
+   *
+   * This currently only accounts for the tiles that are associated with the style. In the future, this should include other assets such as glyphs and sprites.
+   */
+  bytesStored: number
+
+  /**
+   * The name of the style. May be `null`.
+   */
+  name: null | string
+}
+
 export interface StylesApi {
   createStyle(
     style: StyleJSON,
@@ -39,13 +58,7 @@ export interface StylesApi {
   ): { style: StyleJSON } & IdResource
   deleteStyle(id: string, baseApiUrl: string): void
   getStyle(id: string, baseApiUrl: string): StyleJSON
-  listStyles(baseApiUrl: string): Array<
-    {
-      bytesStored: number
-      name: string | null
-      url: string
-    } & IdResource
-  >
+  listStyles(): Array<StyleResource>
   updateStyle(
     id: string,
     style: StyleJSON,
@@ -398,7 +411,7 @@ function createStylesApi({
         styleId: id,
       })
     },
-    listStyles(baseApiUrl) {
+    listStyles() {
       // `bytesStored` calculates the total bytes stored by tiles that the style references
       // Eventually we want to get storage taken up by other resources like sprites and glyphs
       return db
@@ -424,7 +437,6 @@ function createStylesApi({
           }) => ({
             ...row,
             bytesStored: row.bytesStored || 0,
-            url: getStyleUrl(baseApiUrl, row.id),
           })
         )
     },

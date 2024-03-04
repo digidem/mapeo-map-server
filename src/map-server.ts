@@ -11,6 +11,7 @@ import { convertActiveToError as convertActiveImportsToErrorImports } from './li
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
 import type { IdResource } from './api/index'
+import type { StyleResource } from './api/styles'
 import type { ImportRecord } from './lib/imports'
 import type { PortMessage } from './lib/mbtiles_import_worker.d.ts'
 import type { TileJSON } from './lib/tilejson'
@@ -42,6 +43,13 @@ export default class MapServer {
     })
 
     this.fastifyInstance = createMapFastifyServer(this.#api, fastifyOpts)
+  }
+
+  /**
+   * Retrieve a list of all style records.
+   */
+  listStyles(): Array<StyleResource> {
+    return this.#api.listStyles()
   }
 
   /**
