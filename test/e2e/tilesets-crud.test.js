@@ -7,9 +7,7 @@ const {
 } = require('../../dist/lib/stylejson')
 
 const { DUMMY_MB_ACCESS_TOKEN } = require('../test-helpers/constants')
-const {
-  createFastifyServer: createServer,
-} = require('../test-helpers/create-server')
+const { createServer } = require('../test-helpers/create-server')
 const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
 const {
   defaultMockHeaders,
@@ -21,33 +19,24 @@ const {
  * /tilesets tests
  */
 
-test('GET /tilesets when no tilesets exist returns an empty array', async (t) => {
+test('listTilesets() returns an empty array when no tilesets exist', async (t) => {
   const server = createServer(t)
 
-  const response = await server.inject({ method: 'GET', url: '/tilesets' })
-
-  t.equal(response.statusCode, 200)
-
-  t.equal(
-    response.headers['content-type'],
-    'application/json; charset=utf-8',
-    'returns correct content-type header'
-  )
-
-  t.same(response.json(), [])
+  t.deepEqual(server.listTilesets('https://example.com'), [])
 })
 
-test('GET /tilesets when tilesets exist returns an array of the tilesets', async (t) => {
+test('listTilesets() returns an array of tilesets when tilesets exist', async (t) => {
   const server = createServer(t)
+  const { fastifyInstance } = server
 
-  await server.inject({
+  await fastifyInstance.inject({
     method: 'POST',
     url: '/tilesets',
     payload: sampleTileJSON,
   })
 
   const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
-  const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
+  const expectedTileUrl = `https://example.com/tilesets/${expectedId}/{z}/{x}/{y}`
   const expectedResponse = [
     {
       ...sampleTileJSON,
@@ -56,13 +45,11 @@ test('GET /tilesets when tilesets exist returns an array of the tilesets', async
     },
   ]
 
-  const response = await server.inject({ method: 'GET', url: '/tilesets' })
-
-  t.same(response.json(), expectedResponse)
+  t.deepEqual(server.listTilesets('https://example.com'), expectedResponse)
 })
 
 test('POST /tilesets when tileset does not exist creates a tileset and returns it', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
   const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
@@ -82,15 +69,14 @@ test('POST /tilesets when tileset does not exist creates a tileset and returns i
 
   const responseGet = await server.inject({
     method: 'GET',
-    url: '/tilesets',
-    payload: { tilesetId: expectedId },
+    url: `/tilesets/${expectedId}`,
   })
 
   t.equal(responseGet.statusCode, 200)
 })
 
 test('POST /tilesets creates a style for the raster tileset', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const responseTilesetsPost = await server.inject({
     method: 'POST',
@@ -139,7 +125,7 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
 })
 
 test('PUT /tilesets when tileset exists returns the updated tileset', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const initialResponse = await server.inject({
     method: 'POST',
@@ -165,7 +151,7 @@ test('PUT /tilesets when tileset exists returns the updated tileset', async (t) 
 })
 
 test('PUT /tilesets when providing an incorrect id returns 400 status code', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const response = await server.inject({
     method: 'PUT',
@@ -177,7 +163,7 @@ test('PUT /tilesets when providing an incorrect id returns 400 status code', asy
 })
 
 test('PUT /tilesets when tileset does not exist returns 404 status code', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const response = await server.inject({
     method: 'PUT',
@@ -193,7 +179,7 @@ test('PUT /tilesets when tileset does not exist returns 404 status code', async 
  */
 
 test('GET /tile before tileset is created returns 404 status code', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const response = await server.inject({
     method: 'GET',
@@ -204,7 +190,7 @@ test('GET /tile before tileset is created returns 404 status code', async (t) =>
 })
 
 test('GET /tile of png format returns a tile image', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   // Create initial tileset
   const initialResponse = await server.inject({
@@ -238,7 +224,7 @@ test('GET /tile of png format returns a tile image', async (t) => {
 })
 
 test('GET /tile returns 404 response when upstream returns a 4XX error', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const initialResponse = await server.inject({
     method: 'POST',
@@ -305,7 +291,7 @@ test('GET /tile returns 404 response when upstream returns a 4XX error', async (
 })
 
 test('GET /tile returns 404 error when upstream returns a 5XX error', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const initialResponse = await server.inject({
     method: 'POST',
@@ -344,7 +330,7 @@ test('GET /tile returns 404 error when upstream returns a 5XX error', async (t) 
 })
 
 test('GET /tile returns 404 error when internet connection is unavailable', async (t) => {
-  const server = createServer(t)
+  const server = createServer(t).fastifyInstance
 
   const initialResponse = await server.inject({
     method: 'POST',

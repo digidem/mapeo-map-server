@@ -50,20 +50,6 @@ const ImportMBTilesResponseBodySchema = T.Object({
 })
 
 const tilesets: FastifyPluginAsync = async function (fastify) {
-  fastify.get(
-    '/',
-    {
-      schema: {
-        response: {
-          200: T.Array(TileJSONSchema),
-        },
-      },
-    },
-    async function (request) {
-      return this.api.listTilesets(getBaseApiUrl(request))
-    }
-  )
-
   fastify.get<{
     Params: Static<typeof GetTilesetParamsSchema>
     Querystring: Static<typeof GetTilesetQuerystringSchema>

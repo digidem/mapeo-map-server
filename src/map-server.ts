@@ -10,8 +10,10 @@ import createApi, { type Api } from './api'
 import { convertActiveToError as convertActiveImportsToErrorImports } from './lib/imports'
 import { migrate } from './lib/migrations'
 import { UpstreamRequestsManager } from './lib/upstream_requests_manager'
+import type { IdResource } from './api/index'
 import type { ImportRecord } from './lib/imports'
 import type { PortMessage } from './lib/mbtiles_import_worker.d.ts'
+import type { TileJSON } from './lib/tilejson'
 import { SDF_STATIC_DIR } from './lib/glyphs'
 import * as routes from './routes'
 
@@ -63,6 +65,13 @@ export default class MapServer {
    */
   getImportProgress(importId: string): AsyncIterableIterator<PortMessage> {
     return this.#api.getImportProgress(importId)
+  }
+
+  /**
+   * Get all tilesets.
+   */
+  listTilesets(baseApiUrl: string): Array<TileJSON & IdResource> {
+    return this.#api.listTilesets(baseApiUrl)
   }
 
   listen(port: number | string, host?: string): Promise<string> {
