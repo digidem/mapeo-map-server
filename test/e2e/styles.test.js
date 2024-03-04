@@ -4,7 +4,8 @@ const nock = require('nock')
 
 const { DUMMY_MB_ACCESS_TOKEN } = require('../test-helpers/constants')
 const {
-  createFastifyServer: createServer,
+  createServer,
+  createFastifyServer,
 } = require('../test-helpers/create-server')
 const sampleStyleJSON = require('../fixtures/good-stylejson/good-simple-raster.json')
 const sampleTileJSON = require('../fixtures/good-tilejson/mapbox_raster_tilejson.json')
@@ -38,7 +39,7 @@ function createSpriteEndpoint(endpointPath, pixelDensity, format) {
 // - checking tiles are/are not deleted when style is deleted
 
 test('POST /styles with invalid style returns 400 status code', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -52,7 +53,7 @@ test('POST /styles with invalid style returns 400 status code', async (t) => {
 // Reflects the case where a user is providing the style directly
 // We'd enforce at the application level that they provide an `id` field in their body
 test('POST /styles when providing an id returns resource with the same id', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
@@ -78,7 +79,7 @@ test('POST /styles when providing an id returns resource with the same id', asyn
 })
 
 test('POST /styles when style exists returns 409', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
@@ -109,7 +110,7 @@ test('POST /styles when style exists returns 409', async (t) => {
 })
 
 test('POST /styles when providing valid style returns resource with id and altered style', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
@@ -186,7 +187,7 @@ test('POST /styles when providing valid style returns resource with id and alter
 })
 
 test('POST /styles when required Mapbox access token is missing returns 401 status code', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   const responsePost = await server.inject({
     method: 'POST',
@@ -199,7 +200,7 @@ test('POST /styles when required Mapbox access token is missing returns 401 stat
 })
 
 test('GET /styles/:styleId when style does not exist return 404 status code', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   const id = 'nonexistent-id'
 
@@ -212,7 +213,7 @@ test('GET /styles/:styleId when style does not exist return 404 status code', as
 })
 
 test('GET /styles/:styleId when style exists returns style with sources pointing to offline tilesets', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
@@ -251,18 +252,16 @@ test('GET /styles/:styleId when style exists returns style with sources pointing
   }
 })
 
-test('GET /styles when no styles exist returns body with an empty array', async (t) => {
+test('listStyles() returns an empty array when no styles exist', async (t) => {
   const server = createServer(t)
 
-  const response = await server.inject({ method: 'GET', url: '/styles' })
-
-  t.equal(response.statusCode, 200)
-
-  t.same(response.json(), [])
+  t.same(server.listStyles(), [])
 })
 
-test('GET /styles when styles exist returns array of metadata for each', async (t) => {
+test('listStyles() returns an array of style metadata for each style', async (t) => {
   const server = createServer(t)
+  const { fastifyInstance } = server
+
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
@@ -273,7 +272,7 @@ test('GET /styles when styles exist returns array of metadata for each', async (
   // Only necessary because the fixture doesn't have a `name` property
   const sampleStyleWithName = { ...sampleStyleJSON, name: expectedName }
 
-  const responsePost = await server.inject({
+  const responsePost = await fastifyInstance.inject({
     method: 'POST',
     url: '/styles',
     payload: {
@@ -282,28 +281,21 @@ test('GET /styles when styles exist returns array of metadata for each', async (
     },
   })
 
-  const { id: expectedId } = responsePost.json()
+  t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
 
-  const expectedUrl = `http://localhost:80/styles/${expectedId}`
+  const { id: expectedId } = responsePost.json()
 
   const expectedStyleInfo = {
     id: expectedId,
     bytesStored: 0,
     name: expectedName,
-    url: expectedUrl,
   }
 
-  const expectedGetResponse = [expectedStyleInfo]
-
-  const responseGet = await server.inject({ method: 'GET', url: '/styles' })
-
-  t.equal(responseGet.statusCode, 200)
-  t.ok(mockedTilesetScope.isDone(), 'upstream request was made')
-  t.same(responseGet.json(), expectedGetResponse)
+  t.same(server.listStyles(), [expectedStyleInfo])
 })
 
 test('DELETE /styles/:styleId when style does not exist returns 404 status code', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   const id = 'nonexistent-id'
 
@@ -317,12 +309,14 @@ test('DELETE /styles/:styleId when style does not exist returns 404 status code'
 
 test('DELETE /styles/:styleId when style exists returns 204 status code and empty body', async (t) => {
   const server = createServer(t)
+  const { fastifyInstance } = server
+
   const mockedTilesetScope = nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
-  const responsePost = await server.inject({
+  const responsePost = await fastifyInstance.inject({
     method: 'POST',
     url: '/styles',
     payload: {
@@ -339,7 +333,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
   // See <https://github.com/digidem/mapeo-map-server/pull/116>
   t.timeoutAfter(15_000)
 
-  const responseDelete = await server.inject({
+  const responseDelete = await fastifyInstance.inject({
     method: 'DELETE',
     url: `/styles/${id}`,
   })
@@ -348,7 +342,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
 
   t.equal(responseDelete.body, '')
 
-  const responseGet = await server.inject({
+  const responseGet = await fastifyInstance.inject({
     method: 'GET',
     url: `/styles/${id}`,
   })
@@ -359,7 +353,7 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
 test('DELETE /styles/:styleId works for style created from tileset import', async (t) => {
   t.plan(5)
 
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   const importResponse = await server.inject({
     method: 'POST',
@@ -404,7 +398,7 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 })
 
 test('DELETE /styles/:styleId deletes tilesets that are only referenced by the deleted style', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
@@ -479,7 +473,7 @@ test('DELETE /styles/:styleId deletes tilesets that are only referenced by the d
 })
 
 test('DELETE /styles/:styleId does not delete referenced tilesets that are also referenced by other styles', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
@@ -618,7 +612,7 @@ test('DELETE /styles/:styleId does not delete referenced tilesets that are also 
 })
 
 test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 when sprite does not exist', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   const getSpriteImageResponse = await server.inject({
     method: 'GET',
@@ -636,7 +630,7 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns 404 
 })
 
 test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns correct sprite asset', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
@@ -715,7 +709,7 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns corr
 })
 
 test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an available fallback asset', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
@@ -805,7 +799,7 @@ test('GET /styles/:styleId/sprites/:spriteId[pixelDensity].[format] returns an a
 })
 
 test('DELETE /styles/:styleId deletes the associated sprites', async (t) => {
-  const server = createServer(t)
+  const server = createFastifyServer(t)
 
   nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)

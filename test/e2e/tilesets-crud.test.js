@@ -76,9 +76,10 @@ test('POST /tilesets when tileset does not exist creates a tileset and returns i
 })
 
 test('POST /tilesets creates a style for the raster tileset', async (t) => {
-  const server = createServer(t).fastifyInstance
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
-  const responseTilesetsPost = await server.inject({
+  const responseTilesetsPost = await fastifyInstance.inject({
     method: 'POST',
     url: '/tilesets',
     payload: sampleTileJSON,
@@ -86,18 +87,12 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
 
   const { id: tilesetId, name: expectedName } = responseTilesetsPost.json()
 
-  const responseStylesListGet = await server.inject({
-    method: 'GET',
-    url: '/styles',
-  })
-
-  const stylesList = responseStylesListGet.json()
-
+  const stylesList = server.listStyles()
   t.equal(stylesList.length, 1)
 
-  const responseStyleGet = await server.inject({
+  const responseStyleGet = await fastifyInstance.inject({
     method: 'GET',
-    url: stylesList[0].url,
+    url: `/styles/${stylesList[0].id}`,
   })
 
   t.equal(responseStyleGet.statusCode, 200)

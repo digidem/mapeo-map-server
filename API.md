@@ -15,15 +15,6 @@ Params of interest are prefixed by a colon (`:`) in the listed endpoint.
 
 ## Styles
 
-### `GET /styles`
-
-Retrieve a list of information about all styles. Each item has the following fields:
-
-- `id: string`: ID of the style
-- `bytesStored: number`: The number of bytes that the style occupies. This currently only accounts for the tiles that are associated with the style. In the future, this should include other assets such as glyphs and sprites.
-- `name: string`: The name of the style.
-- `url: string`: The map server URL that points to the style resource.
-
 ### `GET /styles/:styleId`
 
 - Params

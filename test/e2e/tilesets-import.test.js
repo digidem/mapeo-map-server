@@ -112,10 +112,11 @@ test('POST /tilesets/import creates tileset', async (t) => {
 })
 
 test('POST /tilesets/import creates style for created tileset', async (t) => {
-  const server = createServer(t).fastifyInstance
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
   for (const fixture of fixtures) {
-    const importResponse = await server.inject({
+    const importResponse = await fastifyInstance.inject({
       method: 'POST',
       url: '/tilesets/import',
       payload: { filePath: fixture },
@@ -126,7 +127,7 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
       style: { id: createdStyleId },
     } = importResponse.json()
 
-    const styleGetResponse = await server.inject({
+    const styleGetResponse = await fastifyInstance.inject({
       method: 'GET',
       url: `styles/${createdStyleId}`,
     })
@@ -154,23 +155,14 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
 
     t.ok(allLayersPointToSource, 'all layers point to a source')
 
-    const getStylesResponse = await server.inject({
-      method: 'GET',
-      url: '/styles',
-    })
-
-    const styleInfo = getStylesResponse
-      .json()
+    const styleInfo = server
+      .listStyles()
       .find((info) => info.id === createdStyleId)
 
     t.ok(
       styleInfo.bytesStored !== null && styleInfo.bytesStored > 0,
       'tiles used by style take up storage space'
     )
-
-    const expectedStyleUrl = `http://localhost:80/styles/${createdStyleId}`
-
-    t.equal(styleInfo.url, expectedStyleUrl)
   }
 })
 
@@ -291,15 +283,9 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 
     await importCompleted(server, createdImportId)
 
-    const styleInfo = await fastifyInstance
-      .inject({
-        method: 'GET',
-        url: '/styles',
-      })
-      .then((resp) => {
-        const styleInfo = resp.json()
-        return styleInfo.find(({ id }) => !checkedStyleIds.has(id))
-      })
+    const styleInfo = server
+      .listStyles()
+      .find(({ id }) => !checkedStyleIds.has(id))
 
     t.ok(
       styleInfo.bytesStored >= roughlyExpectedCount * minimumProportion &&
@@ -331,26 +317,15 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
 
   await requestImport(rasterMbTilesPath)
 
-  const rasterStyleBefore = await fastifyInstance
-    .inject({
-      method: 'GET',
-      url: '/styles',
-    })
-    .then((resp) => resp.json()[0])
+  const rasterStyleBefore = server.listStyles()[0]
 
   // Do a repeat import and an import of a completely different tileset
   await requestImport(rasterMbTilesPath)
   await requestImport(vectorMbTilesPath)
 
-  const rasterStyleAfter = await fastifyInstance
-    .inject({
-      method: 'GET',
-      url: '/styles',
-    })
-    .then((resp) => {
-      const stylesInfo = resp.json()
-      return stylesInfo.find(({ id }) => id === rasterStyleBefore.id)
-    })
+  const rasterStyleAfter = server
+    .listStyles()
+    .find(({ id }) => id === rasterStyleBefore.id)
 
   t.equal(rasterStyleBefore.bytesStored, rasterStyleAfter.bytesStored)
 })
@@ -378,12 +353,7 @@ test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or
     'no tilesets created'
   )
 
-  const stylesRes = await fastifyInstance.inject({
-    method: 'GET',
-    url: '/styles',
-  })
-  t.equal(stylesRes.statusCode, 200)
-  t.same(stylesRes.json(), [], 'no styles created')
+  t.same(server.listStyles(), [], 'no styles created')
 })
 
 // TODO: Add test for worker timeout
