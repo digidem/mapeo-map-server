@@ -74,7 +74,7 @@ function createImportsApi({
         if (data.type !== 'progress') break
       }
     },
-    importMBTiles(filePath: string, baseApiUrl: string) {
+    async importMBTiles(filePath: string, baseApiUrl: string) {
       const filePathWithExtension =
         path.extname(filePath) === '.mbtiles' ? filePath : filePath + '.mbtiles'
 

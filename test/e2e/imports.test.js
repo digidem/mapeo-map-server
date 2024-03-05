@@ -31,22 +31,35 @@ test('getImportProgress() returns an empty iterable if the import does not exist
 
 test('successful import', async (t) => {
   const server = createServer(t)
-  const { fastifyInstance } = server
 
-  const createImportResponse = await fastifyInstance.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
-  })
-  t.equals(createImportResponse.statusCode, 200)
+  const createImportResult = await server.importMBTiles(
+    sampleMbTilesPath,
+    'https://example.com'
+  )
+  t.is(typeof createImportResult.style.id, 'string', 'imports a style')
+  t.ok(
+    createImportResult.tileset.tilejson,
+    'imported tileset is in the tilejson format'
+  )
+  t.is(
+    createImportResult.tileset.name,
+    'Countries',
+    'imported tileset has the right name'
+  )
+  t.ok(
+    createImportResult.tileset.tiles.some(
+      (tile) => tile.startsWith('https://example.com/'),
+      'imported tileset respects base URL'
+    )
+  )
   const {
     import: { id: createdImportId },
-  } = createImportResponse.json()
+  } = createImportResult
 
-  const createdImport = server.getImport(createdImportId)
-  t.is(createdImport.state, 'active', 'import is active')
-  t.is(createdImport.error, null, 'import has no errors')
-  t.is(createdImport.finished, null, 'import has not finished')
+  const fetchedImport = server.getImport(createdImportId)
+  t.is(fetchedImport.state, 'active', 'import is active')
+  t.is(fetchedImport.error, null, 'import has no errors')
+  t.is(fetchedImport.finished, null, 'import has not finished')
 
   const messages = []
   for await (const message of server.getImportProgress(createdImportId)) {
@@ -81,22 +94,19 @@ test('successful import', async (t) => {
 
 test('failed import', async (t) => {
   const server = createServer(t)
-  const { fastifyInstance } = server
 
-  const createImportResponse = await fastifyInstance.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: badMbTilesPath },
-  })
-  t.equals(createImportResponse.statusCode, 200)
+  const createImportResult = await server.importMBTiles(
+    badMbTilesPath,
+    'https://example.com'
+  )
   const {
     import: { id: createdImportId },
-  } = createImportResponse.json()
+  } = createImportResult
 
-  const createdImport = server.getImport(createdImportId)
-  t.is(createdImport.state, 'active', 'import is active')
-  t.is(createdImport.error, null, 'import has no errors yet')
-  t.is(createdImport.finished, null, 'import has not finished')
+  const fetchedImport = server.getImport(createdImportId)
+  t.is(fetchedImport.state, 'active', 'import is active')
+  t.is(fetchedImport.error, null, 'import has no errors yet')
+  t.is(fetchedImport.finished, null, 'import has not finished')
 
   const messages = []
   for await (const message of server.getImportProgress(createdImportId)) {

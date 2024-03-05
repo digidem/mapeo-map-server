@@ -2,6 +2,7 @@ const test = require('tape')
 const path = require('path')
 const Database = require('better-sqlite3')
 
+const { assertRejects } = require('../test-helpers/assertions')
 const { createServer } = require('../test-helpers/create-server')
 // This disables upstream requests (e.g. simulates offline)
 require('../test-helpers/server-mocks')
@@ -51,47 +52,43 @@ async function importCompleted(server, importId) {
   throw new Error(`Import did not complete. State is ${importState}`)
 }
 
-test('POST /tilesets/import fails when providing path for non-existent file', async (t) => {
-  const server = createServer(t).fastifyInstance
+test('importMBTiles() fails when providing path for non-existent file', async (t) => {
+  const server = createServer(t)
 
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: '/foo/bar.mbtiles' },
-  })
-
-  t.equal(importResponse.statusCode, 400)
-  t.equal(importResponse.json().code, 'FST_MBTILES_IMPORT_TARGET_MISSING')
+  await assertRejects(
+    t,
+    server.importMBTiles('/foo/bar.mbtiles', 'https://example.com'),
+    { code: 'MBTILES_IMPORT_TARGET_MISSING' }
+  )
 })
 
-test('POST /tilesets/import fails when mbtiles file has bad metadata', async (t) => {
-  const server = createServer(t).fastifyInstance
+test('importMBTiles() fails when mbtiles file has bad metadata', async (t) => {
+  const server = createServer(t)
 
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: vectorMbTilesMissingJsonRowPath },
-  })
-
-  t.equal(importResponse.statusCode, 400)
-  t.equal(importResponse.json().code, 'FST_MBTILES_INVALID_METADATA')
+  await assertRejects(
+    t,
+    server.importMBTiles(
+      vectorMbTilesMissingJsonRowPath,
+      'https://example.com'
+    ),
+    { code: 'MBTILES_INVALID_METADATA' }
+  )
 })
 
-test('POST /tilesets/import creates tileset', async (t) => {
-  const server = createServer(t).fastifyInstance
+test('importMBTiles() creates tileset', async (t) => {
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
   for (const fixture of fixtures) {
-    const importResponse = await server.inject({
-      method: 'POST',
-      url: '/tilesets/import',
-      payload: { filePath: fixture },
-    })
+    const { tileset: createdTileset } = await server.importMBTiles(
+      fixture,
+      // TODO: Once we replace GET /tilesets/:id with a JS API, we should
+      // replace this with example.com or similar.
+      // See <https://github.com/digidem/mapeo-map-server/issues/111>.
+      'http://localhost:80'
+    )
 
-    t.equal(importResponse.statusCode, 200)
-
-    const { tileset: createdTileset } = importResponse.json()
-
-    const tilesetGetResponse = await server.inject({
+    const tilesetGetResponse = await fastifyInstance.inject({
       method: 'GET',
       url: `/tilesets/${createdTileset.id}`,
     })
@@ -100,7 +97,10 @@ test('POST /tilesets/import creates tileset', async (t) => {
 
     const tileset = tilesetGetResponse.json()
 
-    t.same(tileset, createdTileset)
+    // TODO: Once we replace GET /tilesets/:id with a JS API, we shouldn't need
+    // this `undefined` removal hack.
+    // See <https://github.com/digidem/mapeo-map-server/issues/111>.
+    t.same(tileset, JSON.parse(JSON.stringify(createdTileset)))
 
     if (tileset.format === 'pbf') {
       t.ok(
@@ -111,21 +111,15 @@ test('POST /tilesets/import creates tileset', async (t) => {
   }
 })
 
-test('POST /tilesets/import creates style for created tileset', async (t) => {
+test('importMBTiles() creates style for created tileset', async (t) => {
   const server = createServer(t)
   const { fastifyInstance } = server
 
   for (const fixture of fixtures) {
-    const importResponse = await fastifyInstance.inject({
-      method: 'POST',
-      url: '/tilesets/import',
-      payload: { filePath: fixture },
-    })
-
     const {
       tileset: { id: createdTilesetId },
       style: { id: createdStyleId },
-    } = importResponse.json()
+    } = await server.importMBTiles(fixture, 'https://example.com')
 
     const styleGetResponse = await fastifyInstance.inject({
       method: 'GET',
@@ -166,20 +160,16 @@ test('POST /tilesets/import creates style for created tileset', async (t) => {
   }
 })
 
-test('POST /tilesets/import fills in a default name if missing from metadata', async (t) => {
-  const server = createServer(t).fastifyInstance
+test('importMBTiles() fills in a default name if missing from metadata', async (t) => {
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: mbTilesMissingNameMetadataPath },
-  })
+  const { tileset: createdTileset } = await server.importMBTiles(
+    mbTilesMissingNameMetadataPath,
+    'https://example.com'
+  )
 
-  t.equal(importResponse.statusCode, 200)
-
-  const { tileset: createdTileset } = importResponse.json()
-
-  const tilesetGetResponse = await server.inject({
+  const tilesetGetResponse = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${createdTileset.id}`,
   })
@@ -195,30 +185,20 @@ test('POST /tilesets/import fills in a default name if missing from metadata', a
   )
 })
 
-test('POST /tilesets/import multiple times using same source file works', async (t) => {
-  t.plan(10)
+test('importMBTiles() multiple times using same source file works', async (t) => {
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
-  const server = createServer(t).fastifyInstance
-
-  async function requestImport(fixture) {
-    return await server.inject({
-      method: 'POST',
-      url: '/tilesets/import',
-      payload: { filePath: fixture },
-    })
-  }
+  const requestImport = (fixture) =>
+    server.importMBTiles(fixture, 'https://example.com')
 
   for (const fixture of fixtures) {
-    const importResponse1 = await requestImport(fixture)
-
-    t.equal(importResponse1.statusCode, 200)
-
     const {
       import: { id: importId1 },
       tileset: { id: tilesetId1 },
-    } = importResponse1.json()
+    } = await requestImport(fixture)
 
-    const tilesetGetResponse1 = await server.inject({
+    const tilesetGetResponse1 = await fastifyInstance.inject({
       method: 'GET',
       url: `/tilesets/${tilesetId1}`,
     })
@@ -227,16 +207,12 @@ test('POST /tilesets/import multiple times using same source file works', async 
 
     // Repeated request with same file path
 
-    const importResponse2 = await requestImport(fixture)
-
-    t.equal(importResponse2.statusCode, 200)
-
     const {
       import: { id: importId2 },
       tileset: { id: tilesetId2 },
-    } = importResponse2.json()
+    } = await requestImport(fixture)
 
-    const tilesetGetResponse2 = await server.inject({
+    const tilesetGetResponse2 = await fastifyInstance.inject({
       method: 'GET',
       url: `/tilesets/${tilesetId2}`,
     })
@@ -247,9 +223,8 @@ test('POST /tilesets/import multiple times using same source file works', async 
   }
 })
 
-test('POST /tilesets/import storage used by tiles is roughly equivalent to that of source', async (t) => {
+test('importMBTiles() storage used by tiles is roughly equivalent to that of source', async (t) => {
   const server = createServer(t)
-  const { fastifyInstance } = server
 
   function getMbTilesByteCount(fixture) {
     const mbTilesDb = new Database(fixture, { readonly: true })
@@ -273,13 +248,7 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 
     const {
       import: { id: createdImportId },
-    } = await fastifyInstance
-      .inject({
-        method: 'POST',
-        url: '/tilesets/import',
-        payload: { filePath: fixture },
-      })
-      .then((resp) => resp.json())
+    } = await server.importMBTiles(fixture, 'https://example.com')
 
     await importCompleted(server, createdImportId)
 
@@ -297,21 +266,14 @@ test('POST /tilesets/import storage used by tiles is roughly equivalent to that 
 })
 
 // TODO: This may eventually become a failing test if styles that share tiles reuse new ones that are stored
-test('POST /tilesets/import subsequent imports do not affect storage calculation for existing styles', async (t) => {
+test('importMBTiles() subsequent imports do not affect storage calculation for existing styles', async (t) => {
   const server = createServer(t)
-  const { fastifyInstance } = server
 
   // Creates and waits for import to finish
   async function requestImport(fixture) {
     const {
       import: { id: createdImportId },
-    } = await fastifyInstance
-      .inject({
-        method: 'POST',
-        url: '/tilesets/import',
-        payload: { filePath: fixture },
-      })
-      .then((resp) => resp.json())
+    } = await server.importMBTiles(fixture, 'https://example.com')
     await importCompleted(server, createdImportId)
   }
 
@@ -330,22 +292,18 @@ test('POST /tilesets/import subsequent imports do not affect storage calculation
   t.equal(rasterStyleBefore.bytesStored, rasterStyleAfter.bytesStored)
 })
 
-test('POST /tilesets/import fails when providing invalid mbtiles, no tilesets or styles created', async (t) => {
+test('importMBTiles() fails when providing invalid mbtiles, no tilesets or styles created', async (t) => {
   const server = createServer(t)
-  const { fastifyInstance } = server
 
   const badMbTilesPath = path.join(
     fixturesPath,
     'bad-mbtiles/missing-tiles-table.mbtiles'
   )
-  const importResponse = await fastifyInstance.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: badMbTilesPath },
-  })
-
-  t.equal(importResponse.statusCode, 400)
-  t.equal(importResponse.json().code, 'FST_MBTILES_CANNOT_READ')
+  await assertRejects(
+    t,
+    server.importMBTiles(badMbTilesPath, 'https://example.com'),
+    { code: 'MBTILES_CANNOT_READ' }
+  )
 
   t.deepEqual(
     server.listTilesets('https://example.com'),
