@@ -107,13 +107,6 @@ This endpoint goes through the following steps to determine what to respond with
 
 Retrieve the tilejson definition of a tileset. Adheres to the [TileJSON spec](https://github.com/mapbox/tilejson-spec).
 
-### `POST /tilesets`
-
-- Body
-  - A valid TileJSON definition that adheres to the [TileJSON spec](https://github.com/mapbox/tilejson-spec).
-
-Create a tileset. Returns the created tileset TileJSON if successful.
-
 ### `PUT /tilesets/:tilesetId`
 
 - Params
