@@ -32,9 +32,12 @@ export function encodeBase32(buf: Buffer): string {
  * an id field, so we use the tile URL as an identifier (assumes two tilejsons
  * refering to the same tile URL are the same)
  */
-export function getTilesetId(tilejson: TileJSON): string {
+export function getTilesetId(tilejson: Readonly<TileJSON>): string {
   // If the tilejson has no id, use the tile URL as the id
-  const id = tilejson.id || tilejson.tiles.sort()[0]
+  const id = tilejson.id || tilejson.tiles.concat().sort()[0]
+  if (!id) {
+    throw new Error('Could not derive tileset ID')
+  }
   return encodeBase32(hash(id))
 }
 

@@ -393,14 +393,15 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 })
 
 test('DELETE /styles/:styleId deletes tilesets that are only referenced by the deleted style', async (t) => {
-  const server = createFastifyServer(t)
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
   nock('https://api.mapbox.com')
     .defaultReplyHeaders(defaultMockHeaders)
     .get(/v4\/(?<tilesetId>.*)\.json/)
     .reply(200, tilesetMockBody, { 'Content-Type': 'application/json' })
 
-  const createStyleResponse = await server.inject({
+  const createStyleResponse = await fastifyInstance.inject({
     method: 'POST',
     url: 'styles',
     payload: {
@@ -411,21 +412,16 @@ test('DELETE /styles/:styleId deletes tilesets that are only referenced by the d
 
   const { id: styleId, style } = createStyleResponse.json()
 
-  const createIsolatedTilesetBeforeResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
-
-  t.equal(createIsolatedTilesetBeforeResponse.statusCode, 200)
-
-  const { id: isolatedTilesetId } = createIsolatedTilesetBeforeResponse.json()
+  const { id: isolatedTilesetId } = server.createTileset(
+    sampleTileJSON,
+    'https://example.com'
+  )
 
   const { pathname: tilesetPathname } = new URL(
     Object.values(style.sources)[0].url
   )
 
-  const getTilesetBeforeResponse = await server.inject({
+  const getTilesetBeforeResponse = await fastifyInstance.inject({
     method: 'GET',
     url: tilesetPathname,
     query: { access_token: DUMMY_MB_ACCESS_TOKEN },
@@ -437,14 +433,14 @@ test('DELETE /styles/:styleId deletes tilesets that are only referenced by the d
     'tileset successfully created'
   )
 
-  const styleDeleteResponse = await server.inject({
+  const styleDeleteResponse = await fastifyInstance.inject({
     method: 'DELETE',
     url: `/styles/${styleId}`,
   })
 
   t.equal(styleDeleteResponse.statusCode, 204, 'style successfully deleted')
 
-  const getTilesetAfterResponse = await server.inject({
+  const getTilesetAfterResponse = await fastifyInstance.inject({
     method: 'GET',
     url: tilesetPathname,
   })
@@ -455,7 +451,7 @@ test('DELETE /styles/:styleId deletes tilesets that are only referenced by the d
     'referenced tileset no longer exists'
   )
 
-  const getIsolatedTilesetAfterResponse = await server.inject({
+  const getIsolatedTilesetAfterResponse = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${isolatedTilesetId}`,
   })

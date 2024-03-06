@@ -62,30 +62,6 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
     }
   )
 
-  // TODO: Update body to include an optional `upstreamUrl` field so that we can fetch from upstream?
-  fastify.post<{ Body: TileJSON }>(
-    '/',
-    {
-      schema: {
-        body: TileJSONSchema,
-        response: {
-          200: TileJSONSchema,
-        },
-      },
-    },
-    async function (request, reply) {
-      const tileset = this.api.createTileset(
-        request.body,
-        getBaseApiUrl(request)
-      )
-
-      this.api.createStyleForTileset(tileset, tileset.name)
-
-      reply.header('Location', `${fastify.prefix}/${tileset.id}`)
-      return tileset
-    }
-  )
-
   fastify.get<{
     Params: Static<typeof GetTileParamsSchema>
     Querystring: Static<typeof GetTileQuerystringSchema>

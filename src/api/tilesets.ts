@@ -14,7 +14,7 @@ import {
 
 export interface TilesetsApi {
   createTileset(
-    tileset: TileJSON,
+    tileset: Readonly<TileJSON>,
     baseApiUrl: string,
     // `upstreamUrl` should be an http-based url
     // e.g. for a mapbox url, it should be "https://api.mapbox.com/..."

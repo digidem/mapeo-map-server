@@ -100,6 +100,19 @@ export default class MapServer {
     return this.#api.listTilesets(baseApiUrl)
   }
 
+  /**
+   * Create a tileset. Returns the created tileset TileJSON if successful.
+   */
+  createTileset(
+    tileset: Readonly<TileJSON>,
+    baseApiUrl: string
+  ): TileJSON & IdResource {
+    // TODO: Add an optional `upstreamUrl` field so that we can fetch from upstream?
+    const result = this.#api.createTileset(tileset, baseApiUrl)
+    this.#api.createStyleForTileset(result, result.name)
+    return result
+  }
+
   listen(port: number | string, host?: string): Promise<string> {
     return this.fastifyInstance.listen(port, host)
   }

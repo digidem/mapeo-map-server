@@ -27,13 +27,8 @@ test('listTilesets() returns an empty array when no tilesets exist', async (t) =
 
 test('listTilesets() returns an array of tilesets when tilesets exist', async (t) => {
   const server = createServer(t)
-  const { fastifyInstance } = server
 
-  await fastifyInstance.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
+  server.createTileset(sampleTileJSON, 'https://example.com')
 
   const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
   const expectedTileUrl = `https://example.com/tilesets/${expectedId}/{z}/{x}/{y}`
@@ -48,26 +43,22 @@ test('listTilesets() returns an array of tilesets when tilesets exist', async (t
   t.deepEqual(server.listTilesets('https://example.com'), expectedResponse)
 })
 
-test('POST /tilesets when tileset does not exist creates a tileset and returns it', async (t) => {
-  const server = createServer(t).fastifyInstance
+test('createTileset() when tileset does not exist creates a tileset and returns it', async (t) => {
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
   const expectedId = '23z3tmtw49abd8b4ycah9x94ykjhedam'
-  const expectedTileUrl = `http://localhost:80/tilesets/${expectedId}/{z}/{x}/{y}`
-  const expectedResponse = {
+  const expectedTileUrl = `https://example.com/tilesets/${expectedId}/{z}/{x}/{y}`
+  const expectedTileset = {
     ...sampleTileJSON,
     id: expectedId,
     tiles: [expectedTileUrl],
   }
 
-  const responsePost = await server.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
+  const tileset = server.createTileset(sampleTileJSON, 'https://example.com')
+  t.same(tileset, expectedTileset)
 
-  t.same(responsePost.json(), expectedResponse)
-
-  const responseGet = await server.inject({
+  const responseGet = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${expectedId}`,
   })
@@ -75,17 +66,17 @@ test('POST /tilesets when tileset does not exist creates a tileset and returns i
   t.equal(responseGet.statusCode, 200)
 })
 
-test('POST /tilesets creates a style for the raster tileset', async (t) => {
+test('createTileset() creates a style for the raster tileset', async (t) => {
   const server = createServer(t)
   const { fastifyInstance } = server
 
-  const responseTilesetsPost = await fastifyInstance.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
-
-  const { id: tilesetId, name: expectedName } = responseTilesetsPost.json()
+  const { id: tilesetId, name: expectedName } = server.createTileset(
+    sampleTileJSON,
+    // TODO: Once we replace GET /styles/:id with a JS API, we should replace
+    // this with example.com or similar.
+    // See <https://github.com/digidem/mapeo-map-server/issues/111>.
+    'http://localhost:80'
+  )
 
   const stylesList = server.listStyles()
   t.equal(stylesList.length, 1)
@@ -120,27 +111,27 @@ test('POST /tilesets creates a style for the raster tileset', async (t) => {
 })
 
 test('PUT /tilesets when tileset exists returns the updated tileset', async (t) => {
-  const server = createServer(t).fastifyInstance
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
-  const initialResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
+  const initialTileset = server.createTileset(
+    sampleTileJSON,
+    'https://example.com'
+  )
 
   const updatedFields = {
     name: 'Map Server Test',
   }
 
-  const updatedResponse = await server.inject({
+  const updatedResponse = await fastifyInstance.inject({
     method: 'PUT',
-    url: `/tilesets/${initialResponse.json().id}`,
-    payload: { ...initialResponse.json(), ...updatedFields },
+    url: `/tilesets/${initialTileset.id}`,
+    payload: { ...initialTileset, ...updatedFields },
   })
 
   t.equal(updatedResponse.statusCode, 200)
 
-  t.notSame(initialResponse.json(), updatedResponse.json())
+  t.notSame(initialTileset, updatedResponse.json())
 
   t.equal(updatedResponse.json().name, updatedFields.name)
 })
@@ -185,16 +176,14 @@ test('GET /tile before tileset is created returns 404 status code', async (t) =>
 })
 
 test('GET /tile of png format returns a tile image', async (t) => {
-  const server = createServer(t).fastifyInstance
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
   // Create initial tileset
-  const initialResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
-
-  const { id: tilesetId } = initialResponse.json()
+  const { id: tilesetId } = server.createTileset(
+    sampleTileJSON,
+    'https://example.com'
+  )
 
   const scope = nock(/tiles.mapbox.com/)
     .defaultReplyHeaders(defaultMockHeaders)
@@ -203,7 +192,7 @@ test('GET /tile of png format returns a tile image', async (t) => {
     .reply(200, tileMockBody, { 'Content-Type': 'image/png' })
 
   const expectedTile = createFakeTile(1, 2, 3)
-  const response = await server.inject({
+  const response = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${tilesetId}/1/2/3`,
   })
@@ -219,15 +208,13 @@ test('GET /tile of png format returns a tile image', async (t) => {
 })
 
 test('GET /tile returns 404 response when upstream returns a 4XX error', async (t) => {
-  const server = createServer(t).fastifyInstance
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
-  const initialResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
-
-  const { id: tilesetId } = initialResponse.json()
+  const { id: tilesetId } = server.createTileset(
+    sampleTileJSON,
+    'https://example.com'
+  )
 
   // This should match the URLs in the `tiles` property of the sampleTileJSON
   const upstreamTileApiRegex =
@@ -252,7 +239,7 @@ test('GET /tile returns 404 response when upstream returns a 4XX error', async (
       }
     )
 
-  const tokenErrorResponse = await server.inject({
+  const tokenErrorResponse = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${tilesetId}/1/2/3`,
   })
@@ -260,7 +247,7 @@ test('GET /tile returns 404 response when upstream returns a 4XX error', async (
   t.equal(tokenErrorResponse.statusCode, 404)
   t.equal(tokenErrorResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
-  const notFoundResponse = await server.inject({
+  const notFoundResponse = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${tilesetId}/1/2/3`,
     query: {
@@ -271,7 +258,7 @@ test('GET /tile returns 404 response when upstream returns a 4XX error', async (
   t.equal(notFoundResponse.statusCode, 404)
   t.equal(notFoundResponse.json().code, 'FST_FORWARDED_UPSTREAM')
 
-  const unprocessableEntityResponse = await server.inject({
+  const unprocessableEntityResponse = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${tilesetId}/31/1/2`,
     query: {
@@ -286,15 +273,13 @@ test('GET /tile returns 404 response when upstream returns a 4XX error', async (
 })
 
 test('GET /tile returns 404 error when upstream returns a 5XX error', async (t) => {
-  const server = createServer(t).fastifyInstance
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
-  const initialResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
-
-  const { id: tilesetId } = initialResponse.json()
+  const { id: tilesetId } = server.createTileset(
+    sampleTileJSON,
+    'https://example.com'
+  )
 
   const mockedTileScope = nock(/tiles.mapbox.com/)
     .defaultReplyHeaders(defaultMockHeaders)
@@ -307,7 +292,7 @@ test('GET /tile returns 404 error when upstream returns a 5XX error', async (t) 
     // https://github.com/sindresorhus/got/tree/v11.8.5#retry
     .persist()
 
-  const upstreamServerErrorResponse = await server.inject({
+  const upstreamServerErrorResponse = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${tilesetId}/1/2/3`,
     query: {
@@ -325,20 +310,18 @@ test('GET /tile returns 404 error when upstream returns a 5XX error', async (t) 
 })
 
 test('GET /tile returns 404 error when internet connection is unavailable', async (t) => {
-  const server = createServer(t).fastifyInstance
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
-  const initialResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets',
-    payload: sampleTileJSON,
-  })
-
-  const { id: tilesetId } = initialResponse.json()
+  const { id: tilesetId } = server.createTileset(
+    sampleTileJSON,
+    'https://example.com'
+  )
 
   // This is needed to return the proper request error from nock when net requests are disabled
   nock.cleanAll()
 
-  const response = await server.inject({
+  const response = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${tilesetId}/1/2/3`,
     query: {
