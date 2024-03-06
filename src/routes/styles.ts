@@ -3,6 +3,7 @@ import createError from '@fastify/error'
 import got from 'got'
 import { Static, Type as T } from '@sinclair/typebox'
 import path from 'path'
+import { every } from 'iterpal'
 
 import { normalizeStyleURL } from '../lib/mapbox_urls'
 import { StyleJSON, createIdFromStyleUrl, validate } from '../lib/stylejson'
@@ -108,7 +109,8 @@ const styles: FastifyPluginAsync = async function (fastify) {
       })
 
       if (
-        [...upstreamSprites.values()].every(
+        every(
+          upstreamSprites.values(),
           (spriteInfo) => spriteInfo instanceof Error
         )
       ) {

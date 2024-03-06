@@ -4,6 +4,7 @@ import createFastify, { FastifyInstance, FastifyServerOptions } from 'fastify'
 import Database, { type Database as DatabaseInstance } from 'better-sqlite3'
 import Piscina from 'piscina'
 import FastifyStatic from '@fastify/static'
+import { map } from 'iterpal'
 
 import './type-extensions' // necessary to make sure that the fastify types are augmented
 import createApi, { type Api } from './api'
@@ -92,7 +93,8 @@ export default class MapServer {
       // without closing the DB connections in thread. This is kind-of hacky:
       // It relies on the MessagePort being closed when the worker thread is done.
       await Promise.all(
-        [...this.#activeImports.values()].map(
+        map(
+          this.#activeImports.values(),
           (port) =>
             new Promise((res) => {
               port.once('close', res)
