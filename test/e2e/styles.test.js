@@ -353,27 +353,22 @@ test('DELETE /styles/:styleId when style exists returns 204 status code and empt
 test('DELETE /styles/:styleId works for style created from tileset import', async (t) => {
   t.plan(5)
 
-  const server = createFastifyServer(t)
-
-  const importResponse = await server.inject({
-    method: 'POST',
-    url: '/tilesets/import',
-    payload: { filePath: sampleMbTilesPath },
-  })
+  const server = createServer(t)
+  const { fastifyInstance } = server
 
   const {
     tileset: { id: createdTilesetId },
     style: { id: createdStyleId },
-  } = importResponse.json()
+  } = await server.importMBTiles(sampleMbTilesPath, 'https://example.com')
 
-  const getStyleResponseBefore = await server.inject({
+  const getStyleResponseBefore = await fastifyInstance.inject({
     method: 'GET',
     url: `/styles/${createdStyleId}`,
   })
 
   t.equal(getStyleResponseBefore.statusCode, 200, 'style created')
 
-  const responseDelete = await server.inject({
+  const responseDelete = await fastifyInstance.inject({
     method: 'DELETE',
     url: `/styles/${createdStyleId}`,
   })
@@ -382,14 +377,14 @@ test('DELETE /styles/:styleId works for style created from tileset import', asyn
 
   t.equal(responseDelete.body, '')
 
-  const getStyleResponseAfter = await server.inject({
+  const getStyleResponseAfter = await fastifyInstance.inject({
     method: 'GET',
     url: `/styles/${createdStyleId}`,
   })
 
   t.equal(getStyleResponseAfter.statusCode, 404, 'style is properly deleted')
 
-  const tilesetResponseGet = await server.inject({
+  const tilesetResponseGet = await fastifyInstance.inject({
     method: 'GET',
     url: `/tilesets/${createdTilesetId}`,
   })

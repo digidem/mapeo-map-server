@@ -41,23 +41,30 @@ export const UnsupportedMBTilesFormatError = createError(
   400
 )
 
-export const MBTilesImportTargetMissingError = createError(
-  'FST_MBTILES_IMPORT_TARGET_MISSING',
-  'mbtiles file at `%s` could not be read',
-  400
-)
+export class MBTilesImportTargetMissingError extends Error {
+  readonly code = 'MBTILES_IMPORT_TARGET_MISSING'
+  constructor(filePath: string) {
+    super(`mbtiles file at ${JSON.stringify(filePath)} could not be read`)
+  }
+}
 
-export const MBTilesInvalidMetadataError = createError(
-  'FST_MBTILES_INVALID_METADATA',
-  'mbtiles file has invalid metadata schema',
-  400
-)
+export class MBTilesInvalidMetadataError extends Error {
+  readonly code = 'MBTILES_INVALID_METADATA'
+  constructor() {
+    super('mbtiles file has invalid metadata schema')
+  }
+}
 
-export const MBTilesCannotReadError = createError(
-  'FST_MBTILES_CANNOT_READ',
-  'mbtiles file could not be read properly: %s',
-  400
-)
+export class MBTilesCannotReadError extends Error {
+  readonly code = 'MBTILES_CANNOT_READ'
+  constructor(additionalMessage: unknown) {
+    super(
+      `mbtiles file could not be read properly: ${JSON.stringify(
+        additionalMessage
+      )}`
+    )
+  }
+}
 
 export const UpstreamJsonValidationError = createError(
   'FST_UPSTREAM_VALIDATION',

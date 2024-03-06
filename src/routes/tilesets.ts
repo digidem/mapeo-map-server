@@ -39,16 +39,6 @@ const PutTilesetParamsSchema = T.Object({
   tilesetId: T.String(),
 })
 
-const ImportMBTilesRequestBodySchema = T.Object({
-  filePath: T.String(),
-})
-
-const ImportMBTilesResponseBodySchema = T.Object({
-  import: T.Object({ id: T.String() }),
-  style: T.Union([T.Object({ id: T.String() }), T.Null()]),
-  tileset: TileJSONSchema,
-})
-
 const tilesets: FastifyPluginAsync = async function (fastify) {
   fastify.get<{
     Params: Static<typeof GetTilesetParamsSchema>
@@ -166,26 +156,6 @@ const tilesets: FastifyPluginAsync = async function (fastify) {
       )
       reply.header('Location', `${fastify.prefix}/${tilejson.id}`)
       return tilejson
-    }
-  )
-
-  fastify.post<{ Body: Static<typeof ImportMBTilesRequestBodySchema> }>(
-    '/import',
-    {
-      schema: {
-        body: ImportMBTilesRequestBodySchema,
-        response: {
-          200: ImportMBTilesResponseBodySchema,
-        },
-      },
-    },
-    async function (request, reply) {
-      const result = await this.api.importMBTiles(
-        request.body.filePath,
-        getBaseApiUrl(request)
-      )
-      reply.header('Location', `${fastify.prefix}/${result.tileset.id}`)
-      return result
     }
   )
 }

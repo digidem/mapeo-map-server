@@ -77,6 +77,23 @@ export default class MapServer {
   }
 
   /**
+   * Create a tileset by importing an existing file.
+   *
+   * @param filePath An absolute path to the location of the file to import.
+   * @param baseApiUrl The base API URL for the imported mbtiles.
+   */
+  importMBTiles(
+    filePath: string,
+    baseApiUrl: string
+  ): Promise<{
+    import: IdResource
+    style: null | IdResource
+    tileset: TileJSON & IdResource
+  }> {
+    return this.#api.importMBTiles(filePath, baseApiUrl)
+  }
+
+  /**
    * Get all tilesets.
    */
   listTilesets(baseApiUrl: string): Array<TileJSON & IdResource> {
